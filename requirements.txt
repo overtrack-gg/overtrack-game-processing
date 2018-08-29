@@ -4,5 +4,6 @@ tensorflow
 opencv-python
 scipy
 simplejson
+dataclasses
 
 streamlink
