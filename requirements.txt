@@ -1,0 +1,8 @@
+requests
+numpy
+tensorflow
+opencv-python
+scipy
+simplejson
+
+streamlink
