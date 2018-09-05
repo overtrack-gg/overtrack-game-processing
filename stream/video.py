@@ -11,7 +11,7 @@ import stream.twitch
 logger = logging.getLogger(__name__)
 
 
-class FrameExtractor(Thread):
+class VideoFrameExtractor(Thread):
 
     def __init__(self, ts_queue, queuesize, extract_fps=None, max_frames_per_chunk=None, debug_frames=False):
         self.extract_fps = extract_fps
@@ -21,20 +21,23 @@ class FrameExtractor(Thread):
         self.ts_queue = ts_queue
         self.queue = queue.Queue(queuesize)
         self.stop_ = False
-        super().__init__(name='FrameExtractor')
+        super().__init__(name='FrameExtractor', daemon=True)
 
     def run(self):
         while not self.stop_:
             segment = self.ts_queue.get()
             if segment is None:
                 self.queue.put(None)
+                break
             elif isinstance(segment, Exception):
                 self.queue.put(segment)
+                break
             else:
                 try:
                     self.extract_frames(segment)
                 except Exception as e:
                     self.queue.put(e)
+                    break
         self.queue.put(None)
 
     def extract_frames(self, segment: stream.twitch.TwitchLiveTSDownloader.DownloadedTSChunk):
@@ -89,4 +92,7 @@ class FrameExtractor(Thread):
 
     def stop(self):
         self.stop_ = True
+
+    def get(self, block: bool=True) -> game.frame.Frame:
+        return self.queue.get(block)
 
