@@ -1,5 +1,12 @@
 .mypy_cache/
 .idea/
+.pytest_cache/
 
 *.pyc
 *.mp4
+*.pfx
+*.pem
+
+data/
+testing/dev/images/
+twitch_overlay/scoreboard/build

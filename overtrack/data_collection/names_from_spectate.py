@@ -23,7 +23,7 @@ class NamesFromSpectate(Processor):
         if 'killfeed' not in frame or 'spectator_bar' not in frame:
             return False
 
-        kill: KillfeedProcessor.Kill
+        kill: KillfeedProcessor.KillRow
         for kill in frame.killfeed.kills:
             for kill_player in (kill.left, kill.right):
                 if not kill_player:

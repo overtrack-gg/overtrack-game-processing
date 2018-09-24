@@ -9,9 +9,9 @@ import tensorflow as tf
 from pprint import pprint
 from typing import List
 
-from capture.obs_capture import OBSFrameExtractor
+from overtrack.source.capture.obs_capture import OBSFrameExtractor
 from overtrack.game import Frame
-from overtrack.game.processor import OrderedProcessor, ConditionalProcessor, ExclusiveProcessor
+from overtrack.game.processor import OrderedProcessor, ConditionalProcessor, ShortCircuitProcessor
 from overtrack.game.menu import MenuProcessor
 from overtrack.game.killfeed import KillfeedProcessor
 from overtrack.game.objective import ObjectiveProcessor
@@ -27,7 +27,7 @@ def main(display=True):
     start = time.time()
     pipeline = OrderedProcessor(
 
-        ExclusiveProcessor(
+        ShortCircuitProcessor(
             MenuProcessor(),
             ObjectiveProcessor(),
             order_defined=False
@@ -44,9 +44,9 @@ def main(display=True):
         # ),
     )
 
-    if display:
-        fourcc = cv2.VideoWriter_fourcc(*'DIVX')
-        writer = cv2.VideoWriter('out.mp4', fourcc, 10, (1280, 720))
+    # if display:
+    #     fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+    #     writer = cv2.VideoWriter('out.mp4', fourcc, 10, (1280, 720))
 
     outdir = None
     for i in range(100):
@@ -73,16 +73,17 @@ def main(display=True):
 
         if display:
             im = cv2.resize(frame.debug_image, (1280, 720))
-            writer.write(im)
+            # writer.write(im)
             cv2.imshow('frame', im)
+            cv2.imshow('alpha', frame.alpha_image)
 
             if cv2.waitKey(1) == 27:
                 break
             i += 1
 
-    if display:
-        writer.release()
-        cv2.destroyAllWindows()
+    # if display:
+    #     writer.release()
+    #     cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

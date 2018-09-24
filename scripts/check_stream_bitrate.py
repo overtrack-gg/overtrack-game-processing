@@ -2,7 +2,7 @@ import json
 import random
 import subprocess
 
-from stream.twitch import TwitchLiveTSDownloader
+from overtrack.source.stream import TwitchLiveTSDownloader
 
 SAMPLES = 5
 

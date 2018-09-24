@@ -13,23 +13,30 @@ def humansize(nbytes, suffixes=('B', 'KB', 'MB', 'GB', 'TB', 'PB')):
     return '%s %s' % (f, suffixes[i])
 
 
-def ms2ts(ms):
+def s2ts(s):
     sign = ''
-    if ms < 0:
+    if s < 0:
         sign = '-'
-        ms = -ms
-    s = ms / 1000
+        ms = -s
     m = s / 60
     h = m / 60
     return '%s%02d:%02d:%02d' % (sign, h, m % 60, s % 60)
 
 
-def ts2ms(ts):
+def ms2ts(ms):
+    return s2ts(ms/ 1000)
+
+
+def ts2s(ts):
     h, m, s = ts.split(':')
     h, m, s = int(h), int(m), int(s)
     m = m + 60 * h
     s = m * 60 + s
-    return s * 1000
+    return s
+
+
+def ts2ms(ts):
+    return ts2s(ts) * 1000
 
 
 def dhms2timedelta(s):
