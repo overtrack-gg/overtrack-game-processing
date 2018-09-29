@@ -3,6 +3,8 @@ simplejson
 dataclasses
 python-dateutil
 pyjwt
+dill
+werkzeug
 
 numpy
 scipy

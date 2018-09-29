@@ -10,3 +10,5 @@
 data/
 testing/dev/images/
 twitch_overlay/scoreboard/build
+frames_cache/
+games/

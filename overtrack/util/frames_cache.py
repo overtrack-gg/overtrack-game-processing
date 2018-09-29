@@ -1,13 +1,17 @@
+from typing import NamedTuple
+
 import numpy as np
 
 from overtrack.game import Frame
+from overtrack.source import Capture
 
 
 class FramesCache:
 
     def __init__(self, path):
         self.out = open(path, 'w')
-        self.out.write("""
+        self.out.write(
+"""from typing import NamedTuple
 from overtrack.game import Frame
 from overtrack.game.killfeed.icon_parser import IconParser
 from overtrack.game.killfeed.kill_extractor import KillExtractor
@@ -17,29 +21,36 @@ from overtrack.game.killfeed.name_parser_video import NameParserVideo
 from overtrack.game.loading_map.loading_map_processor import LoadingMapProcessor
 from overtrack.game.objective import ObjectiveProcessor
 from overtrack.game.tab.tab_processor import TabProcessor
-
-
-class AttrDict(dict):
-
-    def __getattr__(self, k):
-        return self[k]
-
+from overtrack.game.menu import MenuProcessor
+from overtrack.source.video import VideoFrameExtractor
 
 LoadingMap = LoadingMapProcessor.LoadingMap
 Killfeed = KillfeedProcessor.Killfeed
 TabScreen = TabProcessor.TabScreen
 Teams = LoadingMapProcessor.Teams
-Objective = AttrDict
 KillLocation = KillExtractor.KillLocation
 ParsedIcon = IconParser.ParsedIcon
 ParsedName = NameParser.ParsedName
 KillRow = KillfeedProcessor.KillRow
 Player = KillfeedProcessor.Player
-OBSFrameMetadata = AttrDict
-VideoFrameMetadata = AttrDict
+VideoFrameMetadata = VideoFrameExtractor.VideoFrameMetadata
+MainMenu = MenuProcessor.MainMenu
+
+class Objective(NamedTuple):
+    probabilities: object
+    is_game: bool = None
+    is_koth: bool = None
+    round_started: bool = None
+    overtime: bool = None
+    checkpoint_attacker_blue: bool = None
+    checkpoint_is_payload: bool = None
+    koth_map: str = None
+    koth_owner: str = None
 
 cached_frames = [
 """)
+
+
 
     def add(self, frame: Frame):
         frame.strip()
@@ -51,7 +62,7 @@ cached_frames = [
         self.out.close()
 
 
-class CachedFrameExtractor:
+class CachedFrameExtractor(Capture):
 
     def __init__(self, name):
         self.frames = []

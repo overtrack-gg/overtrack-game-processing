@@ -1,5 +1,6 @@
 import glob
 import os
+from pprint import pprint
 
 import cv2
 import tensorflow as tf
@@ -32,6 +33,9 @@ def main():
         # big_noodle_ctc.ocr_all(names)
 
         print(frame)
+        d = frame.to_dict()
+        pprint(d)
+        print(frame.from_dict(d))
         cv2.imshow('debug', frame.debug_image)
         cv2.waitKey(0)
 

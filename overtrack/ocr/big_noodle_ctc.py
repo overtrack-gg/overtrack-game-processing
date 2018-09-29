@@ -98,7 +98,6 @@ class Decoder:
     def decode(self, images: List[np.ndarray]) -> List[str]:
         if not len(images):
             return []
-        print([i.shape if i is not None else None for i in images])
         inds = self.sess.run(
             self.decoded_dense,
             {

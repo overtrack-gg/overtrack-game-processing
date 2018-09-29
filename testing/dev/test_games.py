@@ -246,7 +246,7 @@ def main(debug=False):
         [ZIPPERWEASEL, JANGLEZ, YXNOH, BOOP, IHOOKYOUSOOK, MERRIS],
         None
     ), required_rows=1)
-    pprint((game.stats.blue, game.stats.red))
+    pprint((game.scoreboard.blue, game.scoreboard.red))
 
     print()
     for kill in game.killfeed:

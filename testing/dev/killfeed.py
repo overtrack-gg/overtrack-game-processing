@@ -1,4 +1,6 @@
 import glob
+from pprint import pprint
+
 import cv2
 import tensorflow as tf
 
@@ -19,7 +21,10 @@ def main():
             debug=True
         )
         processor.process(frame)
-        print(frame)
+        # print(frame)
+        d = frame.to_dict()
+        print(frame.from_dict(d))
+        # pprint(d)
         cv2.imshow('debug', frame.debug_image)
         cv2.waitKey(0)
 
