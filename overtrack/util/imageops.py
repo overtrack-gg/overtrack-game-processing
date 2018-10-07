@@ -1,7 +1,5 @@
 import os
-
 import tesserocr
-
 import cv2
 import numpy as np
 from typing import NamedTuple, List, Tuple
@@ -23,7 +21,16 @@ def connected_components(image: np.ndarray, connectivity=4) -> Tuple[np.ndarray,
     r, labels, stats, centroids = cv2.connectedComponentsWithStats(image, connectivity=connectivity)
     components = []
     for i, (stat, centroid) in enumerate(zip(stats, centroids)):
-        components.append(ConnectedComponent(i, *stat.tolist(), centroid=tuple(centroid.tolist())))
+        # thanks mypy :/
+        components.append(ConnectedComponent(
+            i,
+            int(stat[0]),
+            int(stat[1]),
+            int(stat[2]),
+            int(stat[3]),
+            int(stat[4]),
+            centroid=(float(centroid[0]), float(centroid[1]))
+        ))
     return labels, components
 
 

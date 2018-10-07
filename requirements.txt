@@ -12,7 +12,7 @@ editdistance
 
 tensorflow
 
-# apt install -y libsm6 libxext6 libXrender
+# apt install -y libsm6 libxext6
 opencv-python
 
 # apt install -y tesseract-ocr libtesseract-dev libleptonica-dev

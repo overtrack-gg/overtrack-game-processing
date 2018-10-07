@@ -1,6 +1,6 @@
 import os
 import string
-from typing import List
+from typing import List, Tuple
 
 import cv2
 import logging

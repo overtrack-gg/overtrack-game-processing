@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Tuple, Dict
 
 import cv2
 import zipfile
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class ExtractionRegions:
 
-    def __init__(self, name: str, image: np.ndarray) -> None:
+    def __init__(self, name: str, image: np.ndarray):
         self.name = name
         if len(image.shape) == 3:
             if image.shape[2] == 4:
@@ -23,7 +23,7 @@ class ExtractionRegions:
             # use any non-zero pixel
             image = cv2.threshold(image, 1, 255, cv2.THRESH_BINARY)
 
-        self.regions = []
+        self.regions: List[Tuple[int, int, int, int]] = []
 
         r, labels, stats, centroids = cv2.connectedComponentsWithStats(image, connectivity=4)
         for x, y, w, h, a in stats[1:]:
@@ -67,8 +67,8 @@ class ExtractionRegions:
 
 class ExtractionRegionsCollection:
 
-    def __init__(self, path: str) -> None:
-        self.regions = {}
+    def __init__(self, path: str):
+        self.regions: Dict[str, ExtractionRegions] = {}
         with zipfile.ZipFile(path) as z:
             for f in z.namelist():
                 if not f.startswith('L') or not f.endswith('.png'):

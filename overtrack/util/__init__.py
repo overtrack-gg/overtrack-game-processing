@@ -1,4 +1,9 @@
 import datetime
+import time
+from typing import Callable, TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from overtrack.game import Frame
 
 
 def humansize(nbytes, suffixes=('B', 'KB', 'MB', 'GB', 'TB', 'PB')):
@@ -58,3 +63,14 @@ def dhms2timedelta(s):
                 raise ValueError('Unknown timedelta specifier "%s"', c)
             current = ''
     return td
+
+
+def time_processing(process: Callable[[Any, Any, ], bool]):
+    def timed_process(self: Any, frame: Any) -> bool:
+        t0 = time.time()
+        result = process(self, frame)
+        t1 = time.time()
+        # frame.timings[process.__qualname__] = (t1 - t0) * 1000
+        frame.timings[self.__class__.__name__] = (t1 - t0) * 1000
+        return result
+    return timed_process

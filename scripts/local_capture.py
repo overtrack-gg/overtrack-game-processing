@@ -18,11 +18,11 @@ from overtrack.game.objective import ObjectiveProcessor
 
 from overtrack.util import ts2ms, ms2ts
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def main(display=True):
+    logging.basicConfig(level=logging.INFO)
     cap = OBSFrameExtractor('Overwatch', debug=True)
     start = time.time()
     pipeline = OrderedProcessor(
