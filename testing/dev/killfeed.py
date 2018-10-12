@@ -15,15 +15,16 @@ def main():
     processor = KillfeedProcessor()
 
     for p in glob.glob('./images/killfeed/*.png'):
+        im = cv2.imread(p)
+        im = cv2.resize(im, (1920, 1080))
         frame = Frame.create(
-            cv2.imread(p),
+            im,
             0,
             debug=True
         )
         processor.process(frame)
         # print(frame)
-        d = frame.to_dict()
-        print(frame.from_dict(d))
+        print(frame)
         # pprint(d)
         cv2.imshow('debug', frame.debug_image)
         cv2.waitKey(0)

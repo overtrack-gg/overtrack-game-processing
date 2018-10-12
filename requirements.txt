@@ -5,6 +5,7 @@ python-dateutil
 pyjwt
 dill
 werkzeug
+pynamodb
 
 numpy
 scipy
