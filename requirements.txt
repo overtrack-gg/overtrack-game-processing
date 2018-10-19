@@ -1,23 +1,43 @@
+# general
 requests
-simplejson
 dataclasses
 python-dateutil
-pyjwt
-dill
-werkzeug
-pynamodb
+shortuuid
 
+# web server
+sanic
+# vibora
+
+# specialised overtrack processing
+# apt install -y libsm6 libxext6 tesseract-ocr libtesseract-dev libleptonica-dev
+opencv-python
+tensorflow
+tesserocr
 numpy
 scipy
+av
 editdistance
+https://github.com/ltworf/typedload/archive/master.zip
 
-tensorflow
+# for twitch access
+streamlink
+pyjwt
 
-# apt install -y libsm6 libxext6
-opencv-python
+# for overtrack game uploading
+pynamodb
 
-# apt install -y tesseract-ocr libtesseract-dev libleptonica-dev
-tesserocr
+# for ingest master/slave
+# python-digitalocean
+# pip version is out of date - tag creation is fixed in master
+https://github.com/koalalorenzo/python-digitalocean/archive/master.zip
 
 
-# streamlink
+#datadog
+#datadog-logger
+#google-cloud-logging
+
+
+
+
+
+

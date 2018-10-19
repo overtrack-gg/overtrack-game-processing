@@ -1,12 +1,33 @@
-import hashlib
+import inspect
 import os
 import logging.config
 import socket
 import sys
-import types
+import time
+from collections import defaultdict
+from typing import Union, Optional
+
+LOG_FORMAT = '[%(asctime)16s | %(levelname)8s | %(name)24s | %(filename)s:%(lineno)s %(funcName)s() ] %(message)s'
 
 
-def config_logger(name: str, use_datadog=False, use_stackdriver=False):
+def intermittent_log(logger: logging.Logger, line: str, frequency: float=60, level=logging.INFO, negative_level: Optional[int]=None, _last_logged=defaultdict(float)):
+    try:
+        caller = inspect.stack()[1]
+        output = negative_level
+        frame_id = caller.filename, caller.lineno
+        if time.time() - _last_logged[frame_id] > frequency:
+            _last_logged[frame_id] = time.time()
+            output = level
+        if output and logger.isEnabledFor(output):
+            co = caller.frame.f_code
+            fn, lno, func, sinfo = (co.co_filename, caller.frame.f_lineno, co.co_name, None)
+            record = logger.makeRecord(logger.name, output, fn, lno, line, (), None, func, None, sinfo)
+            logger.handle(record)
+    except Exception:
+        logger._log(level, line)
+
+
+def config_logger(name: str, level: int=logging.INFO, use_datadog=False, use_stackdriver=False):
     os.makedirs('logs', exist_ok=True)
     logger = logging.getLogger()
 
@@ -15,12 +36,12 @@ def config_logger(name: str, use_datadog=False, use_stackdriver=False):
         'disable_existing_loggers': False,
         'formatters': {
             'standard': {
-                'format': '[%(asctime)16s | %(levelname)8s | %(name)8s | %(filename)s:%(lineno)s %(funcName)s() ] %(message)s'
+                'format': LOG_FORMAT
             },
         },
         'handlers': {
             'default': {
-                'level': 'INFO',
+                'level': logging.getLevelName(level),
                 'formatter': 'standard',
                 'class': 'logging.StreamHandler',
             },
@@ -42,7 +63,7 @@ def config_logger(name: str, use_datadog=False, use_stackdriver=False):
                 'backupCount': 3,
                 'delay': True
             },
-            'cherrypy_access': {
+            'web_access': {
                 'level': 'DEBUG',
                 'formatter': '',
                 'class': 'logging.handlers.RotatingFileHandler',
@@ -58,16 +79,28 @@ def config_logger(name: str, use_datadog=False, use_stackdriver=False):
                 'level': 'DEBUG',
                 'propagate': True
             },
+
             'cherrypy.access': {
-                'handlers': ['cherrypy_access'],
+                'handlers': ['web_access'],
                 'level': 'WARN',
                 'propagate': False
             },
+            'sanic.access': {
+                'handlers': ['web_access'],
+                'level': 'WARN',
+                'propagate': False
+            },
+            'libav.AVBSFContext': {
+                'handlers': ['default', 'file', 'file_debug'],
+                'level': 'CRITICAL',
+                'propagate': False
+            },
+            
             'datadog.api': {
                 'handlers': [],
                 'level': 'ERROR',
                 'propagate': False
-            }
+            },
         }
     })
 
@@ -87,15 +120,38 @@ def config_logger(name: str, use_datadog=False, use_stackdriver=False):
         logger.info('')
     logger.info(f'Command: "{" ".join(sys.argv)}", pid={os.getpid()}, name={name}')
 
-    hsh = hashlib.md5()
-    modules = [
-        m.__file__ for m in globals().values() if
-        isinstance(m, types.ModuleType) and
-        hasattr(m, '__file__')
-    ]
-    modules.append(__file__)
-    for mod in sorted(modules):
-        print(mod)
-        with open(mod, 'rb') as f:
-            hsh.update(f.read())
-    logger.info(f'Modules hash: {hsh.hexdigest()}')
+    # hsh = hashlib.md5()
+    # modules = [
+    #     m.__file__ for m in globals().values() if
+    #     isinstance(m, types.ModuleType) and
+    #     hasattr(m, '__file__')
+    # ]
+    # modules.append(__file__)
+    # for mod in sorted(modules):
+    #     with open(mod, 'rb') as f:
+    #         hsh.update(f.read())
+    # logger.info(f'Modules hash: {hsh.hexdigest()}')
+
+
+def bar():
+    logger.debug('bar')
+    intermittent_log(logger, 'bar', 5)
+    intermittent_log(otherlogger, 'bar', 5)
+
+
+def foo():
+    bar()
+    logger.debug('foo')
+    intermittent_log(logger, 'foo', 15)
+    intermittent_log(logger, 'foo', 10,)
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
+    logger = logging.getLogger(__name__)
+    otherlogger = logging.getLogger('otherlogger')
+    logger.info('foo')
+    for i in range(1000):
+        intermittent_log(otherlogger, f'test {i}', 10)
+        foo()
+        time.sleep(1)
