@@ -1,6 +1,6 @@
 import os
 import string
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Union, TypeVar, Type
 
 import cv2
 import logging
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class Classifier:
     HEIGHT = 25
     WIDTH = int(HEIGHT * 0.9 + 0.5)
-    CHARACTERS = string.digits[1:] + string.ascii_uppercase
+    CHARACTERS = np.array(list(string.digits[1:] + string.ascii_uppercase))
     DROPOUT_RATE = 0.1
     CONV1_SIZE = (HEIGHT - 2, WIDTH - 2)
 
@@ -67,7 +67,7 @@ class Classifier:
             # strip off the scope prefix as the saved vars do not include this
             self.sess.run(v.assign(restore_dict[v.name[len(var_prefix):]]))
 
-    def classify(self, images: List[np.ndarray]) -> List[str]:
+    def classify(self, images: List[np.ndarray], debug=False) -> List[str]:
         if not len(images):
             return []
         norm_images = []
@@ -76,9 +76,14 @@ class Classifier:
             im = im.astype(np.float) * (255. / p)
             im = np.clip(im, 0, 255) / 255. - 0.5
             norm_images.append(im)
-        return [
-            self.CHARACTERS[i] for i in self.sess.run(self.char, {self.input_images: norm_images})
-        ]
+
+        probs = self.sess.run(self.probs, {self.input_images: norm_images})
+        result = np.argmax(probs, axis=1)
+
+        logger.debug('OCR RESULT [' + '    '.join(self.CHARACTERS[result]) + '   ]')
+        logger.debug('OCR PROBS  [' + ' '.join(f'{p :1.2f}' for p in np.max(probs, axis=1)) + ']')
+
+        return self.CHARACTERS[result]
 
 
 def to_gray(image: np.ndarray, channel: str=None, debug: bool=False) -> np.ndarray:
@@ -108,19 +113,28 @@ def to_gray(image: np.ndarray, channel: str=None, debug: bool=False) -> np.ndarr
     return image
 
 
-def segment(gray_image: np.ndarray, segmentation: str = 'otsu_above_mean', min_area: int=10, height: int=None, debug: bool = False) -> List[np.ndarray]:
+def segment(
+        gray_image: np.ndarray,
+        segmentation='connected_components',
+        threshold: Optional[str]='otsu_above_mean',
+        min_area=10,
+        height: int=None,
+        debug=False) -> List[np.ndarray]:
     segments = []
 
     # TODO: implement simpler/faster segmentation
-    if segmentation.startswith('otsu'):
-        if segmentation == 'otsu_above_mean':
+    if threshold is None:
+        thresh = gray_image
+    elif threshold.startswith('otsu'):
+        if threshold == 'otsu_above_mean':
             tval = imageops.otsu_thresh(gray_image, int(np.mean(gray_image) * 0.75), 255)
             _, thresh = cv2.threshold(gray_image, tval, 255, cv2.THRESH_BINARY)
-        elif segmentation == 'otsu':
+        elif threshold == 'otsu':
             _, thresh = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         else:
-            raise ValueError(f'Don\t know how to segment image using { segmentation }')
+            raise ValueError(f'Don\t know how to threshold image using { threshold }')
 
+    if segmentation == 'connected_components':
         labels, components = imageops.connected_components(thresh)
 
         # TODO: estimate the size of the characters, and discard things that don't match
@@ -152,23 +166,6 @@ def segment(gray_image: np.ndarray, segmentation: str = 'otsu_above_mean', min_a
         if not height:
             height = round(min(average_height + border_size, gray_image.shape[0]))
 
-        if debug:
-            import matplotlib.pyplot as plt
-
-            plt.figure()
-            plt.imshow(gray_image, interpolation='none')
-            plt.title('segment image')
-
-            plt.figure()
-            plt.imshow(thresh, interpolation='none')
-            plt.title('segment thresh')
-
-            plt.figure()
-            plt.imshow(labels, interpolation='none')
-            plt.title('segment components')
-
-            plt.show()
-
         for component in components:
             if abs(min(component.h, gray_image.shape[0] - component.y) - height) > height_tolerance:
                 logger.warning(f'Found component with height={component.h} but expected height={height}')
@@ -192,8 +189,42 @@ def segment(gray_image: np.ndarray, segmentation: str = 'otsu_above_mean', min_a
             character = cv2.bitwise_and(gray_image[y1:y2, x1:x2], mask)
 
             segments.append(character)
+
+        if debug:
+            print('-' * 25)
+            print(f'average_top: {average_top}')
+            print(f'average_height: {average_height}')
+            print(f'border_size: {border_size}')
+            print(f'height_tolerance: {height_tolerance}')
+            print(f'min_width: {min_width}')
+            print(f'max_width: {max_width}')
+            print(f'top: {top}')
+            print(f'height: {height}')
+
+            import matplotlib.pyplot as plt
+
+            f, (figs1, figs2) = plt.subplots(2, 3)
+            figs1 = iter(figs1)
+
+            ax = next(figs1)
+            ax.imshow(gray_image, interpolation='none')
+            ax.set_title('segment image')
+
+            ax = next(figs1)
+            ax.imshow(thresh, interpolation='none')
+            ax.set_title('segment thresh')
+
+            ax = next(figs1)
+            ax.imshow(labels, interpolation='none')
+            ax.set_title('segment components')
+
+            ax = figs2[0]
+            ax.imshow(np.hstack(segments) if len(segments) else np.zeros((1, 1)), interpolation='none')
+            ax.set_title('segments')
+
+            plt.show()
     else:
-        raise ValueError(f'Don\t know how to segment image using { segmentation }')
+        raise ValueError(f'Don\'t know how to segment using {segmentation}')
 
     return segments
 
@@ -209,13 +240,32 @@ def resize_segments(segments: List[np.ndarray], height: int=25) -> List[np.ndarr
     return r
 
 
-def ocr(image: np.ndarray, channel: str=None, segmentation: str='otsu_above_mean', min_area: int=25, height: int=None, debug: bool=False) -> str:
+T = TypeVar('T', int, str)
+
+
+def ocr(
+        image: np.ndarray,
+        channel: str=None,
+        segmentation: str='connected_components',
+        threshold='otsu_above_mean',
+        min_area: int=25,
+        expected_type: Type[T]=str,
+        height: int=None,
+        debug: bool=False) -> T:
     image = to_gray(image, channel=channel, debug=debug)
-    segments = segment(image, height=height, segmentation=segmentation, min_area=min_area, debug=debug)
+    segments = segment(image, height=height, segmentation=segmentation, threshold=threshold, min_area=min_area, debug=debug)
 
     segments_sized = resize_segments(segments, height=25)
     classifier = Classifier.get_instance()
-    return ''.join(classifier.classify(segments_sized))
+
+    text = ''.join(classifier.classify(segments_sized, debug=debug))
+
+    if expected_type is int:
+        # TODO: use whitelist chars for text
+        logger.debug(f'Trying to parse "{text}" as {expected_type}')
+        text = text.replace('O', '0')
+
+    return expected_type(text)
 
 
 def ocr_all(images: List[np.ndarray], **kwargs) -> List[str]:

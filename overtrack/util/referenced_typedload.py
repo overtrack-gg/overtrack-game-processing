@@ -25,14 +25,14 @@ class Loader(typedload.dataloader.Loader):
         import overtrack.game.loading_map
         import overtrack.game.killfeed
         import overtrack.game.objective
-        import overtrack.source.stream.ts_stream
+        import overtrack.source.stream.opencv_ts_stream
         self.frefs.update({
             'ObjectiveExtractor.Probabilities': overtrack.game.objective.objective_processor.ObjectiveExtractor.Probabilities,
 
             'LoadingMapProcessor.Teams': overtrack.game.loading_map.LoadingMapProcessor.Teams,
             'KillfeedProcessor.KillRow': overtrack.game.killfeed.KillfeedProcessor.KillRow,
             'KillfeedProcessor.Player': overtrack.game.killfeed.KillfeedProcessor.Player,
-            'TSFrameExtractor.TSChunk': overtrack.source.stream.ts_stream.TSFrameExtractor.TSChunk
+            'TSFrameExtractor.TSChunk': overtrack.source.stream.opencv_ts_stream.TSFrameExtractor.TSChunk
         })
 
         self.handlers.append((lambda type_: type_ == Frame, _frameload))

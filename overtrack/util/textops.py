@@ -11,7 +11,7 @@ def matches(to_match: str, possible_matches: List[str]) -> List[float]:
         if s:
             # mean_len = (len(to_match) + len(s)) / 2
             # min_len = min(len(to_match), len(s))
-            r.append(editdistance.eval(to_match, s) / 1)
+            r.append(editdistance.eval(to_match, s))
         else:
             r.append(float('inf'))
     return r

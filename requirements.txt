@@ -17,7 +17,7 @@ numpy
 scipy
 av
 editdistance
-https://github.com/ltworf/typedload/archive/master.zip
+typedload
 
 # for twitch access
 streamlink

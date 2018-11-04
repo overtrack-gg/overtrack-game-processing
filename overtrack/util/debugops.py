@@ -33,42 +33,56 @@ def manual_thresh(gray_image: np.ndarray) -> int:
     return t
 
 
-def manual_thresh_otsu(image: np.ndarray, template=None) -> None:
+def manual_thresh_otsu(image: np.ndarray, template=None, scale=3., stack=np.vstack) -> None:
     if len(image.shape) == 3:
         gray_image = np.min(image, axis=2)
     else:
         gray_image = image
     cv2.namedWindow('thresh otsu')
-    cv2.createTrackbar('mn', 'thresh otsu', int(np.mean(gray_image)), 255, lambda x: None)
-    cv2.createTrackbar('mx', 'thresh otsu', 255, 255, lambda x: None)
-    cv2.createTrackbar('t', 'thresh otsu', 0, 255, lambda x: None)
-    old = 0, 0, 0
-    while True:
+    cv2.createTrackbar('thresh', 'thresh otsu', 0, 255, lambda x: None)
+
+    def set_by_mn_mx(*args):
         mn = cv2.getTrackbarPos('mn', 'thresh otsu')
         mx = cv2.getTrackbarPos('mx', 'thresh otsu')
-        t = cv2.getTrackbarPos('t', 'thresh otsu')
-        if t:
-            tval = t
-        else:
-            tval = imageops.otsu_thresh(
-                gray_image,
-                mn,
-                mx
-            )
-        _, thresh = cv2.threshold(gray_image, tval, 255, cv2.THRESH_BINARY)
-        if (mn, mx, t) != old:
-            old = mn, mx, t
+        tval = imageops.otsu_thresh(
+            gray_image,
+            mn,
+            mx
+        )
+        cv2.setTrackbarPos('thresh', 'thresh otsu', int(tval))
+
+    cv2.createTrackbar('mn', 'thresh otsu', 0, 255, set_by_mn_mx)
+    cv2.createTrackbar('mx', 'thresh otsu', 255, 255, set_by_mn_mx)
+
+    FRACTION_MAX = 3
+
+    def set_by_fraction(val):
+        fraction = val / 100
+        otsu_lb = int(np.mean(image) * fraction)
+        cv2.setTrackbarPos('mn', 'thresh otsu', otsu_lb)
+        set_by_mn_mx()
+
+    cv2.createTrackbar('fraction', 'thresh otsu', 100, (FRACTION_MAX * 100), set_by_fraction)
+    set_by_fraction(100)
+
+    old = 0
+    while True:
+        t = cv2.getTrackbarPos('thresh', 'thresh otsu')
+
+        _, thresh = cv2.threshold(gray_image, t, 255, cv2.THRESH_BINARY)
+        if t != old:
+            old = t
             if template is not None:
                 print(np.min(cv2.matchTemplate(thresh, template, cv2.TM_SQDIFF_NORMED)))
         cv2.imshow('thresh otsu', cv2.resize(
-            np.vstack((
+            stack((
                 gray_image,
                 thresh,
                 cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
             )),
             (0, 0),
-            fx=3,
-            fy=3,
+            fx=scale,
+            fy=scale,
             interpolation=cv2.INTER_NEAREST
         ))
         k = cv2.waitKey(1) & 0xFF
