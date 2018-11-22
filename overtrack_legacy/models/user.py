@@ -1,6 +1,4 @@
-import cachetools
 import os
-import time
 from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
 from pynamodb.attributes import UnicodeAttribute, NumberAttribute, BooleanAttribute, JSONAttribute
 
@@ -8,9 +6,6 @@ try:
     from .util import OverTrackModel, TupleAttribute
 except (SystemError, ModuleNotFoundError):
     from util import OverTrackModel, TupleAttribute
-
-
-ttl_cache = cachetools.TTLCache(32, ttl=5)
 
 
 class UserIDIndex(GlobalSecondaryIndex):
@@ -23,7 +18,6 @@ class UserIDIndex(GlobalSecondaryIndex):
 
     user_id = NumberAttribute(attr_name='user-id', hash_key=True)
 
-    @cachetools.cached(ttl_cache)
     def get(self, hash_key):
         """ :rtype: User """
         try:
@@ -84,7 +78,8 @@ class User(OverTrackModel):
     trial_games_remaining = NumberAttribute(attr_name='trial-games-remaining', null=True)
     trial_end_time = NumberAttribute(attr_name='trial-end-time', null=True)
 
-    # @cachetools.cached(ttl_cache, key=lambda hash_key, **kwargs: hash_key)
+    stream_key = UnicodeAttribute(attr_name='stream-key', null=True)
+
     @classmethod
     def get(cls, hash_key, **kwargs):
         """ :rtype: User """

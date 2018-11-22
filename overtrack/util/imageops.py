@@ -1,8 +1,10 @@
 import os
+import string
+
 import tesserocr
 import cv2
 import numpy as np
-from typing import NamedTuple, List, Tuple
+from typing import NamedTuple, List, Tuple, Optional
 
 
 class ConnectedComponent(NamedTuple):
@@ -83,11 +85,37 @@ def otsu_thresh_lb_fraction(image: np.ndarray, fraction: float) -> np.ndarray:
     return thresh
 
 
-ocr = tesserocr.PyTessBaseAPI()
+# eng.traineddata from https://github.com/tesseract-ocr/tessdata/blob/master/eng.traineddata
+tesseract_only = tesserocr.PyTessBaseAPI(
+    path=os.path.join(os.path.dirname(__file__), 'data'),
+    lang='eng',
+    oem=tesserocr.OEM.TESSERACT_ONLY,
+    psm=tesserocr.PSM.SINGLE_LINE
+)
+
+tesseract_lstm = tesserocr.PyTessBaseAPI(
+    path=os.path.join(os.path.dirname(__file__), 'data'),
+    oem=tesserocr.OEM.LSTM_ONLY,
+    psm=tesserocr.PSM.SINGLE_LINE
+)
+
+tesseract_futura = tesserocr.PyTessBaseAPI(
+    path=os.path.join(os.path.dirname(__file__), 'data'),
+    lang='Futura',
+    oem=tesserocr.OEM.TESSERACT_ONLY,
+    psm=tesserocr.PSM.SINGLE_LINE
+)
 
 
-def tesser_ocr(image, whitelist, invert=False, scale=1, blur: float=None, debug=False):
-    ocr.SetVariable('tessedit_char_whitelist', whitelist)
+def tesser_ocr(
+        image: np.ndarray,
+        whitelist=string.printable,
+        invert=False, scale=1,
+        blur: float=None,
+        debug=False,
+        engine=tesseract_only,
+        get_confidence=False) -> str:
+    engine.SetVariable('tessedit_char_whitelist', whitelist)
     if invert:
         image = 255 - image
     if scale != 1:
@@ -105,17 +133,38 @@ def tesser_ocr(image, whitelist, invert=False, scale=1, blur: float=None, debug=
         channels = 1
     else:
         height, width, channels = image.shape
-    ocr.SetImageBytes(image.tobytes(), width, height, channels, width * channels)
-    s = ocr.GetUTF8Text()
+    engine.SetImageBytes(image.tobytes(), width, height, channels, width * channels)
+    s = engine.GetUTF8Text()
     if ' ' not in whitelist:
         s = s.replace(' ', '')
     if '\n' not in whitelist:
         s = s.replace('\n', '')
-    return s
+
+    if get_confidence:
+        return s, engine.MeanTextConf() / 100
+    else:
+        return s
 
 
-def imread(path, mode):
-    im = cv2.imread(path, mode)
+def otsu_mask(image, dilate: Optional[int]=3):
+    _, mask = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    if dilate:
+        mask = cv2.erode(mask, np.ones((2, 2)))
+        mask = cv2.dilate(mask, np.ones((dilate, dilate)))
+    return cv2.bitwise_and(image, mask)
+
+
+def tesser_ocr_all(images: List[np.ndarray], **kwargs) -> List[str]:
+    return [
+        tesser_ocr(image, **kwargs) for image in images
+    ]
+
+
+def imread(path, mode=None):
+    if mode is not None:
+        im = cv2.imread(path, mode)
+    else:
+        im = cv2.imread(path)
     if im is None:
         if os.path.exists(path):
             raise ValueError(f'Unable to read {path} as an image')
@@ -123,3 +172,24 @@ def imread(path, mode):
             raise FileNotFoundError(path)
     else:
         return im
+
+
+if __name__ == '__main__':
+    print(os.environ['PATH'])
+    print(tesserocr.tesseract_version())
+
+    ocr = tesserocr.PyTessBaseAPI(oem=tesserocr.OEM.LSTM_ONLY)
+
+    gray = image = cv2.imread('C:\\tmp\\gray.png', 0)
+    height, width = image.shape
+    channels = 1
+
+    ocr.SetImageBytes(image.tobytes(), width, height, channels, width * channels)
+    print(ocr.GetUTF8Text())
+
+    ocr.SetImageBytes((255 - image).tobytes(), width, height, channels, width * channels)
+    print(ocr.GetUTF8Text())
+
+    print('--')
+    print(tesser_ocr(gray, whitelist=string.ascii_uppercase))
+    print(tesser_ocr(gray, invert=True, whitelist=string.ascii_uppercase))

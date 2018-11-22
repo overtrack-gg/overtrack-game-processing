@@ -35,7 +35,7 @@ https://github.com/koalalorenzo/python-digitalocean/archive/master.zip
 #datadog
 #datadog-logger
 #google-cloud-logging
-
+sentry-sdk
 
 
 

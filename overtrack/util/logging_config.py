@@ -5,7 +5,8 @@ import socket
 import sys
 import time
 from collections import defaultdict
-from typing import Union, Optional
+from threading import Thread
+from typing import Union, Optional, Callable
 
 LOG_FORMAT = '[%(asctime)16s | %(levelname)8s | %(name)24s | %(filename)s:%(lineno)s %(funcName)s() ] %(message)s'
 
@@ -24,27 +25,40 @@ def intermittent_log(logger: logging.Logger, line: str, frequency: float=60, lev
             record = logger.makeRecord(logger.name, output, fn, lno, line, (), None, func, None, sinfo)
             logger.handle(record)
     except Exception:
-        logger._log(level, line)
+        logger._log(level, line, ())
 
 
-def config_logger(name: str, level: int=logging.INFO, use_datadog=False, use_stackdriver=False):
-    os.makedirs('logs', exist_ok=True)
+upload_logs_settings = {
+    'write_to_file': False,
+    'upload_func': lambda *noop: None,
+    'args': ()
+}
+
+
+def config_logger(
+        name: str,
+        level: int=logging.INFO,
+
+        write_to_file=True,
+
+        use_datadog=False,
+        use_stackdriver=False,
+
+        upload_func: Optional[Callable[[str, str], None]]=None,
+        upload_frequency: Optional[float]=None):
+
     logger = logging.getLogger()
 
-    logging.config.dictConfig({
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'standard': {
-                'format': LOG_FORMAT
-            },
-        },
-        'handlers': {
-            'default': {
-                'level': logging.getLevelName(level),
-                'formatter': 'standard',
-                'class': 'logging.StreamHandler',
-            },
+    handlers = {
+        'default': {
+            'level': logging.getLevelName(level),
+            'formatter': 'standard',
+            'class': 'logging.StreamHandler',
+        }
+    }
+    if write_to_file:
+        os.makedirs('logs', exist_ok=True)
+        handlers.update({
             'file': {
                 'level': 'INFO',
                 'formatter': 'standard',
@@ -72,7 +86,29 @@ def config_logger(name: str, level: int=logging.INFO, use_datadog=False, use_sta
                 'backupCount': 0,
                 'delay': True
             }
+        })
+    else:
+        handlers.update({
+            'file': {
+                'class': 'logging.NullHandler',
+            },
+            'file_debug': {
+                'class': 'logging.NullHandler',
+            },
+            'web_access': {
+                'class': 'logging.NullHandler',
+            }
+        })
+
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'standard': {
+                'format': LOG_FORMAT
+            },
         },
+        'handlers': handlers,
         'loggers': {
             '': {
                 'handlers': ['default', 'file', 'file_debug'],
@@ -90,12 +126,18 @@ def config_logger(name: str, level: int=logging.INFO, use_datadog=False, use_sta
                 'level': 'WARN',
                 'propagate': False
             },
+
             'libav.AVBSFContext': {
                 'handlers': ['default', 'file', 'file_debug'],
                 'level': 'CRITICAL',
                 'propagate': False
             },
-            
+            'libav.swscaler': {
+                'handlers': ['default', 'file', 'file_debug'],
+                'level': 'CRITICAL',
+                'propagate': False
+            },
+
             'datadog.api': {
                 'handlers': [],
                 'level': 'ERROR',
@@ -120,6 +162,18 @@ def config_logger(name: str, level: int=logging.INFO, use_datadog=False, use_sta
         logger.info('')
     logger.info(f'Command: "{" ".join(sys.argv)}", pid={os.getpid()}, name={name}')
 
+    upload_logs_settings['write_to_file'] = write_to_file
+    if write_to_file and upload_func and upload_frequency:
+        upload_logs_settings['upload_func'] = upload_func
+        upload_logs_settings['args'] = (handlers['file']['filename'], handlers['file_debug']['filename'])
+
+        def upload_loop():
+            while True:
+                time.sleep(upload_frequency)
+                upload_func(handlers['file']['filename'], handlers['file_debug']['filename'])
+        logger.info(f'Uploading log files every {upload_frequency}s')
+        Thread(target=upload_loop, daemon=True).start()
+
     # hsh = hashlib.md5()
     # modules = [
     #     m.__file__ for m in globals().values() if
@@ -133,25 +187,6 @@ def config_logger(name: str, level: int=logging.INFO, use_datadog=False, use_sta
     # logger.info(f'Modules hash: {hsh.hexdigest()}')
 
 
-def bar():
-    logger.debug('bar')
-    intermittent_log(logger, 'bar', 5)
-    intermittent_log(otherlogger, 'bar', 5)
-
-
-def foo():
-    bar()
-    logger.debug('foo')
-    intermittent_log(logger, 'foo', 15)
-    intermittent_log(logger, 'foo', 10,)
-
-
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
-    logger = logging.getLogger(__name__)
-    otherlogger = logging.getLogger('otherlogger')
-    logger.info('foo')
-    for i in range(1000):
-        intermittent_log(otherlogger, f'test {i}', 10)
-        foo()
-        time.sleep(1)
+def finish_logging():
+    if upload_logs_settings['write_to_file'] and upload_logs_settings['upload_func']:
+        upload_logs_settings['upload_func'](*upload_logs_settings['args'])

@@ -69,6 +69,8 @@ class Game(OverTrackModel):
     has_exception = NumberAttribute(attr_name='has-exception', default=0)
     exception = TupleAttribute(attr_name='exception', null=True, hash_key=True)
 
+    ingest = BooleanAttribute(attr_name='ingest', null=False, default=False)
+
     @property
     def datetime(self):
         return datetime.datetime.fromtimestamp(self.time)

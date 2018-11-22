@@ -33,3 +33,9 @@ def charcountmatch(s1: str, s2: str) -> int:
         cnt[c] -= 1
 
     return sum(abs(v) for (c, v) in cnt.items())
+
+
+def mmss_to_seconds(mmss: int) -> int:
+    mm = mmss // 100
+    ss = mmss % 100
+    return mm * 60 + ss

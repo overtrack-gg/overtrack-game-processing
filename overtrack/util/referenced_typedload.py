@@ -10,14 +10,14 @@ import numpy as np
 from typedload.exceptions import Annotation
 
 from overtrack.collect import Game
-from overtrack.source.stream import TSFrameExtractor
+from overtrack.source.stream.ts_stream import TSSource
 
 
 class Loader(typedload.dataloader.Loader):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if 'source_type' not in kwargs:
-            self.source_type = TSFrameExtractor.TSChunkFile
+            self.source_type = TSSource
 
         self.referenced = {}
 
@@ -25,14 +25,15 @@ class Loader(typedload.dataloader.Loader):
         import overtrack.game.loading_map
         import overtrack.game.killfeed
         import overtrack.game.objective
-        import overtrack.source.stream.opencv_ts_stream
+        import overtrack.game.endgame
         self.frefs.update({
             'ObjectiveExtractor.Probabilities': overtrack.game.objective.objective_processor.ObjectiveExtractor.Probabilities,
 
             'LoadingMapProcessor.Teams': overtrack.game.loading_map.LoadingMapProcessor.Teams,
             'KillfeedProcessor.KillRow': overtrack.game.killfeed.KillfeedProcessor.KillRow,
             'KillfeedProcessor.Player': overtrack.game.killfeed.KillfeedProcessor.Player,
-            'TSFrameExtractor.TSChunk': overtrack.source.stream.opencv_ts_stream.TSFrameExtractor.TSChunk
+            'EndgameProcessor.Stats': overtrack.game.endgame.EndgameProcessor.Stats
+            # 'TSFrameExtractor.TSChunk': overtrack.source.stream.opencv_ts_stream.TSFrameExtractor.TSChunk
         })
 
         self.handlers.append((lambda type_: type_ == Frame, _frameload))
@@ -122,6 +123,8 @@ def _frameload(loader: Loader, value: Any, type_: type) -> Any:
     import overtrack.game.loading_map
     import overtrack.game.spectator
     import overtrack.game.menu
+    import overtrack.game.score
+    import overtrack.game.endgame
 
     _TYPES = {
         'objective': overtrack.game.objective.ObjectiveProcessor.Objective,
@@ -131,6 +134,9 @@ def _frameload(loader: Loader, value: Any, type_: type) -> Any:
         'play_menu': overtrack.game.menu.MenuProcessor.PlayMenu,
         'killfeed': overtrack.game.killfeed.KillfeedProcessor.Killfeed,
         'spectator_bar': overtrack.game.spectator.SpectatorProcessor.SpectatorBar,
+        'score_screen': overtrack.game.score.ScoreProcessor.ScoreScreen,
+        'final_score': overtrack.game.score.ScoreProcessor.FinalScore,
+        'endgame': overtrack.game.endgame.EndgameProcessor.Endgame,
     }
 
     f = Frame.__new__(Frame)
@@ -238,6 +244,51 @@ def load(value: Any, type_: Type[T], **kwargs) -> T:
 
 
 def main():
+    d = {
+        "endgame": {
+            "map": "LIJIANG TOWER",
+            "result": "VICTORY",
+            "stats": {
+                "deaths": 3,
+                "eliminations": 1,
+                "healing_done": 0,
+                "hero": "winston",
+                "hero_damage_done": 475,
+                "hero_specific_stats": {
+                    "damage blocked": None,
+                    "kill streak - best": None,
+                    "melee kills": None,
+                    "players knocked back": None,
+                    "primal rage kills": None
+                },
+                "objective_kills": 1,
+                "objective_time": 3
+            }
+        },
+        "endgame_match": 0.86732,
+        "frame_no": 29078,
+        "relative_timestamp": 968.23333,
+        "relative_timestamp_str": "00:16:08.23",
+        "source": {
+            "_ref": 2
+        },
+        "timestamp": 1542763093.9628325,
+        "timestamp_str": "2018/11/21 01:18:13.96",
+        "timings": {
+            "VideoFrameExtractor": 100.0962
+        }
+    }
+
+    from overtrack.game.endgame import EndgameProcessor
+
+    e = load(d['endgame']['stats'], EndgameProcessor.Stats)
+    print(e)
+
+    e = load(d['endgame'], EndgameProcessor.Endgame)
+    print(e)
+
+    return
+
     from typing import List
     from overtrack.game.frame import Frame
     with open('./games/stream/2018-10-03-02-21/game_03-05_INGTOWER.json') as f:

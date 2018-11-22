@@ -94,7 +94,7 @@ def to_gray(image: np.ndarray, channel: str=None, debug: bool=False) -> np.ndarr
             # image already gray
             pass
     else:
-        if not channel or channel == 'grey':
+        if not channel or channel == 'grey' or channel == 'gray':
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         elif channel in 'bgr':
             channel_index = 'bgr'.index(channel)
@@ -108,7 +108,7 @@ def to_gray(image: np.ndarray, channel: str=None, debug: bool=False) -> np.ndarr
         elif channel == 'min':
             image = np.min(image, axis=2)
         else:
-            raise ValueError(f'Don\'t know how to convert BGR image to grey using { channel }')
+            raise ValueError(f'Don\'t know how to convert BGR image to gray using { channel }')
 
     return image
 
@@ -127,8 +127,7 @@ def segment(
         thresh = gray_image
     elif threshold.startswith('otsu'):
         if threshold == 'otsu_above_mean':
-            tval = imageops.otsu_thresh(gray_image, int(np.mean(gray_image) * 0.75), 255)
-            _, thresh = cv2.threshold(gray_image, tval, 255, cv2.THRESH_BINARY)
+            thresh = imageops.otsu_thresh_lb_fraction(gray_image, 1)
         elif threshold == 'otsu':
             _, thresh = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         else:
@@ -245,15 +244,17 @@ T = TypeVar('T', int, str)
 
 def ocr(
         image: np.ndarray,
-        channel: str=None,
+        channel: str='gray',
         segmentation: str='connected_components',
         threshold='otsu_above_mean',
         min_area: int=25,
         expected_type: Type[T]=str,
         height: int=None,
-        debug: bool=False) -> T:
+        debug: bool=False) -> Optional[T]:
     image = to_gray(image, channel=channel, debug=debug)
     segments = segment(image, height=height, segmentation=segmentation, threshold=threshold, min_area=min_area, debug=debug)
+
+    logger.debug(f'Parsing {image.shape[1]}*{image.shape[0]} image - got {len(segments)} segments of heights {[s.shape[0] for s in segments]}')
 
     segments_sized = resize_segments(segments, height=25)
     classifier = Classifier.get_instance()
@@ -261,11 +262,14 @@ def ocr(
     text = ''.join(classifier.classify(segments_sized, debug=debug))
 
     if expected_type is int:
-        # TODO: use whitelist chars for text
+        # TODO: use whitelist chars for classification and choose the best of the possible chars
         logger.debug(f'Trying to parse "{text}" as {expected_type}')
-        text = text.replace('O', '0')
+        text = text.replace('O', '0').replace('A', '8')
 
-    return expected_type(text)
+    try:
+        return expected_type(text)
+    except Exception as e:
+        logger.warning(f'Got exception interpreting "{text}" as {expected_type} - {e}')
 
 
 def ocr_all(images: List[np.ndarray], **kwargs) -> List[str]:

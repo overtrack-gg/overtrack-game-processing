@@ -33,9 +33,9 @@ def manual_thresh(gray_image: np.ndarray) -> int:
     return t
 
 
-def manual_thresh_otsu(image: np.ndarray, template=None, scale=3., stack=np.vstack) -> None:
+def manual_thresh_otsu(image: np.ndarray, template=None, scale=3., stack=np.vstack, grayop=np.min) -> None:
     if len(image.shape) == 3:
-        gray_image = np.min(image, axis=2)
+        gray_image = grayop(image, axis=2)
     else:
         gray_image = image
     cv2.namedWindow('thresh otsu')

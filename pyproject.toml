@@ -37,6 +37,8 @@ streamlink = { git = "https://github.com/streamlink/streamlink.git" }
 # overtrack.gg game upload support
 pynamodb = "^3.3"
 
+sentry-sdk = "^0.5.2"
+
 [tool.poetry.dev-dependencies]
 
 [build-system]

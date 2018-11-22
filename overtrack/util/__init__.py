@@ -19,14 +19,17 @@ def humansize(nbytes, suffixes=('B', 'KB', 'MB', 'GB', 'TB', 'PB')):
     return '%s %s' % (f, suffixes[i])
 
 
-def s2ts(s, ms=False):
+def s2ts(s, ms=False, zpad=True):
     sign = ''
     if s < 0:
         sign = '-'
-        ms = -s
+        s = -s
     m = s / 60
     h = m / 60
-    ts = '%s%02d:%02d:%02d' % (sign, h, m % 60, s % 60)
+    if zpad or int(h):
+        ts = '%s%02d:%02d:%02d' % (sign, h, m % 60, s % 60)
+    else:
+        ts = '%s%02d:%02d' % (sign, m % 60, s % 60)
     if ms:
         return ts + f'{s % 1 :1.3f}'[1:]
     else:
@@ -34,7 +37,7 @@ def s2ts(s, ms=False):
 
 
 def ms2ts(ms):
-    return s2ts(ms/ 1000)
+    return s2ts(ms / 1000)
 
 
 def ts2s(ts):
