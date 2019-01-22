@@ -69,7 +69,7 @@ maps = [
         type='Escort'
     ),
     Map(
-        name='Watchpoint: Girialbraltar',
+        name='Watchpoint: Gibraltar',
         type='Escort'
     ),
 
@@ -565,19 +565,40 @@ SUPPORTS: Dict[str, Hero] = {
     ),
 }
 DPS: Dict[str, Hero] = {
-    # 'ashe': Hero(
-    #     name='ashe',
-    #     role=Role.DAMAGE,
-    #     ult=None,
-    #     can_heal=False,
-    #     stats=([
-    #             # TODO: ashe stats
-    #         ],
-    #         [
-    #
-    #         ]
-    #     )
-    # ),
+    'ashe': Hero(
+        name='ashe',
+        role=Role.DAMAGE,
+        ult=None,
+        can_heal=False,
+        stats=(
+            [
+                Stat(
+                    'weapon accuracy',
+                    stat_type=StatType.AVERAGE,
+                    is_percent=True
+                ),
+                Stat(
+                    'final blows',
+                ),
+                Stat(
+                    'scoped accuracy',
+                    stat_type=StatType.AVERAGE,
+                    is_percent=True
+                ),
+            ],
+            [
+                Stat(
+                    'scoped critical hits'
+                ),
+                Stat(
+                    'dynamite kills'
+                ),
+                Stat(
+                    'bob kills'
+                )
+            ]
+        )
+    ),
 
     'bastion': Hero(
         name='bastion',

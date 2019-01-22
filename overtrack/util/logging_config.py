@@ -1,12 +1,12 @@
 import inspect
+import logging
 import os
-import logging.config
 import socket
 import sys
 import time
 from collections import defaultdict
 from threading import Thread
-from typing import Union, Optional, Callable
+from typing import Callable, Optional
 
 LOG_FORMAT = '[%(asctime)16s | %(levelname)8s | %(name)24s | %(filename)s:%(lineno)s %(funcName)s() ] %(message)s'
 
@@ -43,6 +43,8 @@ def config_logger(
 
         use_datadog=False,
         use_stackdriver=False,
+
+        use_stackdriver_error=False,
 
         upload_func: Optional[Callable[[str, str], None]]=None,
         upload_frequency: Optional[float]=None):
@@ -148,8 +150,23 @@ def config_logger(
 
     if use_stackdriver:
         import google.cloud.logging
+        from google.cloud.logging.handlers.handlers import EXCLUDED_LOGGER_DEFAULTS
         client = google.cloud.logging.Client()
-        client.setup_logging()
+        # client.setup_logging()
+
+        handler = client.get_default_handler()
+        handler.setLevel(level)
+        logger.addHandler(handler)
+        for logger_name in EXCLUDED_LOGGER_DEFAULTS + ('urllib3.connectionpool', ):
+            exclude = logging.getLogger(logger_name)
+            exclude.propagate = False
+            # exclude.addHandler(logging.StreamHandler())
+
+        logger.info('Connected to google cloud logging')
+
+    if use_stackdriver_error:
+        from google.cloud import error_reporting
+        client = error_reporting.Client()
 
     if use_datadog:
         import datadog
