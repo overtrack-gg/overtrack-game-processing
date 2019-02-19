@@ -6,11 +6,20 @@
 *.mp4
 *.pfx
 *.pem
+*.lock
+*.whl
+
+*.full.zip
 
 **/logs/**
 **/models/**
+**/.ipynb_checkpoints/*.ipynb
 
-data/
+environment.txt
+exports.txt
+gcp-svc.json
+
+/data/
 testing/dev/images/
 twitch_overlay/scoreboard/build
 frames_cache/
