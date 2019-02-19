@@ -1,4 +1,5 @@
 import os
+
 import cv2
 import shortuuid
 import tensorflow as tf
@@ -7,10 +8,6 @@ from overtrack.game import Frame
 from overtrack.game.loading_map.loading_map_processor import LoadingMapProcessor
 from overtrack.game.processor import ShortCircuitProcessor
 from overtrack.game.tab.tab_processor import TabProcessor
-from overtrack.source.stream.twitch_old import TwitchLiveTSDownloader
-from overtrack.source.video.video import VideoFrameExtractor
-from overtrack.source.stream.opencv_ts_stream import TSFrameExtractor
-from overtrack.util import ts2ms
 
 
 def save_images(typ, names, ims):

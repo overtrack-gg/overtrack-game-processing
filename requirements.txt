@@ -9,15 +9,17 @@ sanic
 # vibora
 
 # specialised overtrack processing
-# apt install -y libsm6 libxext6 tesseract-ocr libtesseract-dev libleptonica-dev
+# apt install -y python3.6-dev libsm6 libxext6 tesseract-ocr libtesseract-dev libleptonica-dev
 opencv-python
 tensorflow
 tesserocr
 numpy
 scipy
-av
 editdistance
 typedload
+
+# apt install -y python-dev pkg-config libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libswresample-dev libavfilter-dev
+av
 
 # for twitch access
 streamlink
@@ -31,10 +33,9 @@ pynamodb
 # pip version is out of date - tag creation is fixed in master
 https://github.com/koalalorenzo/python-digitalocean/archive/master.zip
 
-
 #datadog
 #datadog-logger
-#google-cloud-logging
+google-cloud-logging
 sentry-sdk
 
 

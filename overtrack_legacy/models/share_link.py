@@ -1,10 +1,9 @@
-import re
 import os
+import re
 import time
 
-from decimal import Decimal
-from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
-from pynamodb.attributes import UnicodeAttribute, NumberAttribute, BooleanAttribute
+from pynamodb.attributes import BooleanAttribute, NumberAttribute, UnicodeAttribute
+from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
 
 try:
     from .util import OverTrackModel, TupleAttribute

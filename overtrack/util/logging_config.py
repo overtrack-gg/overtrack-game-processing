@@ -1,12 +1,13 @@
 import inspect
 import logging
+import logging.config
 import os
 import socket
 import sys
 import time
 from collections import defaultdict
 from threading import Thread
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence, Mapping
 
 LOG_FORMAT = '[%(asctime)16s | %(levelname)8s | %(name)24s | %(filename)s:%(lineno)s %(funcName)s() ] %(message)s'
 
@@ -24,7 +25,7 @@ def intermittent_log(logger: logging.Logger, line: str, frequency: float=60, lev
             fn, lno, func, sinfo = (co.co_filename, caller.frame.f_lineno, co.co_name, None)
             record = logger.makeRecord(logger.name, output, fn, lno, line, (), None, func, None, sinfo)
             logger.handle(record)
-    except Exception:
+    except BaseException:
         logger._log(level, line, ())
 
 
@@ -150,19 +151,18 @@ def config_logger(
 
     if use_stackdriver:
         import google.cloud.logging
+        from google.cloud.logging.handlers import CloudLoggingHandler
         from google.cloud.logging.handlers.handlers import EXCLUDED_LOGGER_DEFAULTS
         client = google.cloud.logging.Client()
         # client.setup_logging()
 
-        handler = client.get_default_handler()
+        handler = CloudLoggingHandler(client, name=name)
         handler.setLevel(level)
         logger.addHandler(handler)
         for logger_name in EXCLUDED_LOGGER_DEFAULTS + ('urllib3.connectionpool', ):
             exclude = logging.getLogger(logger_name)
             exclude.propagate = False
             # exclude.addHandler(logging.StreamHandler())
-
-        logger.info('Connected to google cloud logging')
 
     if use_stackdriver_error:
         from google.cloud import error_reporting
@@ -178,6 +178,8 @@ def config_logger(
     for _ in range(3):
         logger.info('')
     logger.info(f'Command: "{" ".join(sys.argv)}", pid={os.getpid()}, name={name}')
+    if use_stackdriver:
+        logger.info(f'Connected to google cloud logging. Using name="{name}". Logging class: {logging.getLoggerClass()}')
 
     upload_logs_settings['write_to_file'] = write_to_file
     if write_to_file and upload_func and upload_frequency:
@@ -207,3 +209,35 @@ def config_logger(
 def finish_logging():
     if upload_logs_settings['write_to_file'] and upload_logs_settings['upload_func']:
         upload_logs_settings['upload_func'](*upload_logs_settings['args'])
+
+
+def patch_sentry_locals_capture():
+    import sentry_sdk.utils
+    from overtrack.game import Frame
+
+    def object_to_json(obj):
+        def _walk(obj, depth):
+            if depth < 4:
+                if isinstance(obj, Frame):
+                    return {'timestamp': obj.timestamp}
+                if isinstance(obj, list) and len(obj) > 2 and isinstance(obj[0], Frame) and isinstance(obj[-1], Frame):
+                    return [_walk(obj[0], depth), f'...<{len(obj)-2}>...', _walk(obj[-1], depth)]
+                if isinstance(obj, Sequence) and not isinstance(obj, (bytes, str)):
+                    return [_walk(x, depth + 1) for x in obj]
+                if isinstance(obj, Mapping):
+                    return {sentry_sdk.utils.safe_str(k): _walk(v, depth + 1) for k, v in obj.items()}
+            return sentry_sdk.utils.safe_repr(obj)
+
+        return _walk(obj, 0)
+
+    sentry_sdk.utils.object_to_json = object_to_json
+
+
+def main() -> None:
+    config_logger('adasd', level=logging.INFO)
+    logger = logging.getLogger()
+    logger.info('foo')
+
+
+if __name__ == '__main__':
+    main()

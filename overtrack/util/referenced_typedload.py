@@ -1,12 +1,13 @@
 import itertools
 import json
 import time
+from pprint import pprint
+from typing import Any, Dict, Optional, Tuple, Type, TypeVar
+
+import dataclasses
+import numpy as np
 import typedload.datadumper
 import typedload.dataloader
-import dataclasses
-from pprint import pprint
-from typing import Dict, Any, Tuple, Type, Optional, TypeVar
-import numpy as np
 from typedload.exceptions import Annotation
 
 from overtrack.collect import Game
@@ -27,7 +28,7 @@ class Loader(typedload.dataloader.Loader):
         import overtrack.game.objective
         import overtrack.game.endgame
         self.frefs.update({
-            'ObjectiveExtractor.Probabilities': overtrack.game.objective.objective_processor.ObjectiveExtractor.Probabilities,
+            # 'ObjectiveExtractor.Objective': overtrack.game.objective.objective_processor.ObjectiveExtractor.Probabilities,
 
             'LoadingMapProcessor.Teams': overtrack.game.loading_map.LoadingMapProcessor.Teams,
             'KillfeedProcessor.KillRow': overtrack.game.killfeed.KillfeedProcessor.KillRow,
@@ -68,9 +69,6 @@ def _namedtupleload(l: Loader, value: Dict[str, Any], type_) -> Tuple:
         optional_fields = set(getattr(type_, '_field_defaults', {}).keys())
         type_hints = type_._field_types
     else:
-        # dataclass
-        import dataclasses
-
         fields = set(type_.__dataclass_fields__.keys())
         optional_fields = {k for k, v in type_.__dataclass_fields__.items() if
                            not isinstance(getattr(v, 'default', dataclasses._MISSING_TYPE()), dataclasses._MISSING_TYPE)}
@@ -125,6 +123,7 @@ def _frameload(loader: Loader, value: Any, type_: type) -> Any:
     import overtrack.game.menu
     import overtrack.game.score
     import overtrack.game.endgame
+    import overtrack.game.hero
 
     _TYPES = {
         'objective': overtrack.game.objective.ObjectiveProcessor.Objective,
@@ -137,12 +136,15 @@ def _frameload(loader: Loader, value: Any, type_: type) -> Any:
         'score_screen': overtrack.game.score.ScoreProcessor.ScoreScreen,
         'final_score': overtrack.game.score.ScoreProcessor.FinalScore,
         'endgame': overtrack.game.endgame.EndgameProcessor.Endgame,
+        'hero': overtrack.game.hero.HeroProcessor.Hero
     }
 
     f = Frame.__new__(Frame)
     f.image = f.debug_image = None
     for k, v in value.items():
-        if type(v) in {int, bool, float, str, None}:
+        if k == 'debug_image':
+            continue
+        elif v is None or type(v) in {int, bool, float, str}:
             f[k] = v
         elif k in _TYPES:
             f[k] = loader.load(v, _TYPES[k])
@@ -243,161 +245,160 @@ def load(value: Any, type_: Type[T], **kwargs) -> T:
     return loader.load(value, type_)
 
 
-def main():
-    d = {
-        "endgame": {
-            "map": "LIJIANG TOWER",
-            "result": "VICTORY",
-            "stats": {
-                "deaths": 3,
-                "eliminations": 1,
-                "healing_done": 0,
-                "hero": "winston",
-                "hero_damage_done": 475,
-                "hero_specific_stats": {
-                    "damage blocked": None,
-                    "kill streak - best": None,
-                    "melee kills": None,
-                    "players knocked back": None,
-                    "primal rage kills": None
-                },
-                "objective_kills": 1,
-                "objective_time": 3
-            }
-        },
-        "endgame_match": 0.86732,
-        "frame_no": 29078,
-        "relative_timestamp": 968.23333,
-        "relative_timestamp_str": "00:16:08.23",
-        "source": {
-            "_ref": 2
-        },
-        "timestamp": 1542763093.9628325,
-        "timestamp_str": "2018/11/21 01:18:13.96",
-        "timings": {
-            "VideoFrameExtractor": 100.0962
-        }
-    }
-
-    from overtrack.game.endgame import EndgameProcessor
-
-    e = load(d['endgame']['stats'], EndgameProcessor.Stats)
-    print(e)
-
-    e = load(d['endgame'], EndgameProcessor.Endgame)
-    print(e)
-
-    return
-
-    from typing import List
-    from overtrack.game.frame import Frame
-    with open('./games/stream/2018-10-03-02-21/game_03-05_INGTOWER.json') as f:
-        data = json.load(f)
-
-    frames = load(data, List[Frame])
-
-
-def _main():
-    from overtrack.collect import Game
-    from server.ingest import TSChunkHTTPServer, UploadedTSChunkFile
-    # fix dill incompat
-    TSChunkHTTPServer.UploadedTSChunkFile = UploadedTSChunkFile
-    import dill
-    with open('./games/stream/2018-09-29-11-58/game_2.dill', 'rb') as f:
-        game: Game = dill.load(f)
-
-    # with open('./games/game_15.dill', 'rb') as f:
-    #     data = f.read()
-
-    # t0 = time.time()
-    # game: Game = dill.load(io.BytesIO(data))
-    # t1 = time.time()
-    # print(t1 - t0)
-
-    t0 = time.time()
-    dill.dumps(game)
-    t1 = time.time()
-    print(t1 - t0)
-
-    t0 = time.time()
-    Dumper().dump(game)
-    t1 = time.time()
-    print(t1 - t0)
-
-    t0 = time.time()
-    dump(game)
-    t1 = time.time()
-    print(t1 - t0)
-
-    with open('full.json', 'w') as f:
-        json.dump(
-            Dumper().dump(game),
-            f,
-            indent=1
-        )
-
-    # with open('cyclic.json', 'w') as f:
-    #     json.dump(ReferencedDumper().dump(game), f, indent=1)
-    #
-
-    test = {
-        'list': [],
-        'dict': {}
-    }
-    test['list'] = {
-        'a': {
-            'b': {
-                'c': [1, 2, 3],
-                1: test
-            }
-        }
-    }
-    pprint(dump(test))
-
-    # game.frames = game.frames[100:110]
-    # print(id(game.frames[0].source))
-    # print(id(game.frames[1].source))
-    with open('cyclic.json', 'w') as f:
-        json.dump(
-            dump(game),
-            f,
-            indent=1
-        )
-
-    print()
-
-    # print(timeit.timeit(
-    #     'dump(game)', 'pass', globals=dict(**locals(), **globals()), number=1
-    # ))
+# def main():
+#     d = {
+#         "endgame": {
+#             "map": "LIJIANG TOWER",
+#             "result": "VICTORY",
+#             "stats": {
+#                 "deaths": 3,
+#                 "eliminations": 1,
+#                 "healing_done": 0,
+#                 "hero": "winston",
+#                 "hero_damage_done": 475,
+#                 "hero_specific_stats": {
+#                     "damage blocked": None,
+#                     "kill streak - best": None,
+#                     "melee kills": None,
+#                     "players knocked back": None,
+#                     "primal rage kills": None
+#                 },
+#                 "objective_kills": 1,
+#                 "objective_time": 3
+#             }
+#         },
+#         "endgame_match": 0.86732,
+#         "frame_no": 29078,
+#         "relative_timestamp": 968.23333,
+#         "relative_timestamp_str": "00:16:08.23",
+#         "source": {
+#             "_ref": 2
+#         },
+#         "timestamp": 1542763093.9628325,
+#         "timestamp_str": "2018/11/21 01:18:13.96",
+#         "timings": {
+#             "VideoFrameExtractor": 100.0962
+#         }
+#     }
+#
+#     from overtrack.game.endgame import EndgameProcessor
+#
+#     e = load(d['endgame']['stats'], EndgameProcessor.Stats)
+#     print(e)
+#
+#     e = load(d['endgame'], EndgameProcessor.Endgame)
+#     print(e)
+#
+#     return
+#
+#     from typing import List
+#     from overtrack.game.frame import Frame
+#     with open('./games/stream/2018-10-03-02-21/game_03-05_INGTOWER.json') as f:
+#         data = json.load(f)
+#
+#     frames = load(data, List[Frame])
 
 
-if __name__ == '__main__':
-    main()
-    #
-    # from typing import NamedTuple, List
-    # from dataclasses import dataclass
-    #
-    # cycle = {}
-    # cycle['cycle'] = cycle
-    # pprint(dump(cycle))
-    #
-    # class CycleTuple(NamedTuple):
-    #     cycle: List
-    #
-    # cycle2 = CycleTuple([])
-    # cycle2.cycle.append(cycle2)
-    # pprint(dump(cycle2))
-    #
-    # @dataclass
-    # class CycleDataclass:
-    #     cycle: 'CycleDataclass'
-    #
-    # cycle3 = CycleDataclass(None)
-    # cycle3.cycle = cycle3
-    # pprint(dump(cycle3))
-    #
-    # # cycle4 = []
-    # # cycle4.append(cycle4)
-    # # pprint(dump(cycle4))
-    #
-    # pprint(dump(['', '', '', '']))
+# def _main():
+#     from overtrack.collect import Game
+#     # fix dill incompat
+#     TSChunkHTTPServer.UploadedTSChunkFile = UploadedTSChunkFile
+#     import dill
+#     with open('./games/stream/2018-09-29-11-58/game_2.dill', 'rb') as f:
+#         game: Game = dill.load(f)
+#
+#     # with open('./games/game_15.dill', 'rb') as f:
+#     #     data = f.read()
+#
+#     # t0 = time.time()
+#     # game: Game = dill.load(io.BytesIO(data))
+#     # t1 = time.time()
+#     # print(t1 - t0)
+#
+#     t0 = time.time()
+#     dill.dumps(game)
+#     t1 = time.time()
+#     print(t1 - t0)
+#
+#     t0 = time.time()
+#     Dumper().dump(game)
+#     t1 = time.time()
+#     print(t1 - t0)
+#
+#     t0 = time.time()
+#     dump(game)
+#     t1 = time.time()
+#     print(t1 - t0)
+#
+#     with open('full.json', 'w') as f:
+#         json.dump(
+#             Dumper().dump(game),
+#             f,
+#             indent=1
+#         )
+#
+#     # with open('cyclic.json', 'w') as f:
+#     #     json.dump(ReferencedDumper().dump(game), f, indent=1)
+#     #
+#
+#     test = {
+#         'list': [],
+#         'dict': {}
+#     }
+#     test['list'] = {
+#         'a': {
+#             'b': {
+#                 'c': [1, 2, 3],
+#                 1: test
+#             }
+#         }
+#     }
+#     pprint(dump(test))
+#
+#     # game.frames = game.frames[100:110]
+#     # print(id(game.frames[0].source))
+#     # print(id(game.frames[1].source))
+#     with open('cyclic.json', 'w') as f:
+#         json.dump(
+#             dump(game),
+#             f,
+#             indent=1
+#         )
+#
+#     print()
+#
+#     # print(timeit.timeit(
+#     #     'dump(game)', 'pass', globals=dict(**locals(), **globals()), number=1
+#     # ))
+#
+#
+# if __name__ == '__main__':
+#     main()
+#     #
+#     # from typing import NamedTuple, List
+#     # from dataclasses import dataclass
+#     #
+#     # cycle = {}
+#     # cycle['cycle'] = cycle
+#     # pprint(dump(cycle))
+#     #
+#     # class CycleTuple(NamedTuple):
+#     #     cycle: List
+#     #
+#     # cycle2 = CycleTuple([])
+#     # cycle2.cycle.append(cycle2)
+#     # pprint(dump(cycle2))
+#     #
+#     # @dataclass
+#     # class CycleDataclass:
+#     #     cycle: 'CycleDataclass'
+#     #
+#     # cycle3 = CycleDataclass(None)
+#     # cycle3.cycle = cycle3
+#     # pprint(dump(cycle3))
+#     #
+#     # # cycle4 = []
+#     # # cycle4.append(cycle4)
+#     # # pprint(dump(cycle4))
+#     #
+#     # pprint(dump(['', '', '', '']))

@@ -36,7 +36,7 @@ def connected_components(image: np.ndarray, connectivity=4) -> Tuple[np.ndarray,
     return labels, components
 
 
-def otsu_thresh(vals: np.ndarray, mn: int, mx: int):
+def otsu_thresh(vals: np.ndarray, mn: int, mx: int) -> int:
     # adapted from https://github.com/scikit-image/scikit-image/blob/v0.14.0/skimage/filters/thresholding.py#L230: threshold_otsu
 
     mn = np.clip(mn, 0, 253)
@@ -141,7 +141,7 @@ def tesser_ocr(
         s = s.replace('\n', '')
 
     if get_confidence:
-        return s, engine.MeanTextConf() / 100
+        return s, float(engine.MeanTextConf()) / 100
     else:
         return s
 
@@ -152,6 +152,20 @@ def otsu_mask(image, dilate: Optional[int]=3):
         mask = cv2.erode(mask, np.ones((2, 2)))
         mask = cv2.dilate(mask, np.ones((dilate, dilate)))
     return cv2.bitwise_and(image, mask)
+
+
+def unsharp_mask(image, unsharp: float, weight: float, threshold: int=None):
+    unsharp = fast_gaussian(image, unsharp, scale=2)
+    im = cv2.addWeighted(image, weight, unsharp, 1 - weight, 0)
+    if threshold:
+        if len(image.shape) == 3:
+            gray = np.min(im, axis=2)
+        else:
+            gray = im
+        _, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+        return thresh
+    else:
+        return im
 
 
 def tesser_ocr_all(images: List[np.ndarray], **kwargs) -> List[str]:
@@ -172,6 +186,14 @@ def imread(path, mode=None):
             raise FileNotFoundError(path)
     else:
         return im
+
+
+def findContours(image, mode, method, contours=None, hierarchy=None, offset=None):
+    r = cv2.findContours(image, mode, method, contours=contours, hierarchy=hierarchy, offset=offset)
+    if len(r) == 3:
+        return r[1:]
+    else:
+        return r
 
 
 if __name__ == '__main__':

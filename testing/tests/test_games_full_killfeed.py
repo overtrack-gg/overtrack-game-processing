@@ -1,21 +1,18 @@
+import logging
+import os
 import sys
+from pprint import pprint
+from typing import List, NamedTuple, Optional
 
 import cv2
-import os
-import logging
-from pprint import pprint
-from typing import NamedTuple, List, Optional
-
 import pytest
 import tensorflow as tf
 
-from overtrack.collect.game import Game, Frame, Kill
+from overtrack.collect.game import Frame, Game
 from overtrack.game.killfeed import KillfeedProcessor
 from overtrack.game.loading_map import LoadingMapProcessor
 from overtrack.source.video import VideoFrameExtractor
-from overtrack.util import ts2s, s2ts
-from overtrack.util.frames_cache import CachedFrameExtractor, FramesCache
-
+from overtrack.util import s2ts, ts2s
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -61,24 +58,25 @@ from testing.tests.full_games import qp_8res, edgy_name
 def test_full_game(game_source, debug=False):
     expected: ExpectedGame = game_source.game
 
-    extractor = None
+    # extractor = None
     cache = None
-    if os.path.exists('cache.py') and not debug:
-        try:
-            extractor = CachedFrameExtractor('./cache.py')
-        except Exception as e:
-            logger.exception('Unable to load cached frames', exc_info=e)
-    if not extractor:
-        extractor = VideoFrameExtractor(expected.path, debug_frames=debug, seek=s2ts(expected.start) if expected.start else None)
-        cache = FramesCache('./cache.py')
+    # if os.path.exists('cache.py') and not debug:
+    #     try:
+    #         extractor = CachedFrameExtractor('./cache.py')
+    #     except Exception as e:
+    #         logger.exception('Unable to load cached frames', exc_info=e)
+    # if not extractor:
+    extractor = VideoFrameExtractor(expected.path, debug_frames=debug, seek=s2ts(expected.start) if expected.start else None)
+    #     cache = FramesCache('./cache.py')
 
     frames = []
     while True:
         frame = extractor.get()
         if frame is None:
             break
-        if cache:
-            pipeline.process(frame)
+        # if cache:
+        #     pipeline.process(frame)
+        pipeline.process(frame)
 
         if debug:
             im = cv2.resize(frame.debug_image, (1280, 720))
@@ -109,7 +107,8 @@ def test_full_game(game_source, debug=False):
             'UNKNOWN',
             'TEST',
             LoadingMapProcessor.Teams(
-                *game_source.teams,
+                game_source.teams[0],
+                game_source.teams[1],
                 None
             ),
             None
@@ -129,7 +128,7 @@ def test_full_game(game_source, debug=False):
     sys.stdout.flush()
     sys.stderr.flush()
 
-    def get_match(actual_kill: Kill, expected_kill: ExpectedKill):
+    def get_match(actual_kill, expected_kill: ExpectedKill):
         mismatch = 0
         if actual_kill.right.name != expected_kill.right_name:
             mismatch += 50
@@ -194,7 +193,10 @@ def test_full_game(game_source, debug=False):
                 state = 'matches'
                 if mismatch > 1:
                     state = 'was similar'
-                errout(f'\tkill at {best.ts} {state} ({mismatch :1.1f}), but this kill was already matched: {best} -> {s2ts(seen[best].timestamp)} - {seen[best]}')
+                errout(
+                    f'\tkill at {best.ts} {state} ({mismatch :1.1f}), '
+                    f'but this kill was already matched: {best} -> {s2ts(seen[best].timestamp)} - {seen[best]}'
+                )
         else:
             seen[best_notseen or best] = kill
     if extra_kills:
@@ -209,7 +211,7 @@ def test_full_game(game_source, debug=False):
             errout(f'kill at {s2ts(kill.timestamp)} only had {len(kill.rows)} rows seen: {kill}')
 
     assert 0 == missed_kills
-    assert 0== extra_kills
+    assert 0 == extra_kills
 
 
 # if __name__ == '__main__':

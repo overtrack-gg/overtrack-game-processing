@@ -2,7 +2,7 @@ import json
 import random
 import subprocess
 
-from overtrack.source.stream import TwitchLiveTSDownloader
+from overtrack.source.stream import Twitch
 
 SAMPLES = 5
 
@@ -11,12 +11,12 @@ def main():
     stream = input('stream?\n').strip()
     # stream = 'https://www.twitch.tv/videos/303359180'
 
-    tsdownloader = TwitchLiveTSDownloader(stream)
-    playlist = tsdownloader.download_playlist()
+    t = Twitch(stream)
+    playlist = t.ts_downloader.download_playlist()
 
     sum_bitrate = 0
     for _ in range(SAMPLES):
-        chunk = TwitchLiveTSDownloader.DownloadedTSChunk(random.choice(playlist))
+        chunk = random.choice(playlist)
         args = 'ffprobe -v quiet -print_format json -show_entries stream -show_format'.split()
         r = subprocess.check_output(args + [chunk.file]).decode('utf-8')
         chunk.delete()

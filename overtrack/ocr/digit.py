@@ -123,7 +123,7 @@ class Classifier:
 
 def ocr_images(images, scale=1.):
     return Classifier.get_instance().classify(
-        [np.min(im, axis=2) for im in images],
+        [np.min(im, axis=2) if len(im.shape) == 3 else im for im in images],
         scale=scale
     )
 

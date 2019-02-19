@@ -1,9 +1,9 @@
-import boto3
 import os
-
 from decimal import Decimal
-from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
-from pynamodb.attributes import UnicodeAttribute, NumberAttribute, BooleanAttribute
+
+import boto3
+from pynamodb.attributes import NumberAttribute, UnicodeAttribute
+from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
 
 try:
     from .util import OverTrackModel, TupleAttribute

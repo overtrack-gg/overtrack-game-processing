@@ -1,6 +1,7 @@
 import os
-from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
-from pynamodb.attributes import UnicodeAttribute, NumberAttribute, BooleanAttribute, JSONAttribute
+
+from pynamodb.attributes import BooleanAttribute, NumberAttribute, UnicodeAttribute
+from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
 
 try:
     from .util import OverTrackModel, TupleAttribute
@@ -119,7 +120,6 @@ class User(OverTrackModel):
 if __name__ == '__main__':
     import logging
     import time
-    import unidecode
     import string
 
     ALLOWED = string.ascii_letters + string.digits + '_-'

@@ -1,9 +1,9 @@
+import logging
 import os
 import string
-from typing import List, Tuple, Optional, Union, TypeVar, Type
+from typing import List, Optional, Type, TypeVar
 
 import cv2
-import logging
 import numpy as np
 import tensorflow as tf
 
@@ -58,16 +58,16 @@ class Classifier:
             self.char = tf.argmax(logits, axis=1)
 
             var_prefix = v.name + '/'
-            vars = v.global_variables()
+            global_vars = v.global_variables()
 
         p = os.path.join(os.path.dirname(__file__), 'data', 'big_noodle.npz')
         logger.info('Loading BigNoodleClassifier weights from %s', p)
         restore_dict = dict(np.load(p))
-        for v in vars:
-            # strip off the scope prefix as the saved vars do not include this
+        for v in global_vars:
+            # strip off the scope prefix as the saved global_vars do not include this
             self.sess.run(v.assign(restore_dict[v.name[len(var_prefix):]]))
 
-    def classify(self, images: List[np.ndarray], debug=False) -> List[str]:
+    def classify(self, images: List[np.ndarray], whitelist: str=None, debug=False) -> List[str]:
         if not len(images):
             return []
         norm_images = []
@@ -79,11 +79,29 @@ class Classifier:
 
         probs = self.sess.run(self.probs, {self.input_images: norm_images})
         result = np.argmax(probs, axis=1)
+        match = match = np.max(probs, axis=1)
 
         logger.debug('OCR RESULT [' + '    '.join(self.CHARACTERS[result]) + '   ]')
-        logger.debug('OCR PROBS  [' + ' '.join(f'{p :1.2f}' for p in np.max(probs, axis=1)) + ']')
+        logger.debug('OCR PROBS  [' + ' '.join(f'{p :1.2f}' for p in match) + ']')
 
-        return self.CHARACTERS[result]
+        if whitelist:
+            mask = np.array([c in whitelist for c in self.CHARACTERS], dtype=np.float)
+            probs = probs * mask
+            result = np.argmax(probs, axis=1)
+            match = np.max(probs, axis=1)
+
+            logger.debug(f'Using mask {"".join(str(int(m)) for m in mask)} for whitelist {whitelist}')
+            logger.debug('OCR RESULT [' + '    '.join(self.CHARACTERS[result]) + '   ]')
+            logger.debug('OCR PROBS  [' + ' '.join(f'{p :1.2f}' for p in match) + ']')
+
+        r = []
+        for i, (c, p) in enumerate(zip(result, match)):
+            if p < 0.1:
+                logger.warning(f'Ignoring char {i} in "{"".join(self.CHARACTERS[result])}" - got p={p:1.2f}')
+            else:
+                r.append(self.CHARACTERS[c])
+
+        return r
 
 
 def to_gray(image: np.ndarray, channel: str=None, debug: bool=False) -> np.ndarray:
@@ -132,6 +150,8 @@ def segment(
             _, thresh = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         else:
             raise ValueError(f'Don\t know how to threshold image using { threshold }')
+    else:
+        raise ValueError(f'Don\t know how to threshold image using { threshold }')
 
     if segmentation == 'connected_components':
         labels, components = imageops.connected_components(thresh)
@@ -244,7 +264,7 @@ T = TypeVar('T', int, str)
 
 def ocr(
         image: np.ndarray,
-        channel: str='gray',
+        channel: Optional[str]='gray',
         segmentation: str='connected_components',
         threshold='otsu_above_mean',
         min_area: int=25,
@@ -259,13 +279,22 @@ def ocr(
     segments_sized = resize_segments(segments, height=25)
     classifier = Classifier.get_instance()
 
-    text = ''.join(classifier.classify(segments_sized, debug=debug))
+    if expected_type == str:
+        whitelist = None
+    elif expected_type == int:
+        # O->0, S->5, A->8
+        whitelist = string.digits + 'OSA'
+    else:
+        raise ValueError(f'Unexpected expected_type={expected_type}')
+
+    text = ''.join(classifier.classify(segments_sized, whitelist=whitelist, debug=debug))
 
     if expected_type is int:
         # TODO: use whitelist chars for classification and choose the best of the possible chars
-        logger.debug(f'Trying to parse "{text}" as {expected_type}')
-        text = text.replace('O', '0').replace('A', '8')
-
+        old_text = text
+        for s1, s2 in 'O0', 'A8', 'S5':
+            text = text.replace(s1, s2)
+        logger.debug(f'Trying to parse "{old_text}" as {expected_type}, converting to {text}')
     try:
         return expected_type(text)
     except Exception as e:

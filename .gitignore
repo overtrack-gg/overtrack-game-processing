@@ -7,6 +7,9 @@
 *.pfx
 *.pem
 
+**/logs/**
+**/models/**
+
 data/
 testing/dev/images/
 twitch_overlay/scoreboard/build

@@ -1,4 +1,4 @@
-from testing.tests.test_games import ExpectedGame, ExpectedKill
+from testing.tests.test_games_full_killfeed import ExpectedGame, ExpectedKill
 
 MUON = 'MUON'
 ORITHETOAST = 'ORITHETOAST'

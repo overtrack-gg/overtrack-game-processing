@@ -4,9 +4,8 @@ import os
 import cv2
 import tensorflow as tf
 
-from overtrack.collect import GameExtractor, Game
+from overtrack.collect import Game, GameExtractor
 from overtrack.game import default_pipeline
-from overtrack.source.stream import HLSPlaylist
 from overtrack.source.video import VideoFrameExtractor
 
 logger = logging.getLogger(__name__)
@@ -14,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 def main(source: str):
     # extractor = HLSPlaylist(source, False, debug_frames=True)
-    extractor = VideoFrameExtractor("C:/scratch/2018-09-20 13-19-07.mp4", extract_fps=1, debug_frames=True)
+    # extractor = VideoFrameExtractor("C:/scratch/2018-09-20 13-19-07.mp4", extract_fps=1, debug_frames=True)
+    extractor = VideoFrameExtractor("S:/overwatch/r66-3hero.mp4", extract_fps=1, debug_frames=True)
 
     def write_game(game: Game):
         key = f'games/{game.shortkey}.frames.json'
@@ -48,6 +48,6 @@ def main(source: str):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    source = 'https://overtrack-playlists.sfo2.digitaloceanspaces.com/muon/2018-11-03-00-35/02-06-busan/vod.m3u8'
+    source = 'https://overtrack-playlists.sfo2.digitaloceanspaces.com/Muon-1547/2018-11-23-07-24/07-34-busan/vod.m3u8'
     with tf.Session(config=tf.ConfigProto(log_device_placement=False, device_count={'GPU': 1})) as sess:
         main(source)

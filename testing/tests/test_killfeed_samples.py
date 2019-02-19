@@ -1,3 +1,12 @@
+"""
+These tests define expected killfeed results for small video clips, each demonstrating certain killfeed effects.
+This includes basic kills, resurrections, killcams, and suicides.
+
+Additionally `add_other_side` is used in certain cases to test if kills will be correctly attributed to the correct team/player,
+even when there are players with similar/same names on each team.
+
+"""
+
 import logging
 import os
 from pprint import pprint
@@ -6,12 +15,14 @@ import tensorflow as tf
 from typing import NamedTuple, List, Optional, Tuple
 
 from overtrack.collect import GameExtractor
-from overtrack.collect.game import Teams, Frame
+from overtrack.collect.game import Frame
+from overtrack.collect.teams import Teams
 from overtrack.game.killfeed import KillfeedProcessor
 from overtrack.game.loading_map import LoadingMapProcessor
 from overtrack.source.video import VideoFrameExtractor
+from overtrack.util.logging_config import config_logger
 
-logging.basicConfig(level=logging.INFO)
+config_logger('test_killfeed', level=logging.DEBUG)
 
 
 class KillDeathCount(NamedTuple):
@@ -46,7 +57,7 @@ videos = [
             KillDeathCount('ZENYATTA', False, 'zenyatta', 0, 1),
             KillDeathCount('SOLDIER76', False, 'soldier', 0, 1),
             KillDeathCount('ROADHOG', False, 'roadhog', 0, 1),
-            KillDeathCount('LUCIO', False, 'lucio', 0, 1),
+            KillDeathCount('LUCIO2', False, 'lucio', 0, 1),
         ])
     ),
 

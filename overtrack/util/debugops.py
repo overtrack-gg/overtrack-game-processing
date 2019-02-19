@@ -7,7 +7,7 @@ from overtrack.ocr import big_noodle
 from overtrack.util import imageops
 
 
-def manual_thresh(gray_image: np.ndarray) -> int:
+def manual_thresh(gray_image: np.ndarray, scale=3.) -> int:
     cv2.namedWindow('thresh')
     cv2.createTrackbar('t', 'thresh', 0, 255, lambda x: None)
     lastt = t = 0
@@ -19,8 +19,8 @@ def manual_thresh(gray_image: np.ndarray) -> int:
                 thresh
             )),
             (0, 0),
-            fx=3,
-            fy=3
+            fx=scale,
+            fy=scale
         ))
         k = cv2.waitKey(1) & 0xFF
         if k == 27:
@@ -54,7 +54,7 @@ def manual_thresh_otsu(image: np.ndarray, template=None, scale=3., stack=np.vsta
     cv2.createTrackbar('mn', 'thresh otsu', 0, 255, set_by_mn_mx)
     cv2.createTrackbar('mx', 'thresh otsu', 255, 255, set_by_mn_mx)
 
-    FRACTION_MAX = 3
+    fraction_max = 3
 
     def set_by_fraction(val):
         fraction = val / 100
@@ -62,7 +62,7 @@ def manual_thresh_otsu(image: np.ndarray, template=None, scale=3., stack=np.vsta
         cv2.setTrackbarPos('mn', 'thresh otsu', otsu_lb)
         set_by_mn_mx()
 
-    cv2.createTrackbar('fraction', 'thresh otsu', 100, (FRACTION_MAX * 100), set_by_fraction)
+    cv2.createTrackbar('fraction', 'thresh otsu', 100, (fraction_max * 100), set_by_fraction)
     set_by_fraction(100)
 
     old = 0
@@ -89,6 +89,56 @@ def manual_thresh_otsu(image: np.ndarray, template=None, scale=3., stack=np.vsta
         if k == 27:
             break
     cv2.destroyAllWindows()
+
+
+def manual_unsharp_mask(image: np.ndarray, scale=2, callback=None):
+    if len(image.shape) == 2:
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+
+    updated = [True]
+    def update(_):
+        updated[0] = True
+
+    cv2.namedWindow('unsharp')
+    cv2.createTrackbar('size', 'unsharp', 40, 100, update)
+    cv2.createTrackbar('weight', 'unsharp', 40, 500, update)
+    cv2.createTrackbar('threshold', 'unsharp', 240, 255, update)
+    while True:
+        size = max(1, cv2.getTrackbarPos('size', 'unsharp') / 10)
+        weight = cv2.getTrackbarPos('weight', 'unsharp') / 10
+        threshold = cv2.getTrackbarPos('threshold', 'unsharp')
+
+        unsharp = imageops.fast_gaussian(image, size, scale=1)
+        im = cv2.addWeighted(image, weight, unsharp, 1 - weight, 0)
+        gray = np.min(im, axis=2)
+        _, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+
+        cv2.imshow('unsharp', cv2.resize(
+            np.hstack((
+                image,
+                cv2.cvtColor(np.min(image, axis=2), cv2.COLOR_GRAY2BGR),
+                unsharp,
+                im,
+                cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR),
+                cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR),
+            )),
+            (0, 0),
+            fx=scale,
+            fy=scale
+        ))
+        k = cv2.waitKey(1) & 0xFF
+        if k == 27:
+            break
+
+        if updated[0]:
+            if callback:
+                callback(thresh)
+
+            updated[0] = False
+
+    cv2.destroyAllWindows()
+    print(size, weight, threshold)
+    return size, weight, threshold
 
 
 def show_ocr_segmentations(names: List[np.ndarray], **kwargs) -> None:

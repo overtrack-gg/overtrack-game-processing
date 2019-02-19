@@ -1,3 +1,4 @@
+import string
 from enum import Enum
 from typing import NamedTuple, List, Dict, Tuple, Optional
 
@@ -12,6 +13,10 @@ map_types = [
 class Map(NamedTuple):
     name: str
     type: str
+
+    @property
+    def code(self) -> str:
+        return ''.join(c for c in self.name.replace(' ', '_') if c in string.ascii_letters + string.digits + '_')
 
 
 class ControlStage(NamedTuple):
@@ -34,7 +39,7 @@ class ControlMap(NamedTuple, Map):
         }
 
 
-maps = [
+maps: List[Map] = [
     Map(
         name='Hanamura',
         type='Assault'
@@ -148,8 +153,30 @@ maps = [
 ]
 
 
+class Mode(NamedTuple):
+    name: str
+
+    @property
+    def code(self) -> str:
+        return self.name.upper().replace(' ', '')
+
+
+modes: List[Mode] = [
+    Mode(
+        'Quick Play'
+    ),
+    Mode(
+        'Competitive'
+    ),
+    Mode(
+        'Custom Game'
+    )
+    # TODO: vs ai, arcade modes, etc. https://overwatch.gamepedia.com/Play_mode
+]
+
+
 class StatType(Enum):
-    CUMMULATIVE = 0
+    MAXIMUM = 0
     AVERAGE = 1
     BEST = 2
     DURATION = 3
@@ -159,11 +186,14 @@ class Role(Enum):
     TANK = 0
     DAMAGE = 1
     SUPPORT = 2
+
+    def __str__(self) -> str:
+        return super().__str__().lower().title().split('.')[1]
     
 
 class Stat(NamedTuple):
     name: str
-    stat_type: StatType = StatType.CUMMULATIVE
+    stat_type: StatType = StatType.MAXIMUM
     is_percent: bool = False
 
 
@@ -198,9 +228,9 @@ generic_stats = [
     ),
 ]
 
-TANKS = {
+tanks: Dict[str, Hero] = {
     'dva': Hero(
-        name='dva',
+        name='D.Va',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -230,7 +260,7 @@ TANKS = {
         )
     ),
     'orisa': Hero(
-        name='orisa',
+        name='Orisa',
         role=Role.TANK,
         ult=None,
         can_heal=False,
@@ -260,7 +290,7 @@ TANKS = {
         )
     ),
     'reinhardt': Hero(
-        name='reinhardt',
+        name='Reinhardt',
         role=Role.TANK,
         ult=None,
         can_heal=False,
@@ -288,7 +318,7 @@ TANKS = {
         )
     ),
     'roadhog': Hero(
-        name='roadhog',
+        name='Roadhog',
         role=Role.TANK,
         ult=None,
         can_heal=False,
@@ -323,7 +353,7 @@ TANKS = {
         )
     ),
     'winston': Hero(
-        name='winston',
+        name='Winston',
         role=Role.TANK,
         ult=None,
         can_heal=False,
@@ -351,7 +381,7 @@ TANKS = {
         )
     ),
     'hammond': Hero(
-        name='hammond',
+        name='Wrecking Ball',
         role=Role.TANK,
         ult=None,
         can_heal=False,
@@ -384,7 +414,7 @@ TANKS = {
         )
     ),
     'zarya': Hero(
-        name='zarya',
+        name='Zarya',
         role=Role.TANK,
         ult=None,
         can_heal=False,
@@ -412,9 +442,9 @@ TANKS = {
         )
     ),
 }
-SUPPORTS: Dict[str, Hero] = {
+supports: Dict[str, Hero] = {
     'ana': Hero(
-        name='ana',
+        name='Ana',
         role=Role.SUPPORT,
         ult=None,
         can_heal=True,
@@ -445,7 +475,7 @@ SUPPORTS: Dict[str, Hero] = {
         )
     ),
     'brigitte': Hero(
-        name='brigitte',
+        name='Brigitte',
         role=Role.SUPPORT,  # ehhh
         ult=None,
         can_heal=True,
@@ -474,7 +504,7 @@ SUPPORTS: Dict[str, Hero] = {
         )
     ),
     'lucio': Hero(
-        name='lucio',
+        name='Lucio',
         role=Role.SUPPORT,
         ult=None,
         can_heal=True,
@@ -504,7 +534,7 @@ SUPPORTS: Dict[str, Hero] = {
         )
     ),
     'mercy': Hero(
-        name='mercy',
+        name='Mercy',
         role=Role.SUPPORT,
         ult=None,
         can_heal=True,
@@ -531,7 +561,7 @@ SUPPORTS: Dict[str, Hero] = {
         )
     ),
     'moira': Hero(
-        name='moira',
+        name='Moira',
         role=Role.SUPPORT,
         ult=None,
         can_heal=True,
@@ -563,10 +593,40 @@ SUPPORTS: Dict[str, Hero] = {
             ]
         )
     ),
+    'zenyatta': Hero(
+        name='Zenyatta',
+        role=Role.SUPPORT,
+        ult=None,
+        can_heal=True,
+        stats=(
+            [
+                Stat(
+                    'secondary fire accuracy',
+                    stat_type=StatType.AVERAGE,
+                    is_percent=True
+                ),
+                Stat(
+                    'kill streak - best',
+                    stat_type=StatType.BEST
+                ),
+                Stat(
+                    'offensive assists'
+                )
+            ],
+            [
+                Stat(
+                    'defensive assists'
+                ),
+                Stat(
+                    'transcendence healing'
+                )
+            ]
+        )
+    ),
 }
-DPS: Dict[str, Hero] = {
+dps: Dict[str, Hero] = {
     'ashe': Hero(
-        name='ashe',
+        name='Ashe',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -601,7 +661,7 @@ DPS: Dict[str, Hero] = {
     ),
 
     'bastion': Hero(
-        name='bastion',
+        name='Bastion',
         role=Role.DAMAGE,
         ult=None,
         can_heal=True,
@@ -634,7 +694,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'doomfist': Hero(
-        name='doomfist',
+        name='Doomfist',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -667,7 +727,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'genji': Hero(
-        name='genji',
+        name='Genji',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -697,7 +757,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'hanzo': Hero(
-        name='hanzo',
+        name='Hanzo',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -730,7 +790,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'junkrat': Hero(
-        name='junkrat',
+        name='Junkrat',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -760,7 +820,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'mccree': Hero(
-        name='mccree',
+        name='Mccree',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -793,7 +853,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'mei': Hero(
-        name='mei',
+        name='Mei',
         role=Role.DAMAGE,
         ult=None,
         can_heal=True,
@@ -821,7 +881,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'pharah': Hero(
-        name='pharah',
+        name='Pharah',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -851,7 +911,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'reaper': Hero(
-        name='reaper',
+        name='Reaper',
         role=Role.DAMAGE,
         ult=None,
         can_heal=True,
@@ -881,7 +941,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'soldier': Hero(
-        name='soldier',
+        name='Soldier 76',
         role=Role.DAMAGE,
         ult=None,
         can_heal=True,
@@ -911,7 +971,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'sombra': Hero(
-        name='sombra',
+        name='Sombra',
         role=Role.DAMAGE,
         ult=None,
         can_heal=True,
@@ -941,7 +1001,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'symmetra': Hero(
-        name='symmetra',
+        name='Symmetra',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -976,7 +1036,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'torbjorn': Hero(
-        name='torbjorn',
+        name='Torbjörn',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -1009,7 +1069,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'tracer': Hero(
-        name='tracer',
+        name='Tracer',
         role=Role.DAMAGE,
         ult=None,
         can_heal=True,
@@ -1039,7 +1099,7 @@ DPS: Dict[str, Hero] = {
         )
     ),
     'widowmaker': Hero(
-        name='widowmaker',
+        name='Widowmaker',
         role=Role.DAMAGE,
         ult=None,
         can_heal=False,
@@ -1070,7 +1130,7 @@ DPS: Dict[str, Hero] = {
     )
 }
 
-HEROES: Dict[str, Hero] = dict()
-HEROES.update(TANKS)
-HEROES.update(DPS)
-HEROES.update(SUPPORTS)
+heroes: Dict[str, Hero] = dict()
+heroes.update(tanks)
+heroes.update(dps)
+heroes.update(supports)

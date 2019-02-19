@@ -1,10 +1,10 @@
 import datetime
+import string
 import time
 from functools import wraps
-from typing import Callable, TYPE_CHECKING, Any
+from typing import Any, Callable, List, Iterable, Tuple
 
-if TYPE_CHECKING:
-    from overtrack.game import Frame
+import numpy as np
 
 
 def humansize(nbytes, suffixes=('B', 'KB', 'MB', 'GB', 'TB', 'PB')):
@@ -82,3 +82,20 @@ def time_processing(process: Callable[[Any, Any, ], bool]):
         frame.timings[self.__class__.__name__] = (t1 - t0) * 1000
         return result
     return timed_process
+
+
+def strip_string(s, alphabet=string.digits+string.ascii_letters+'_'):
+    return ''.join(c for c in s if c in alphabet)
+
+
+def argmax(a: Iterable[float]) -> int:
+    return int(np.argmax(a))
+
+
+def html2bgr(code: str) -> Tuple[int, int, int]:
+    r1, r2, g1, g2, b1, b2 = code[1:]
+    return int(b1 + b2, 16), int(g1 + g2, 16), int(r1 + r2, 16)
+
+
+def bgr2html(color: Tuple[int, int, int]):
+    return '#' + ''.join(f'{c:02x}' for c in color[::-1])

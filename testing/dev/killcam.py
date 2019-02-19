@@ -1,12 +1,11 @@
 import glob
+
 import cv2
 import tensorflow as tf
 
 from overtrack.game import Frame
 from overtrack.game.killfeed import KillfeedProcessor
-from overtrack.game.loading_map.loading_map_processor import LoadingMapProcessor
 from overtrack.source.video import VideoFrameExtractor
-from overtrack.util import debugops
 
 
 def main():
