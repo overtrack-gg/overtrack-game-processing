@@ -51,7 +51,7 @@ class Game(OverTrackModel):
     time = NumberAttribute(attr_name='time')
     player_name = UnicodeAttribute(attr_name='player-name')
     player_battletag = UnicodeAttribute(attr_name='player-battletag', null=True)
-    log_id = TupleAttribute(attr_name='log-id', length=3, of=NumberAttribute, null=True, default=None)
+    log_id = TupleAttribute(attr_name='log-id', length=3, of=UnicodeAttribute, null=True, default=None)
 
     map = UnicodeAttribute(attr_name='map', null=True)
     heroes_played = TupleAttribute(attr_name='heroes-played', null=True, default=None)
@@ -69,6 +69,8 @@ class Game(OverTrackModel):
     has_exception = NumberAttribute(attr_name='has-exception', default=0)
     exception = TupleAttribute(attr_name='exception', null=True, hash_key=True)
 
+    source = UnicodeAttribute(attr_name='source', null=True)
+    stream_key = UnicodeAttribute(attr_name='stream-key', null=True)
     ingest = BooleanAttribute(attr_name='ingest', null=False, default=False)
 
     @property

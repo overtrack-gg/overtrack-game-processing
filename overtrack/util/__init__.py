@@ -83,11 +83,6 @@ def time_processing(process: Callable[[Any, Any, ], bool]):
         return result
     return timed_process
 
-
-def strip_string(s, alphabet=string.digits+string.ascii_letters+'_'):
-    return ''.join(c for c in s if c in alphabet)
-
-
 def argmax(a: Iterable[float]) -> int:
     return int(np.argmax(a))
 

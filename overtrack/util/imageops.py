@@ -64,16 +64,16 @@ def otsu_thresh(vals: np.ndarray, mn: int, mx: int) -> int:
     return threshold
 
 
-def fast_gaussian(im: np.ndarray, v: float, scale: float):
+def fast_gaussian(im: np.ndarray, v: float, scale: float=2):
     ims = cv2.resize(im, (0, 0), fx=1 / scale, fy=1 / scale)
     im2 = cv2.GaussianBlur(ims, (0, 0), v // scale)
     return cv2.resize(im2, (im.shape[1], im.shape[0]), fx=scale, fy=scale)
 
 
-def match_templates_masked(image, templates, last=None):
-    if last is not None:
-        pass
-    # mask = cv2.cvtColor()
+# def match_templates_masked(image, templates, last=None):
+#     if last is not None:
+#         pass
+#     # mask = cv2.cvtColor()
 
 
 def otsu_thresh_lb_fraction(image: np.ndarray, fraction: float) -> np.ndarray:

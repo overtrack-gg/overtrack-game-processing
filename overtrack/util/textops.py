@@ -57,6 +57,10 @@ def mmss_to_seconds(mmss: int) -> int:
     return mm * 60 + ss
 
 
+def strip_string(s, alphabet=string.digits + string.ascii_letters + '_'):
+    return ''.join(c for c in s if c in alphabet)
+
+
 T = TypeVar('T')
 @overload
 def best_match(text: str, options: Iterable[str], threshold=2, level: Optional[int]=logging.INFO) -> Optional[str]:

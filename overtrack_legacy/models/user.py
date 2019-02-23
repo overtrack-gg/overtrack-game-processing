@@ -129,43 +129,6 @@ if __name__ == '__main__':
     log.setLevel(logging.WARNING)
     log.propagate = True
 
-    for i, user in enumerate(User.rate_limited_scan(User.game_uploads_today > 100)):
-    # for i, user in enumerate(User.user_id_index.query(140513435)):
-    #   username = user.username
-    #   if username:
-    #       new = unidecode.unidecode(username)
-    #       new = ''.join([i if i in ALLOWED else '' for i in new])
-    #       if username != new:
-    #           print(username, '->', new)
-    #           user.username = new
-    #
-    #   user.daily_upload_limit = 250
-    #   user.save()
-
-        user.game_uploads_today = 0
-        user.save()
-        print(user)
-        # u.daily_upload_limit = 300
-        # u.save()
-        # time.sleep(0.5)
-        # print(i)
-
-    # import requests
-    # session = requests.Session()
-    # client_id = os.environ.get('TWITCH_CLIENT_ID', 'aczgfljdzi8q9tgkpxovqp9tn6jtnx')
-    # session.headers.update({'Client-ID': client_id})
-    # twitch_get_user = 'https://api.twitch.tv/helix/users?login=%s'
-    #
-    # ac = []
-    # for user in User.rate_limited_scan(twitch_account__null=False):
-    #   try:
-    #       views = session.get(twitch_get_user % (user.twitch_account, )).json()['data'][0]['view_count']
-    #
-    #   except Exception as e:
-    #       print(user.twitch_account, e)
-    #   else:
-    #       print(user.twitch_account, views)
-    #       ac.append((views, user.twitch_account))
-    #
-    # from pprint import pprint
-    # pprint(sorted(ac))
+    u = User.get('Muon#1547')
+    u.stream_key = 'SuperS3cret14794'
+    u.save()

@@ -12,7 +12,7 @@ map_types = [
 
 class Map(NamedTuple):
     name: str
-    type: str
+    type: Optional[str]
 
     @property
     def code(self) -> str:
@@ -46,6 +46,10 @@ maps: List[Map] = [
     ),
     Map(
         name='Horizon Lunar Colony',
+        type='Assault'
+    ),
+    Map(
+        name='Paris',
         type='Assault'
     ),
     Map(

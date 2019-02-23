@@ -3,6 +3,7 @@ requests
 dataclasses
 python-dateutil
 shortuuid
+tqdm
 
 # web server
 sanic

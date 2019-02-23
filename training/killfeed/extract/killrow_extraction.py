@@ -147,6 +147,31 @@ class MaxAlongDims(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
     def call(self, inputs, training=None):
+        return backend.max(inputs, axis=self.dims)
+
+
+class SumAlongDims(Layer):
+
+    def __init__(self, dims: typing.Sequence[int], **kwargs):
+        super(SumAlongDims, self).__init__(**kwargs)
+        self.dims = dims
+
+    def compute_output_shape(self, input_shape):
+        input_shape = tensor_shape.TensorShape(input_shape).as_list()
+        newdims = []
+        for i, dim in enumerate(input_shape):
+            if i not in self.dims:
+                newdims.append(dim)
+        return tensor_shape.TensorShape(newdims)
+
+    def get_config(self):
+        config = {
+            'dims': self.dims,
+        }
+        base_config = super(SumAlongDims, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def call(self, inputs, training=None):
         return backend.sum(inputs, axis=self.dims)
 
 
@@ -226,7 +251,7 @@ def construct_model() -> Model:
         activation=None,
         padding='same'
     )(conv2)
-    detection_y = MaxAlongDims(
+    detection_y = SumAlongDims(
         (2, 3)
     )(detection)
     detection_y = Activation(

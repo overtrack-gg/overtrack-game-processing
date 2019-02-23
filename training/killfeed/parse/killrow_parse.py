@@ -32,7 +32,7 @@ logger = logging.getLogger()
 
 
 TRAINING_DIR = r'C:\scratch\owl-killfeed-2'
-NAME = 'kill'
+NAME = 'kill_extralayer'
 
 HEIGHT = 46
 WIDTH = 500
@@ -40,11 +40,11 @@ WIDTH = 500
 # use a kernel height of HEIGHT-SLIP_Y and then max along x-axis
 # this means the model should be resilient to the row being +-SLIP_Y pixels offset
 SLIP_Y = 3
-HIDDEN_FEATURES = 256
+HIDDEN_FEATURES = 50
 
 # TODO: Y_RANDOM_PAD = 2
 
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 
 class Output(NamedTuple):
     name: str
@@ -52,21 +52,27 @@ class Output(NamedTuple):
     values: List[str]
 
     kernel_width: int
+    conv_maxpool: int = 1
     kernel_maxpool: int = 1
 
 
+# TODO: make these all one class
+OTHERS = ['dva.mech', 'junkrat.riptire', 'orisa.supercharger', 'torbjorn.turret', 'symmetra.teleporter', 'training.bot']
+HEROES = sorted(list(data.heroes.keys()) + ['ashe.bob'] + OTHERS)
 OUTPUTS = [
     Output(
         'text',
         string.ascii_uppercase + string.digits[1:],
         15,
+        1,
         2
     ),
     Output(
         'hero',
-        sorted(list(data.heroes.keys()) + ['ashe.bob', 'dva.mech', 'junkrat.riptire', 'orisa.supercharger', 'torbjorn.turret']),
+        HEROES,
         50,
-        70
+        5,
+        5
     )
 ]
 
@@ -78,6 +84,7 @@ class Image:
         # hack fixes
         self.data = self.data.replace('.ASHER_IR', '.ASHER')
         self.data = self.data.replace('.AIMOU', '.TAIMOU')
+        self.data = self.data.replace('.training_bot', '.training-bot')
 
         try:
             left, right = self.data.split('_')
@@ -85,11 +92,25 @@ class Image:
             self.text = ''
             self.hero = []
             if left:
-                self.text += left.split('.')[2].replace('0', 'O').split(' ')[0]
-                self.hero.append(left.split('.')[1].replace('-', '.'))
+                if 'live-killfeed' in path:
+                    n = left.split('.')[1].replace('0', 'O').split(' ')[0]
+                    h = left.split('.')[2].replace('-', '.')
+                else:
+                    n = left.split('.')[2].replace('0', 'O').split(' ')[0]
+                    h = left.split('.')[1].replace('-', '.')
+                assert h in HEROES, f'{h} not found in HEREOS, but got data {self.data}'
+                self.text += n
+                self.hero.append(h)
 
-            self.text += right.split('.')[2].replace('0', 'O').split(' ')[0]
-            self.hero.append(right.split('.')[1].replace('-', '.'))
+            if 'live-killfeed' in path:
+                n = right.split('.')[1].replace('0', 'O').split(' ')[0]
+                h = right.split('.')[2].replace('-', '.')
+            else:
+                n = right.split('.')[2].replace('0', 'O').split(' ')[0]
+                h = right.split('.')[1].replace('-', '.')
+            assert h in HEROES, f'{h} not found in HEREOS, but got data {self.data}'
+            self.text += n
+            self.hero.append(h)
         except Exception as e:
             raise ValueError(f'Failed to parse "{self.data}": {e}')
 
@@ -170,7 +191,7 @@ class MaxAlongDims(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
     def call(self, inputs, training=None):
-        return backend.sum(inputs, axis=self.dims)
+        return backend.max(inputs, axis=self.dims)
 
 def make_ctc_loss(sequence_length: int, preprocess_collapse_repeated=False, ctc_merge_repeated=False):
     def ctc_loss(y_true, y_pred):
@@ -205,28 +226,33 @@ def construct_model() -> Model:
 
     normed_image = BatchNormalization(input_shape=(None, None, 3))(image)
 
+    conv0 = Conv2D(
+        8,
+        (3, 3),
+        name='conv0',
+        activation='relu',
+    )(normed_image)
+
     conv1 = Conv2D(
-        2,
+        1,
         (3, 3),
         name='conv1',
         activation='relu',
-        # padding='same',
         # kernel_regularizer=l2(0.0001),
         kernel_initializer='he_normal'
-    )(normed_image)
+    )(conv0)
 
     conv2 = Conv2D(
         HIDDEN_FEATURES,
-        (HEIGHT-SLIP_Y, 4),
+        (conv1.get_shape()[1].value-SLIP_Y, 4),
         name='conv2',
         activation='relu',
-        # padding='same',
         # activity_regularizer=l1(0.00001),
         kernel_initializer='he_normal'
     )(conv1)
     conv2_pooled = MaxAlongDims(
         (1, ),
-        name='conv2_pooled'
+        name='conv2_pool_height'
     )(conv2)
     conv2_permuted = Permute(
         (2, 1),
@@ -236,28 +262,27 @@ def construct_model() -> Model:
         lambda e: tf.expand_dims(e, -1),
         name='conv2_reshape'
     )(conv2_permuted)
-    # conv2_reshape = Reshape(
-    #     (HIDDEN_FEATURES, conv2_permuted.get_shape()[2], 1),
-    #     name='conv2_reshape'
-    # )(conv2_permuted)
 
     outputs = {}
     for output_definition in OUTPUTS:
+        output = conv2_reshape
+        if output_definition.conv_maxpool != 1:
+            output = MaxPool2D(
+                (1, output_definition.conv_maxpool),
+                name=output_definition.name + '_convpool'
+            )(output)
+
         features = len(output_definition.values) + 1
         output = Conv2D(
             features,
             (HIDDEN_FEATURES, output_definition.kernel_width),
             name=output_definition.name + '_conv'
-        )(conv2_reshape)
+        )(output)
         if output_definition.kernel_maxpool != 1:
             output = MaxPool2D(
                 (1, output_definition.kernel_maxpool),
                 name=output_definition.name + '_pooled'
             )(output)
-        # output = Reshape(
-        #     (output.get_shape()[2], features),
-        #     name=output_definition.name
-        # )(output)
         output = Lambda(
             lambda e: e[:, 0, :, :],
             name=output_definition.name
@@ -272,7 +297,8 @@ def construct_model() -> Model:
         optimizer=Adam(),
         loss={
             name: make_ctc_loss(output.get_shape()[1])
-            for name, output in outputs.items()},
+            for name, output in outputs.items()
+        },
         # metrics=[accuracy, accuracy_positive]
         # options=run_options,
         # run_metadata=run_metadata
@@ -297,28 +323,34 @@ class VisualiseCallback(Callback):
         self.images = images
         self.frequency = frequency
         self.last_shown = 0
+        self.last_batch = 0
 
     def on_batch_end(self, batch, logs=None):
-        if time.time() - self.last_shown > self.frequency:
+        if time.time() - self.last_shown > self.frequency and batch - self.last_batch > 50:
             self.last_shown = time.time()
+            self.last_batch = batch
             self.visualise()
 
     def visualise(self):
+        cv2.imshow('images', np.vstack([self.make_image(2) for _ in range(3)]))
+        cv2.waitKey(1)
+
+    def make_image(self, scale=3):
         image: Image = random.choice(self.images)
         im = image.imread()
         pred = self.model.predict([[im]], 1)
-        im2 = cv2.resize(im, (0, 0), fx=3, fy=3)
+        im2 = cv2.resize(im, (0, 0), fx=scale, fy=scale)
         # print(image.data)
         cv2.putText(
             im2,
             image.data,
-            (0, 35),
+            (0, 12 * scale),
             cv2.FONT_HERSHEY_SIMPLEX,
-            1,
+            0.3 * scale,
             (0, 255, 0),
             2
         )
-        y = 70
+        y = 20 * scale + 10
         for o, p in zip(OUTPUTS, pred):
             decoded, neg_sum_logits = keras.backend.get_session().run(tf.nn.ctc_greedy_decoder(np.transpose(p, (1, 0, 2)), [p.shape[1]], False))
             result = np.array(list(o.values), dtype=np.object)[decoded[0].values]
@@ -329,35 +361,12 @@ class VisualiseCallback(Callback):
                 f'{o.name}: {result}',
                 (0, y),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                1,
+                0.3 * scale,
                 (0, 255, 0),
                 2
             )
-            y += 35
-        cv2.imshow('image', im2)
-        cv2.waitKey(1)
-        # rows = []
-        # for _ in range(3):
-        #     row = []
-        #     for _ in range(3):
-        #         image = random.choice(self.images)
-        #         im = image.imread()
-        #
-        #         pred = self.model.predict([[im]], 1)[0]
-        #         expc = image.make_expected()
-        #
-        #         expc_im = (np.hstack([np.expand_dims(expc, 1)] * 50) * 255).astype(np.uint8)
-        #         pred_im = (np.hstack([np.expand_dims(pred, 1)] * 50) * 255).astype(np.uint8)
-        #
-        #         rowim = np.hstack((
-        #             cv2.resize(im, (0, 0), fx=1 / DOWNSCALE, fy=1 / DOWNSCALE),
-        #             cv2.cvtColor(pred_im, cv2.COLOR_GRAY2BGR),
-        #             cv2.cvtColor(expc_im, cv2.COLOR_GRAY2BGR)
-        #         ))
-        #         row.append(rowim)
-        #     rows.append(np.hstack(row))
-        # cv2.imshow('samples', cv2.resize(np.vstack(rows), (0, 0), fx=0.5, fy=0.5))
-        # cv2.waitKey(1)
+            y += 12 * scale
+        return im2
 
 
 def main(use_gpu=True) -> None:
@@ -371,7 +380,17 @@ def main(use_gpu=True) -> None:
     sess = tf.Session(config=config)
     keras.backend.set_session(sess)
 
-    image_paths = glob.glob(TRAINING_DIR + '/**/**/kills/**/*.png', recursive=True)
+    print('Loading paths')
+
+    paths1 = glob.glob(TRAINING_DIR + '/**/**/kills/**/*.png', recursive=True)
+    paths2 = glob.glob('C:/scratch/live-killfeed' + '/**/kills/**/*.png', recursive=True)
+    print(len(paths1), len(paths2))
+    while len(paths1) > len(paths2):
+        paths2 += random.sample(paths2, 500)
+
+    image_paths = paths1 + paths2
+    image_paths = [p for p in image_paths if os.path.normpath(p).split(os.path.sep)[-2][0] != '_']
+
     images = [Image(p) for p in image_paths]
     assert len(images), 'Could not load any images'
     print(f'Loaded {len(images)} images')
@@ -383,6 +402,7 @@ def main(use_gpu=True) -> None:
     # cv2.waitKey(0)
 
     model: Model = construct_model()
+    model.load_weights(f'./models/{NAME}_checkpoint.h5')
     image_loader = ImageLoader(images, batch_size=BATCH_SIZE)
     model.fit_generator(
         image_loader,
@@ -392,11 +412,11 @@ def main(use_gpu=True) -> None:
 
             TensorBoard(log_dir=get_next_logdir('./logs', name=NAME)),
             ModelCheckpoint(f'./models/{NAME}_checkpoint.h5'),
-            VisualiseCallback(images, frequency=10),
+            VisualiseCallback(images, frequency=30),
         ],
-        # max_queue_size=20,
-        # workers=4,
-        # use_multiprocessing=True
+        max_queue_size=20,
+        workers=4,
+        use_multiprocessing=True
     )
     os.makedirs('./models', exist_ok=True)
     model.save(f'./models/{NAME}.h5')

@@ -15,6 +15,7 @@ dataclasses = "*"
 python-dateutil = "^2.7"
 shortuuid = "*"
 typedload = "*"
+tqdm = "*"
 
 # embedded web servers
 sanic = "^0.8"

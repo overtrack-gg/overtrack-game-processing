@@ -79,7 +79,7 @@ class Classifier:
 
         probs = self.sess.run(self.probs, {self.input_images: norm_images})
         result = np.argmax(probs, axis=1)
-        match = match = np.max(probs, axis=1)
+        match = np.max(probs, axis=1)
 
         logger.debug('OCR RESULT [' + '    '.join(self.CHARACTERS[result]) + '   ]')
         logger.debug('OCR PROBS  [' + ' '.join(f'{p :1.2f}' for p in match) + ']')
@@ -96,7 +96,7 @@ class Classifier:
 
         r = []
         for i, (c, p) in enumerate(zip(result, match)):
-            if p < 0.1:
+            if p < 0.1 and not whitelist:
                 logger.warning(f'Ignoring char {i} in "{"".join(self.CHARACTERS[result])}" - got p={p:1.2f}')
             else:
                 r.append(self.CHARACTERS[c])
@@ -298,7 +298,7 @@ def ocr(
     try:
         return expected_type(text)
     except Exception as e:
-        logger.warning(f'Got exception interpreting "{text}" as {expected_type} - {e}')
+        logger.warning(f'Got exception interpreting "{text}" as {expected_type.__name__} - {e}')
 
 
 def ocr_all(images: List[np.ndarray], **kwargs) -> List[str]:
