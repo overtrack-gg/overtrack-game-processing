@@ -12,7 +12,7 @@
 *.full.zip
 
 **/logs/**
-**/models/**
+**/models/*.h5
 **/.ipynb_checkpoints/*.ipynb
 
 environment.txt
