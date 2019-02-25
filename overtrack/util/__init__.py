@@ -4,8 +4,6 @@ import time
 from functools import wraps
 from typing import Any, Callable, List, Iterable, Tuple
 
-import numpy as np
-
 
 def humansize(nbytes, suffixes=('B', 'KB', 'MB', 'GB', 'TB', 'PB')):
     # http://stackoverflow.com/a/14996816
@@ -82,9 +80,6 @@ def time_processing(process: Callable[[Any, Any, ], bool]):
         frame.timings[self.__class__.__name__] = (t1 - t0) * 1000
         return result
     return timed_process
-
-def argmax(a: Iterable[float]) -> int:
-    return int(np.argmax(a))
 
 
 def html2bgr(code: str) -> Tuple[int, int, int]:

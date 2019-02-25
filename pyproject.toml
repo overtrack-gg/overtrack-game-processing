@@ -35,8 +35,8 @@ editdistance = "*"
 av = "^6"
 streamlink = { git = "https://github.com/streamlink/streamlink.git" }
 
-# overtrack.gg game upload support
 pynamodb = "^3"
+boto3 = "^1"
 
 sentry-sdk = "^0.5"
 google-cloud-logging = "^1"
@@ -45,6 +45,8 @@ google-cloud-logging = "^1"
 
 pytest = "*"
 pytest-ordering = "*"
+pytest-sugar = "*"
+pytest-cov = "*"
 
 [build-system]
 requires = ["poetry>=0.12"]

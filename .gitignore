@@ -1,6 +1,7 @@
 .mypy_cache/
 .idea/
 .pytest_cache/
+poetry.lock
 
 *.pyc
 *.mp4

@@ -40,8 +40,8 @@ class Loader(typedload.dataloader.Loader):
         self.handlers.append((lambda type_: type_ == Frame, _frameload))
         self.handlers.append((lambda type_: isinstance(type_, str), lambda l, value, type_: l.load(value, l.frefs[type_])))
 
-        self.handlers[8] = (self.handlers[8][0], _namedtupleload)
-        self.handlers[9] = (self.handlers[9][0], _namedtupleload)
+        # self.handlers[8] = (self.handlers[8][0], _namedtupleload)
+        # self.handlers[9] = (self.handlers[9][0], _namedtupleload)
 
     T = TypeVar('T')
 
@@ -60,57 +60,57 @@ class Loader(typedload.dataloader.Loader):
         return super().load(value, type_)
 
 
-def _namedtupleload(l: Loader, value: Dict[str, Any], type_) -> Tuple:
-    """
-    This loads a Dict[str, Any] into a NamedTuple.
-    """
-    if not hasattr(type_, '__dataclass_fields__'):
-        fields = set(type_._fields)
-        optional_fields = set(getattr(type_, '_field_defaults', {}).keys())
-        type_hints = type_._field_types
-    else:
-        fields = set(type_.__dataclass_fields__.keys())
-        optional_fields = {k for k, v in type_.__dataclass_fields__.items() if
-                           not isinstance(getattr(v, 'default', dataclasses._MISSING_TYPE()), dataclasses._MISSING_TYPE)}
-        type_hints = {k: v.type for k, v in type_.__dataclass_fields__.items()}
-    necessary_fields = fields.difference(optional_fields)
-    try:
-        vfields = set(value.keys())
-    except AttributeError as e:
-        raise typedload.dataloader.TypedloadAttributeError(str(e), value=value, type_=type_)
-
-    if necessary_fields.intersection(vfields) != necessary_fields:
-        raise typedload.dataloader.TypedloadValueError(
-            'Value does not contain fields: %s which are necessary for type %s' % (
-                necessary_fields.difference(vfields),
-                type_
-            ),
-            value=value,
-            type_=type_,
-        )
-
-    fieldsdiff = vfields.difference(fields)
-    if l.failonextra and len(fieldsdiff):
-        extra = ', '.join(fieldsdiff)
-        raise typedload.dataloader.TypedloadValueError(
-            'Dictionary has unrecognized fields: %s and cannot be loaded into %s' % (extra, type_),
-            value=value,
-            type_=type_,
-        )
-
-    params = {}
-    for k, v in value.items():
-        if k not in fields:
-            continue
-        params[k] = l.load(
-            v,
-            type_hints[k],
-            annotation=typedload.dataloader.Annotation(typedload.dataloader.AnnotationType.FIELD, k),
-        )
-    try:
-        return type_(**params)
-    except (TypeError, AttributeError):
-        return dataclasses.make_dataclass(type_.__name__, type_hints.items())(**{n: params.get(n) for n in type_hints})
+# def _namedtupleload(l: Loader, value: Dict[str, Any], type_) -> Tuple:
+#     """
+#     This loads a Dict[str, Any] into a NamedTuple.
+#     """
+#     if not hasattr(type_, '__dataclass_fields__'):
+#         fields = set(type_._fields)
+#         optional_fields = set(getattr(type_, '_field_defaults', {}).keys())
+#         type_hints = type_._field_types
+#     else:
+#         fields = set(type_.__dataclass_fields__.keys())
+#         optional_fields = {k for k, v in type_.__dataclass_fields__.items() if
+#                            not isinstance(getattr(v, 'default', dataclasses._MISSING_TYPE()), dataclasses._MISSING_TYPE)}
+#         type_hints = {k: v.type for k, v in type_.__dataclass_fields__.items()}
+#     necessary_fields = fields.difference(optional_fields)
+#     try:
+#         vfields = set(value.keys())
+#     except AttributeError as e:
+#         raise typedload.dataloader.TypedloadAttributeError(str(e), value=value, type_=type_)
+#
+#     if necessary_fields.intersection(vfields) != necessary_fields:
+#         raise typedload.dataloader.TypedloadValueError(
+#             'Value does not contain fields: %s which are necessary for type %s' % (
+#                 necessary_fields.difference(vfields),
+#                 type_
+#             ),
+#             value=value,
+#             type_=type_,
+#         )
+#
+#     fieldsdiff = vfields.difference(fields)
+#     if l.failonextra and len(fieldsdiff):
+#         extra = ', '.join(fieldsdiff)
+#         raise typedload.dataloader.TypedloadValueError(
+#             'Dictionary has unrecognized fields: %s and cannot be loaded into %s' % (extra, type_),
+#             value=value,
+#             type_=type_,
+#         )
+#
+#     params = {}
+#     for k, v in value.items():
+#         if k not in fields:
+#             continue
+#         params[k] = l.load(
+#             v,
+#             type_hints[k],
+#             annotation=typedload.dataloader.Annotation(typedload.dataloader.AnnotationType.FIELD, k),
+#         )
+#     try:
+#         return type_(**params)
+#     except (TypeError, AttributeError):
+#         return dataclasses.make_dataclass(type_.__name__, type_hints.items())(**{n: params.get(n) for n in type_hints})
 
 
 def _frameload(loader: Loader, value: Any, type_: type) -> Any:
@@ -197,7 +197,6 @@ class ReferencedDumper(Dumper):
             return super().dump(value)
         elif id(value) in self.visited:
             self.refs_to_add.append(id(value))
-            # print('>', id(value), 'is visited', value)
             return {'_ref': self.visited[id(value)]}
         else:
             try:
@@ -212,11 +211,9 @@ class ReferencedDumper(Dumper):
                 # value == equal, but id(value) != equal and equal has already been added
                 # instead of adding value, add a ref to equal
                 self.refs_to_add.append(id(equal))
-                # print('>', id(value), 'is equal to', id(equal), value)
                 return {'_ref': self.visited[id(equal)]}
 
             self.visited[id(value)] = next(self.idgen)
-            # print('>', id(value), self.visited[id(value)], 'visit', value)
             result = super().dump(value)
             self.dumped[id(value)] = result
             return result
