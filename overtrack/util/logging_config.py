@@ -45,6 +45,8 @@ def config_logger(
         use_datadog=False,
         use_stackdriver=False,
 
+        stackdriver_level=logging.INFO,
+
         use_stackdriver_error=False,
 
         upload_func: Optional[Callable[[str, str], None]]=None,
@@ -157,7 +159,7 @@ def config_logger(
         # client.setup_logging()
 
         handler = CloudLoggingHandler(client, name=name)
-        handler.setLevel(level)
+        handler.setLevel(stackdriver_level)
         logger.addHandler(handler)
         for logger_name in EXCLUDED_LOGGER_DEFAULTS + ('urllib3.connectionpool', ):
             exclude = logging.getLogger(logger_name)
