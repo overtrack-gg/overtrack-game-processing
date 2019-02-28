@@ -144,6 +144,7 @@ def tesser_ocr(
         s = s.replace('\n', '')
 
     if get_confidence:
+        # noinspection PyTypeChecker
         return s, float(engine.MeanTextConf()) / 100
     else:
         return s
@@ -191,6 +192,7 @@ def imread(path, mode=None):
         return im
 
 
+# noinspection PyPep8Naming
 def findContours(image, mode, method, contours=None, hierarchy=None, offset=None):
     r = cv2.findContours(image, mode, method, contours=contours, hierarchy=hierarchy, offset=offset)
     if len(r) == 3:
@@ -203,6 +205,7 @@ if __name__ == '__main__':
     print(os.environ['PATH'])
     print(tesserocr.tesseract_version())
 
+    # noinspection PyArgumentList
     ocr = tesserocr.PyTessBaseAPI(oem=tesserocr.OEM.LSTM_ONLY)
 
     gray = image = cv2.imread('C:\\tmp\\gray.png', 0)

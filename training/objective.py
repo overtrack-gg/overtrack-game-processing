@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.python.keras import Model, backend as K
+from tensorflow.python.keras import Model
 from tensorflow.python.keras.callbacks import ModelCheckpoint, TensorBoard
 from tensorflow.python.keras.layers import *
 from tensorflow.python.keras.optimizers import Adam
@@ -237,6 +237,7 @@ class Prediction:
             s += ', '
         return s[:-2] + ')'
 
+    # noinspection PyUnresolvedReferences
     def mismatch_reason(self, image: Image) -> Optional[str]:
         if np.argmax(self.game_mode) != image.game_mode:
             return 'game_mode'

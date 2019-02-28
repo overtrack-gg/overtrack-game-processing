@@ -118,10 +118,10 @@ class Image:
         try:
             r = []
             for output in OUTPUTS:
-                l = []
+                inds = []
                 for e in getattr(self, output.name):
-                    l.append(output.values.index(e))
-                r.append(l)
+                    inds.append(output.values.index(e))
+                r.append(inds)
             return tuple(r)
         except Exception as e:
             raise ValueError(f'Got exception while processing "{self.data}": {e}')

@@ -115,6 +115,7 @@ class RandomBrightnessContrast(Layer):
             'contrast_upper': self.contrast_upper
         }
         base_config: Dict[str, any] = super(RandomBrightnessContrast, self).get_config()
+        # noinspection PyTypeChecker
         return dict(list(base_config.items()) + list(config.items()))
 
     def compute_output_shape(self, input_shape):
@@ -166,6 +167,7 @@ class SumAlongDims(Layer):
             'dims': self.dims,
         }
         base_config = super(SumAlongDims, self).get_config()
+        # noinspection PyTypeChecker
         return dict(list(base_config.items()) + list(config.items()))
 
     def call(self, inputs, training=None):
@@ -279,12 +281,15 @@ def get_next_logdir(d: str, name='run') -> str:
             return p
 
 
+# noinspection PyTypeChecker
 def accuracy(y_true: tf.Tensor, y_pred: tf.Tensor):
     b_true = tf.cast(y_true > 0.5, tf.float32)
     b_pred = tf.cast(y_pred > 0.5, tf.float32)
     correct = tf.cast(tf.equal(b_true, b_pred), tf.float32)
     return tf.reduce_mean(correct, axis=1)
 
+
+# noinspection PyTypeChecker
 def accuracy_positive(y_true: tf.Tensor, y_pred: tf.Tensor):
     b_true = tf.cast(y_true > 0.5, tf.float32)
     b_pred = tf.cast(y_pred > 0.5, tf.float32)

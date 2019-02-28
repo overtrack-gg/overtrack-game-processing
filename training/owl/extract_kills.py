@@ -856,6 +856,7 @@ def main() -> None:
         invert=True
     )
     spec.top = spec.TOP
+    # noinspection PyTypeChecker
     kex = KillfeedExtractor(None, util.bgr2html(away_color))
     kex.owl = owl
     kex.spec = spec

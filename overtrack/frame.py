@@ -16,6 +16,7 @@ def dictify(dic: Any) -> Any:
     elif callable(getattr(dic, 'to_dict', None)):
         return dictify(dic.to_dict())
     elif callable(getattr(dic, '_asdict', None)):
+        # noinspection PyProtectedMember
         return dictify(dic._asdict())
     elif dataclasses.is_dataclass(dic):
         return dictify(dic.__dict__)
@@ -44,6 +45,7 @@ def strify(o: Any, depth=0) -> str:
         if dataclasses.is_dataclass(o):
             fields = [f.name for f in dataclasses.fields(o)]
         else:
+            # noinspection PyProtectedMember
             fields = o._fields
         if len(fields) < 4:
             return o.__class__.__name__ + '(' + ', '.join(f + '=' + strify(getattr(o, f), depth) for f in fields) + ')'

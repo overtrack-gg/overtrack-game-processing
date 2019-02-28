@@ -96,6 +96,7 @@ def manual_unsharp_mask(image: np.ndarray, scale=2, callback=None):
         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
     updated = [True]
+
     def update(_):
         updated[0] = True
 

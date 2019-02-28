@@ -1,13 +1,13 @@
 import itertools
-import json
-import time
-from pprint import pprint
-from typing import Any, Dict, Optional, Tuple, Type, TypeVar
+from typing import Any, Dict, Optional, Type, TypeVar
 
+# noinspection PyUnresolvedReferences
 import dataclasses
-import numpy as np
+# noinspection PyUnresolvedReferences
 import typedload.datadumper
+# noinspection PyUnresolvedReferences
 import typedload.dataloader
+import numpy as np
 from typedload.exceptions import Annotation
 
 from overtrack.overwatch.collect import Game
@@ -15,6 +15,7 @@ from overtrack.source.stream.ts_stream import TSSource
 
 
 class Loader(typedload.dataloader.Loader):
+    # noinspection PyUnresolvedReferences
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if 'source_type' not in kwargs:
@@ -38,6 +39,7 @@ class Loader(typedload.dataloader.Loader):
             # 'TSFrameExtractor.TSChunk': overtrack.source.stream.opencv_ts_stream.TSFrameExtractor.TSChunk
         })
 
+        # noinspection PyTypeChecker
         self.handlers.append((lambda type_: type_ == Frame, _frameload))
         self.handlers.append((lambda type_: isinstance(type_, str), lambda l, value, type_: l.load(value, l.frefs[type_])))
 

@@ -12,7 +12,12 @@ from typing import Callable, Optional, Sequence, Mapping
 LOG_FORMAT = '[%(asctime)16s | %(levelname)8s | %(name)24s | %(filename)s:%(lineno)s %(funcName)s() ] %(message)s'
 
 
-def intermittent_log(logger: logging.Logger, line: str, frequency: float=60, level=logging.INFO, negative_level: Optional[int]=None, _last_logged=defaultdict(float)):
+def intermittent_log(
+        logger: logging.Logger,
+        line: str, frequency: float=60,
+        level=logging.INFO,
+        negative_level: Optional[int]=None,
+        _last_logged=defaultdict(float)):
     try:
         caller = inspect.stack()[1]
         output = negative_level
@@ -26,6 +31,7 @@ def intermittent_log(logger: logging.Logger, line: str, frequency: float=60, lev
             record = logger.makeRecord(logger.name, output, fn, lno, line, (), None, func, None, sinfo)
             logger.handle(record)
     except BaseException:
+        # noinspection PyProtectedMember
         logger._log(level, line, ())
 
 
@@ -155,6 +161,8 @@ def config_logger(
         import google.cloud.logging
         from google.cloud.logging.handlers import CloudLoggingHandler
         from google.cloud.logging.handlers.handlers import EXCLUDED_LOGGER_DEFAULTS
+
+        # noinspection PyUnresolvedReferences
         client = google.cloud.logging.Client()
         # client.setup_logging()
 
@@ -174,7 +182,15 @@ def config_logger(
         import datadog
         from datadog_logger import DatadogLogHandler
         datadog.initialize(api_key=os.environ['DATADOG_API_KEY'], app_key=os.environ['DATADOG_APP_KEY'])
-        datadog_handler = DatadogLogHandler(tags=[f'host:{socket.gethostname()}', f'pid:{os.getpid()}', f'stack:{name}', 'type:log'], mentions=[], level=logging.INFO)
+        datadog_handler = DatadogLogHandler(
+            tags=[
+                f'host:{socket.gethostname()}',
+                f'pid:{os.getpid()}',
+                f'stack:{name}',
+                'type:log'],
+            mentions=[],
+            level=logging.INFO
+        )
         logger.addHandler(datadog_handler)
 
     for _ in range(3):
@@ -188,6 +204,7 @@ def config_logger(
         upload_logs_settings['upload_func'] = upload_func
         file: str = handlers['file']['filename']
         file_debug: str = handlers['file_debug']['filename']
+        # noinspection PyTypeChecker
         upload_logs_settings['args'] = file, file_debug
 
         def upload_loop():
