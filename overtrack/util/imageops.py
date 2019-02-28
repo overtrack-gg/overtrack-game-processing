@@ -86,6 +86,7 @@ def otsu_thresh_lb_fraction(image: np.ndarray, fraction: float) -> np.ndarray:
 
 
 # eng.traineddata from https://github.com/tesseract-ocr/tessdata/blob/master/eng.traineddata
+# noinspection PyArgumentList
 tesseract_only = tesserocr.PyTessBaseAPI(
     path=os.path.join(os.path.dirname(__file__), 'data'),
     lang='eng',
@@ -93,12 +94,14 @@ tesseract_only = tesserocr.PyTessBaseAPI(
     psm=tesserocr.PSM.SINGLE_LINE
 )
 
+# noinspection PyArgumentList
 tesseract_lstm = tesserocr.PyTessBaseAPI(
     path=os.path.join(os.path.dirname(__file__), 'data'),
     oem=tesserocr.OEM.LSTM_ONLY,
     psm=tesserocr.PSM.SINGLE_LINE
 )
 
+# noinspection PyArgumentList
 tesseract_futura = tesserocr.PyTessBaseAPI(
     path=os.path.join(os.path.dirname(__file__), 'data'),
     lang='Futura',

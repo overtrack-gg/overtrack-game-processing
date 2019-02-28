@@ -3,7 +3,7 @@ from typing import List
 import cv2
 import numpy as np
 
-from overtrack.ocr import big_noodle
+from overtrack.overwatch.ocr import big_noodle
 from overtrack.util import imageops
 
 

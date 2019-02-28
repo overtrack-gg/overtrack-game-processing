@@ -121,6 +121,7 @@ if __name__ == '__main__':
     import logging
     import time
     import string
+    import shortuuid
 
     ALLOWED = string.ascii_letters + string.digits + '_-'
 
@@ -130,5 +131,12 @@ if __name__ == '__main__':
     log.propagate = True
 
     u = User.get('Muon#1547')
-    u.stream_key = 'SuperS3cret14794'
+    # u = User.user_id_index.get(71245935)
+    u.stream_key = shortuuid.uuid()
     u.save()
+
+    # u.battletag = 'Sio#11513'
+    u.save()
+
+    print(u)
+    print(u.stream_key)

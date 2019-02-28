@@ -1,20 +1,17 @@
-import cv2
 import glob
 import logging
 import random
+from typing import Dict
 
+import cv2
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.engine import Layer
-from tensorflow.python.keras.models import load_model, Model
-from tensorflow.keras import backend as K
-from tensorflow.python.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.python.keras.models import Model, load_model
 
-from overtrack.source.obs import OBSFrameExtractor
-from training.objective import Image, Prediction, OUTPUTS
-
-import matplotlib.pyplot as plt
+from training.objective import Image, Prediction
 
 TRAINING_DIR = r'C:\scratch\objective'
 
@@ -35,13 +32,14 @@ class RandomBrightnessContrast(Layer):
 
         return K.in_train_phase(randomed, inputs, training=False)
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, any]:
         config = {
             'brightness_delta': self.brightness_delta,
             'contrast_lower': self.contrast_lower,
             'contrast_upper': self.contrast_upper
         }
         base_config = super(RandomBrightnessContrast, self).get_config()
+        # noinspection PyTypeChecker
         return dict(list(base_config.items()) + list(config.items()))
 
     def compute_output_shape(self, input_shape):

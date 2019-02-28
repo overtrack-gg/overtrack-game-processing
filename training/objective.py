@@ -4,22 +4,19 @@ import logging
 import os
 import random
 import shutil
-import sys
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.python.keras import Model, Sequential
-from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint
+from tensorflow.python.keras import Model, backend as K
+from tensorflow.python.keras.callbacks import ModelCheckpoint, TensorBoard
 from tensorflow.python.keras.layers import *
-from tensorflow.python.keras.regularizers import *
-from tensorflow.python.keras.models import load_model
 from tensorflow.python.keras.optimizers import Adam
 from tensorflow.python.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.python.keras.regularizers import *
 from tensorflow.python.keras.utils import Sequence
-from tensorflow.python.keras import backend as K
 
 logger = logging.getLogger()
 
@@ -293,6 +290,7 @@ class RandomBrightnessContrast(Layer):
             'contrast_upper': self.contrast_upper
         }
         base_config = super(RandomBrightnessContrast, self).get_config()
+        # noinspection PyTypeChecker
         return dict(list(base_config.items()) + list(config.items()))
 
     def compute_output_shape(self, input_shape):

@@ -1,5 +1,4 @@
 import gc
-import glob
 import itertools
 import logging
 import os
@@ -19,12 +18,14 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from overtrack import util
-from overtrack.game import Processor, Frame, ShortCircuitProcessor
-from overtrack.game.killfeed.icon_parser import IconParser
-from overtrack.game.spectator import SpectatorProcessor
+from overtrack.frame import Frame
+from overtrack.overwatch.game.killfeed.icon_parser import IconParser
+from overtrack.overwatch.game.spectator import SpectatorProcessor
 from overtrack.source.stream import Twitch
-from overtrack.util import imageops, debugops, s2ts
+from overtrack.util import imageops, s2ts
 from overtrack.util.logging_config import config_logger
+from processor import Processor, ShortCircuitProcessor
+from util import textops
 
 logger = logging.getLogger(__name__)
 
@@ -356,7 +357,9 @@ class KillfeedExtractor:
                 #     cv2.waitKey(0)
                 #     print()
 
-            if (has_suicide and (frame.timestamp - last_fullframe) > 5) or ((frame.timestamp - last_fullframe) > 20 and len(killrows) > 0) or ((frame.timestamp - last_fullframe) > 45 and len(killrows) == 0):
+            if (has_suicide and (frame.timestamp - last_fullframe) > 5) or \
+                    ((frame.timestamp - last_fullframe) > 20 and len(killrows) > 0) or \
+                    ((frame.timestamp - last_fullframe) > 45 and len(killrows) == 0):
                 killrows_str = '_'.join(f'{r.right.y + self.spec.top + 40:1.1f}' for r in killrows)
                 cv2.imwrite(os.path.join(frames_target, f'{fi}_{killrows_str}.png'), frame.image)
                 last_fullframe = frame.timestamp
@@ -369,12 +372,12 @@ class KillfeedExtractor:
 
     def extract_kills(self, icons: List[Icon], killfeed_region):
         # sort icons by how "correct" they are
-        def goodness(i: Icon):
-            return i.hero is not None,\
-                   (i.hero.hero if i.hero else None) is not None, \
-                   i.team_index is not None, \
-                   max(abs(i.width - target_width), abs(i.height - target_height)) < 4, \
-                   i.hero.match if i.hero else 0
+        def goodness(icon: Icon):
+            return icon.hero is not None, \
+                   (icon.hero.hero if icon.hero else None) is not None, \
+                   icon.team_index is not None, \
+                   max(abs(icon.width - target_width), abs(icon.height - target_height)) < 4, \
+                   icon.hero.match if icon.hero else 0
         icons = sorted(icons, key=goodness, reverse=True)
         _icons = list(icons)
 
@@ -394,7 +397,7 @@ class KillfeedExtractor:
                     )
                 for i in samerow:
                     icons.remove(i)
-                left, right = sorted([icon, other], key=lambda i: i.x)
+                left, right = sorted([icon, other], key=lambda icon: icon.x)
             else:
                 left, right = None, icon
                 has_suicide = icon.hero is not None
@@ -458,7 +461,6 @@ class KillfeedExtractor:
             self.spec.top + 40:self.spec.top + 640,
             1920 - 500:
         ].copy()
-        # killfeed_region = cv2.imread(r'C:\scratch\owl-killfeed\sfs-vs-val-overwatch-league-season-1-stage-1-w1\ilios\kills\FFFFFF.mercy.SLEEPY_FFFFFF.zenyatta.SLEEPY')
         icons: List[Icon] = []
         vibrance = cv2.cvtColor(killfeed_region, cv2.COLOR_BGR2YUV)[:, :, 0]
         # cv2.imwrite('v.png', vibrance)
@@ -502,7 +504,13 @@ class KillfeedExtractor:
             height_diff = abs(height - target_height)
 
             if max(width_diff, height_diff) > 12:
-                self.draw_fail_reason(frame, cnt, f'w, h: {int(width), int(height)}, required: {target_width, target_height}, delta: {int(width_diff), int(height_diff)}')
+                self.draw_fail_reason(
+                    frame,
+                    cnt,
+                    f'w, h: {int(width), int(height)}, '
+                    f'required: {target_width, target_height}, '
+                    f'delta: {int(width_diff), int(height_diff)}'
+                )
                 continue
 
             angle_diff = min(90 - angle, angle)
@@ -579,13 +587,22 @@ class KillfeedExtractor:
                 left_heroes = [p.hero if p else None for p in frame.spectator_bar.left_team]
                 right_heroes = [p.hero if p else None for p in frame.spectator_bar.right_team]
                 if distance_home_away < 0.5 and hero in left_heroes and hero not in right_heroes:
-                    logger.warning(f'Resolving team=left for {parsed.hero if parsed else None} - left_team={left_heroes}, right_team={right_heroes}')
+                    logger.warning(
+                        f'Resolving team=left for {parsed.hero if parsed else None} - '
+                        f'left_team={left_heroes}, right_team={right_heroes}'
+                    )
                     icon_away_team = False
                 elif distance_home_away > 0.5 and hero not in left_heroes and hero in right_heroes:
-                    logger.warning(f'Resolving team=right for {parsed.hero if parsed else None} - left_team={left_heroes}, right_team={right_heroes}')
+                    logger.warning(
+                        f'Resolving team=right for {parsed.hero if parsed else None} - '
+                        f'left_team={left_heroes}, right_team={right_heroes}'
+                    )
                     icon_away_team = True
                 else:
-                    logger.warning(f'Unable to resolve team for {parsed.hero if parsed else None} - left_team={left_heroes}, right_team={right_heroes} - ignoring kill')
+                    logger.warning(
+                        f'Unable to resolve team for {parsed.hero if parsed else None} - '
+                        f'left_team={left_heroes}, right_team={right_heroes} - ignoring kill'
+                    )
                     icon_away_team = None
             elif distance_home_away < 0.5:
                 # print('home', distance_home_away)
@@ -749,6 +766,7 @@ class OverGGGame:
             target = target[:-1]
         target_dir = os.path.join(TARGET_DIR, target.split('/')[-1])
 
+        nextvod: Optional[str]
         for i, (map_, vod, nextvod) in enumerate(zip(self.maps, self.vods, self.vods[1:] + [None])):
             # if i != 2:
             #     continue
@@ -786,8 +804,8 @@ class OverGGGame:
                     end_pos=end_pos,
                     debug=self.debug
                 )
-                extractor.process(os.path.join(target_dir, util.strip_string(map_).lower()))
-                extractor.save(os.path.join(target_dir, util.strip_string(map_).lower()))
+                extractor.process(os.path.join(target_dir, textops.strip_string(map_).lower()))
+                extractor.save(os.path.join(target_dir, textops.strip_string(map_).lower()))
             except Exception as e:
                 logger.exception(f'Got exception processing {self.title} - {map_}')
 

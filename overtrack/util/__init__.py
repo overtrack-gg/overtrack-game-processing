@@ -1,8 +1,7 @@
 import datetime
-import string
 import time
 from functools import wraps
-from typing import Any, Callable, List, Iterable, Tuple
+from typing import Any, Callable, Tuple
 
 
 def humansize(nbytes, suffixes=('B', 'KB', 'MB', 'GB', 'TB', 'PB')):

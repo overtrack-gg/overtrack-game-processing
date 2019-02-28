@@ -31,7 +31,7 @@ def intermittent_log(logger: logging.Logger, line: str, frequency: float=60, lev
 
 upload_logs_settings = {
     'write_to_file': False,
-    'upload_func': lambda *noop: None,
+    'upload_func': lambda s1, s2: None,
     'args': ()
 }
 
@@ -186,7 +186,9 @@ def config_logger(
     upload_logs_settings['write_to_file'] = write_to_file
     if write_to_file and upload_func and upload_frequency:
         upload_logs_settings['upload_func'] = upload_func
-        upload_logs_settings['args'] = (handlers['file']['filename'], handlers['file_debug']['filename'])
+        file: str = handlers['file']['filename']
+        file_debug: str = handlers['file_debug']['filename']
+        upload_logs_settings['args'] = file, file_debug
 
         def upload_loop():
             while True:
@@ -215,7 +217,7 @@ def finish_logging():
 
 def patch_sentry_locals_capture():
     import sentry_sdk.utils
-    from overtrack.game import Frame
+    from overtrack.frame import Frame
 
     def object_to_json(obj):
         def _walk(obj, depth):

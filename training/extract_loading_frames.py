@@ -2,7 +2,7 @@ import os
 import cv2
 import tensorflow as tf
 
-from overtrack.game.loading_map import LoadingMapProcessor
+from overtrack.overwatch.game.loading_map import LoadingMapProcessor
 from overtrack.source.video import VideoFrameExtractor
 
 OUT = "C:/Users/simon/workspace/overtrack_2/test/images/map_loading"

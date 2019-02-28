@@ -3,26 +3,22 @@ import itertools
 import logging
 import os
 import random
-import shutil
-import sys
 import time
 import typing
-from typing import List, Tuple, Optional
+from typing import Dict, List, Tuple
 
 import cv2
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.python.framework import tensor_shape
-from tensorflow.python.keras import Model, Sequential, backend
-from tensorflow.python.keras.callbacks import TensorBoard, ModelCheckpoint, Callback, LambdaCallback
+from tensorflow.python.keras import Model, backend
+from tensorflow.python.keras.callbacks import Callback, LambdaCallback
 from tensorflow.python.keras.layers import *
-from tensorflow.python.keras.regularizers import *
-from tensorflow.python.keras.models import load_model
 from tensorflow.python.keras.optimizers import Adam
 from tensorflow.python.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.python.keras.regularizers import *
 from tensorflow.python.keras.utils import Sequence
-from tensorflow.python.keras import backend as K
 
 logger = logging.getLogger()
 
@@ -112,13 +108,13 @@ class RandomBrightnessContrast(Layer):
 
         return K.in_train_phase(randomed, inputs, training=training)
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, any]:
         config = {
             'brightness_delta': self.brightness_delta,
             'contrast_lower': self.contrast_lower,
             'contrast_upper': self.contrast_upper
         }
-        base_config = super(RandomBrightnessContrast, self).get_config()
+        base_config: Dict[str, any] = super(RandomBrightnessContrast, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def compute_output_shape(self, input_shape):
@@ -144,6 +140,7 @@ class MaxAlongDims(Layer):
             'dims': self.dims,
         }
         base_config = super(MaxAlongDims, self).get_config()
+        # noinspection PyTypeChecker
         return dict(list(base_config.items()) + list(config.items()))
 
     def call(self, inputs, training=None):
