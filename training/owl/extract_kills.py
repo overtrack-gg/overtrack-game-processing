@@ -43,8 +43,7 @@ target_height = 35
 y_match = 3
 x_match = 5
 
-session = boto3.session.Session()
-aws_s3 = session.client(
+aws_s3 = boto3.client(
     's3',
     region_name='us-west-2',
     aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],

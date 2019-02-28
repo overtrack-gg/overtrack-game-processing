@@ -47,8 +47,7 @@ def main():
     zf.close()
 
     print(f'Uploading {humansize(os.path.getsize("overtrack.zip"))}')
-    session = boto3.session.Session()
-    do_spaces = session.client(
+    do_spaces = boto3.client(
         's3',
         region_name='sfo2',
         endpoint_url='https://sfo2.digitaloceanspaces.com',
