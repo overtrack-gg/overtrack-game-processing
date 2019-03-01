@@ -24,8 +24,8 @@ from overtrack.overwatch.game.spectator import SpectatorProcessor
 from overtrack.source.stream import Twitch
 from overtrack.util import imageops, s2ts
 from overtrack.util.logging_config import config_logger
-from processor import Processor, ShortCircuitProcessor
-from util import textops
+from overtrack.processor import Processor, ShortCircuitProcessor
+from overtrack.util import textops
 
 logger = logging.getLogger(__name__)
 

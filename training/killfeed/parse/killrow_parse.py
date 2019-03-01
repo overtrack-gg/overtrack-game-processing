@@ -21,7 +21,7 @@ from tensorflow.python.keras.optimizers import Adam
 from tensorflow.python.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.python.keras.utils import Sequence
 
-from overwatch import data
+from overtrack.overwatch import data
 
 logger = logging.getLogger()
 

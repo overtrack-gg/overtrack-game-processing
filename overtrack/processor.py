@@ -1,7 +1,7 @@
 from collections import deque
 from typing import Callable, Iterable, Any
 
-from frame import Frame
+from overtrack.frame import Frame
 
 
 class Processor:
