@@ -35,11 +35,16 @@ editdistance = "*"
 av = "^6"
 streamlink = { git = "https://github.com/streamlink/streamlink.git" }
 
+# storage
 pynamodb = "^3"
 boto3 = "^1"
 
+# log+error reporting
 sentry-sdk = "^0.5"
 google-cloud-logging = "^1"
+
+# twitch overlay
+pyjwt = "*"
 
 [tool.poetry.dev-dependencies]
 
