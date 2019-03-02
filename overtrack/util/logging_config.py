@@ -7,7 +7,8 @@ import sys
 import time
 from collections import defaultdict
 from threading import Thread
-from typing import Callable, Optional, Sequence, Mapping
+from typing import Callable, Optional, Sequence, Mapping, DefaultDict, Tuple, Dict, Union, \
+    Any, List
 
 LOG_FORMAT = '[%(asctime)16s | %(levelname)8s | %(name)24s | %(filename)s:%(lineno)s %(funcName)s() ] %(message)s'
 
@@ -15,9 +16,9 @@ LOG_FORMAT = '[%(asctime)16s | %(levelname)8s | %(name)24s | %(filename)s:%(line
 def intermittent_log(
         logger: logging.Logger,
         line: str, frequency: float=60,
-        level=logging.INFO,
+        level: int=logging.INFO,
         negative_level: Optional[int]=None,
-        _last_logged=defaultdict(float)):
+        _last_logged: DefaultDict[Tuple[str, int], float]=defaultdict(float)) -> None:
     try:
         caller = inspect.stack()[1]
         output = negative_level
@@ -46,21 +47,21 @@ def config_logger(
         name: str,
         level: int=logging.INFO,
 
-        write_to_file=True,
+        write_to_file: bool=True,
 
-        use_datadog=False,
-        use_stackdriver=False,
+        use_datadog: bool=False,
+        use_stackdriver: bool=False,
 
-        stackdriver_level=logging.INFO,
+        stackdriver_level: int=logging.INFO,
 
-        use_stackdriver_error=False,
+        use_stackdriver_error: bool=False,
 
         upload_func: Optional[Callable[[str, str], None]]=None,
-        upload_frequency: Optional[float]=None):
+        upload_frequency: Optional[float]=None) -> None:
 
     logger = logging.getLogger()
 
-    handlers = {
+    handlers: Dict[str, Dict[str, Union[str, int, bool]]] = {
         'default': {
             'level': logging.getLevelName(level),
             'formatter': 'standard',
@@ -207,7 +208,7 @@ def config_logger(
         # noinspection PyTypeChecker
         upload_logs_settings['args'] = file, file_debug
 
-        def upload_loop():
+        def upload_loop() -> None:
             while True:
                 time.sleep(upload_frequency)
                 upload_func(handlers['file']['filename'], handlers['file_debug']['filename'])
@@ -227,17 +228,17 @@ def config_logger(
     # logger.info(f'Modules hash: {hsh.hexdigest()}')
 
 
-def finish_logging():
+def finish_logging() -> None:
     if upload_logs_settings['write_to_file'] and upload_logs_settings['upload_func']:
         upload_logs_settings['upload_func'](*upload_logs_settings['args'])
 
 
-def patch_sentry_locals_capture():
+def patch_sentry_locals_capture() -> None:
     import sentry_sdk.utils
     from overtrack.frame import Frame
 
-    def object_to_json(obj):
-        def _walk(obj, depth):
+    def object_to_json(obj: object) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
+        def _walk(obj: object, depth: int) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
             if depth < 4:
                 if isinstance(obj, Frame):
                     return {'timestamp': obj.timestamp}

@@ -89,7 +89,7 @@ class ExtractionRegionsCollection:
             raise KeyError(f'region {key} was not in regions: {self.regions.keys()}')
         return self.regions[key]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{ self.__class__.__name__ }(regions={ self.regions } regions)'
 
 

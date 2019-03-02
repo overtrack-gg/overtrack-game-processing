@@ -4,14 +4,15 @@ import string
 from collections import Counter
 
 import editdistance
-from typing import List, Iterable, Optional, TypeVar, overload
+import typing
+from typing import Any, List, Iterable, Optional, TypeVar, overload, Union
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-def matches(to_match: str, possible_matches: List[str], ignore_spaces=True, ignore_case=True, ignore_symbols=True) -> List[float]:
+def matches(to_match: str, possible_matches: List[str], ignore_spaces: bool=True, ignore_case: bool=True, ignore_symbols: bool=True) -> List[float]:
     r = []
     for s in possible_matches:
         if s:
@@ -33,7 +34,7 @@ def matches(to_match: str, possible_matches: List[str], ignore_spaces=True, igno
     return r
 
 
-def matches_product(seq1: List[str], seq2: List[str]):
+def matches_product(seq1: List[str], seq2: List[str]) -> List[List[str]]:
     return [
         editdistance.eval(s1, s2)
         for (s1, s2)
@@ -42,7 +43,7 @@ def matches_product(seq1: List[str], seq2: List[str]):
 
 
 def charcountmatch(s1: str, s2: str) -> int:
-    cnt = Counter()
+    cnt: typing.Counter[str] = Counter()
     for c in s1:
         cnt[c] += 1
     for c in s2:
@@ -57,24 +58,31 @@ def mmss_to_seconds(mmss: int) -> int:
     return mm * 60 + ss
 
 
-def strip_string(s, alphabet=string.digits + string.ascii_letters + '_'):
+def strip_string(s: str, alphabet: str=string.digits + string.ascii_letters + '_') -> str:
     return ''.join(c for c in s if c in alphabet)
 
 
 T = TypeVar('T')
 @overload
-def best_match(text: str, options: Iterable[str], threshold=2, level: Optional[int]=logging.INFO) -> Optional[str]:
+def best_match(text: str, options: Iterable[str], threshold: int=2, level: Optional[int]=logging.INFO) -> Optional[str]:
     ...
 @overload
-def best_match(text: str, options: Iterable[str], default: str, threshold=2, level: Optional[int]=logging.INFO) -> str:
+def best_match(text: str, options: Iterable[str], default: str, threshold: int=2, level: Optional[int]=logging.INFO) -> str:
     ...
 @overload
-def best_match(text: str, options: Iterable[str], choose_from: List[T], threshold=2, level: Optional[int]=logging.INFO) -> Optional[T]:
+def best_match(text: str, options: Iterable[str], choose_from: List[T], threshold: int=2, level: Optional[int]=logging.INFO) -> Optional[T]:
     ...
 @overload
-def best_match(text: str, options: Iterable[str], choose_from: List[T], default: T, threshold=2, level: Optional[int]=logging.INFO) -> T:
+def best_match(text: str, options: Iterable[str], choose_from: List[T], default: T, threshold: int=2, level: Optional[int]=logging.INFO) -> T:
     ...
-def best_match(text: str, options, choose_from=None, default=None, threshold=2, level=logging.INFO, **kwargs):
+def best_match(
+        text: str,
+        options: Iterable[str],
+        choose_from: Optional[List[T]]=None,
+        default: Union[str, Optional[T]]=None,
+        threshold: int=2,
+        level: Optional[int]=logging.INFO,
+        **kwargs: Any) -> Optional[Union[T, str]]:
     options = list(options)
     if choose_from is None:
         choose_from = options
