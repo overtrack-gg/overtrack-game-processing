@@ -80,6 +80,7 @@ class User(OverTrackModel):
     trial_end_time = NumberAttribute(attr_name='trial-end-time', null=True)
 
     stream_key = UnicodeAttribute(attr_name='stream-key', null=True)
+    twitch_overlay = UnicodeAttribute(attr_name='twitch-overlay', null=True)
 
     @classmethod
     def get(cls, hash_key, **kwargs):
@@ -130,10 +131,12 @@ if __name__ == '__main__':
     log.setLevel(logging.WARNING)
     log.propagate = True
 
-    u = User.get('Muon#1547')
+    u = User.get('EeveeA#1716')
     # u = User.user_id_index.get(71245935)
-    u.stream_key = shortuuid.uuid()
-    u.save()
+    # u.stream_key = shortuuid.uuid()
+    # u.save()
+
+    u.twitch_overlay = 'eeveea_'
 
     # u.battletag = 'Sio#11513'
     u.save()
