@@ -4,7 +4,7 @@ import string
 import tesserocr
 import cv2
 import numpy as np
-from typing import NamedTuple, List, Tuple, Optional
+from typing import NamedTuple, List, Tuple, Optional, Any, Union
 
 
 class ConnectedComponent(NamedTuple):
@@ -19,7 +19,7 @@ class ConnectedComponent(NamedTuple):
     centroid: Tuple[float, float]
 
 
-def connected_components(image: np.ndarray, connectivity=4) -> Tuple[np.ndarray, List[ConnectedComponent]]:
+def connected_components(image: np.ndarray, connectivity: int=4) -> Tuple[np.ndarray, List[ConnectedComponent]]:
     r, labels, stats, centroids = cv2.connectedComponentsWithStats(image, connectivity=connectivity)
     components = []
     for i, (stat, centroid) in enumerate(zip(stats, centroids)):
@@ -36,7 +36,7 @@ def connected_components(image: np.ndarray, connectivity=4) -> Tuple[np.ndarray,
     return labels, components
 
 
-def otsu_thresh(vals: np.ndarray, mn: int, mx: int) -> int:
+def otsu_thresh(vals: np.ndarray, mn: float, mx: float) -> float:
     # adapted from https://github.com/scikit-image/scikit-image/blob/v0.14.0/skimage/filters/thresholding.py#L230: threshold_otsu
 
     mn = np.clip(mn, 0, 253)
@@ -64,7 +64,7 @@ def otsu_thresh(vals: np.ndarray, mn: int, mx: int) -> int:
     return threshold
 
 
-def fast_gaussian(im: np.ndarray, v: float, scale: float=2):
+def fast_gaussian(im: np.ndarray, v: float, scale: float=2) -> np.ndarray:
     ims = cv2.resize(im, (0, 0), fx=1 / scale, fy=1 / scale)
     im2 = cv2.GaussianBlur(ims, (0, 0), v // scale)
     return cv2.resize(im2, (im.shape[1], im.shape[0]), fx=scale, fy=scale)
@@ -112,12 +112,12 @@ tesseract_futura = tesserocr.PyTessBaseAPI(
 
 def tesser_ocr(
         image: np.ndarray,
-        whitelist=string.printable,
-        invert=False, scale=1,
-        blur: float=None,
-        debug=False,
-        engine=tesseract_only,
-        get_confidence=False) -> str:
+        whitelist: str=string.printable,
+        invert: bool=False, scale: float=1,
+        blur: Optional[float]=None,
+        debug: bool=False,
+        engine: tesserocr.PyTessBaseAPI=tesseract_only,
+        get_confidence: bool=False) -> Union[Tuple[str, float], str]:
     engine.SetVariable('tessedit_char_whitelist', whitelist)
     if invert:
         image = 255 - image
@@ -150,7 +150,7 @@ def tesser_ocr(
         return s
 
 
-def otsu_mask(image, dilate: Optional[int]=3):
+def otsu_mask(image: np.ndarray, dilate: Optional[int]=3) -> np.ndarray:
     _, mask = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     if dilate:
         mask = cv2.erode(mask, np.ones((2, 2)))
@@ -158,7 +158,7 @@ def otsu_mask(image, dilate: Optional[int]=3):
     return cv2.bitwise_and(image, mask)
 
 
-def unsharp_mask(image, unsharp: float, weight: float, threshold: int=None):
+def unsharp_mask(image: np.ndarray, unsharp: float, weight: float, threshold: Optional[int]=None) -> np.ndarray:
     unsharp = fast_gaussian(image, unsharp, scale=2)
     im = cv2.addWeighted(image, weight, unsharp, 1 - weight, 0)
     if threshold:
@@ -172,13 +172,13 @@ def unsharp_mask(image, unsharp: float, weight: float, threshold: int=None):
         return im
 
 
-def tesser_ocr_all(images: List[np.ndarray], **kwargs) -> List[str]:
+def tesser_ocr_all(images: List[np.ndarray], **kwargs: Any) -> List[str]:
     return [
         tesser_ocr(image, **kwargs) for image in images
     ]
 
 
-def imread(path, mode=None):
+def imread(path: str, mode: Optional[int]=None) -> np.ndarray:
     if mode is not None:
         im = cv2.imread(path, mode)
     else:
@@ -193,7 +193,12 @@ def imread(path, mode=None):
 
 
 # noinspection PyPep8Naming
-def findContours(image, mode, method, contours=None, hierarchy=None, offset=None):
+def findContours(
+        image: np.ndarray,
+        mode: int, method: int,
+        contours: Optional[np.ndarray]=None,
+        hierarchy: Optional[np.ndarray]=None,
+        offset: Optional[Tuple[int, int]]=None) -> Tuple[np.ndarray, np.ndarray]:
     r = cv2.findContours(image, mode, method, contours=contours, hierarchy=hierarchy, offset=offset)
     if len(r) == 3:
         return r[1:]

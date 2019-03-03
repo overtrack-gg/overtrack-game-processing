@@ -1,10 +1,12 @@
 import datetime
 import time
 from functools import wraps
-from typing import Any, Callable, Tuple
+from typing import Callable, Tuple, TypeVar, TYPE_CHECKING
+if TYPE_CHECKING:
+    from overtrack.frame import Frame
 
 
-def humansize(nbytes, suffixes=('B', 'KB', 'MB', 'GB', 'TB', 'PB')):
+def humansize(nbytes: int, suffixes: Tuple[str, ...]=('B', 'KB', 'MB', 'GB', 'TB', 'PB')) -> str:
     # http://stackoverflow.com/a/14996816
     if nbytes == 0:
         return '0 B'
@@ -16,7 +18,7 @@ def humansize(nbytes, suffixes=('B', 'KB', 'MB', 'GB', 'TB', 'PB')):
     return '%s %s' % (f, suffixes[i])
 
 
-def s2ts(s, ms=False, zpad=True):
+def s2ts(s: float, ms: bool=False, zpad: bool=True) -> str:
     sign = ''
     if s < 0:
         sign = '-'
@@ -33,11 +35,11 @@ def s2ts(s, ms=False, zpad=True):
         return ts
 
 
-def ms2ts(ms):
+def ms2ts(ms: float) -> str:
     return s2ts(ms / 1000)
 
 
-def ts2s(ts):
+def ts2s(ts: str) -> int:
     h, m, s = ts.split(':')
     h, m, s = int(h), int(m), int(s)
     m = m + 60 * h
@@ -45,11 +47,11 @@ def ts2s(ts):
     return s
 
 
-def ts2ms(ts):
+def ts2ms(ts: str) -> int:
     return ts2s(ts) * 1000
 
 
-def dhms2timedelta(s):
+def dhms2timedelta(s: str) -> datetime.timedelta:
     td = datetime.timedelta()
     current = ''
     for c in s:
@@ -70,9 +72,12 @@ def dhms2timedelta(s):
     return td
 
 
-def time_processing(process: Callable[[Any, Any, ], bool]):
+T = TypeVar('T')
+
+
+def time_processing(process: Callable[[T, 'Frame'], bool]) -> Callable[[T, 'Frame'], bool]:
     @wraps(process)
-    def timed_process(self: Any, frame: Any) -> bool:
+    def timed_process(self: T, frame: 'Frame') -> bool:
         t0 = time.time()
         result = process(self, frame)
         t1 = time.time()
@@ -86,5 +91,5 @@ def html2bgr(code: str) -> Tuple[int, int, int]:
     return int(b1 + b2, 16), int(g1 + g2, 16), int(r1 + r2, 16)
 
 
-def bgr2html(color: Tuple[int, int, int]):
+def bgr2html(color: Tuple[int, int, int]) -> str:
     return '#' + ''.join(f'{c:02x}' for c in color[::-1])

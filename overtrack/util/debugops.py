@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Any, Callable, Optional, Tuple, Union, Sequence
 
 import cv2
 import numpy as np
@@ -7,7 +7,7 @@ from overtrack.overwatch.ocr import big_noodle
 from overtrack.util import imageops
 
 
-def manual_thresh(gray_image: np.ndarray, scale=3.) -> int:
+def manual_thresh(gray_image: np.ndarray, scale: float=3.) -> int:
     cv2.namedWindow('thresh')
     cv2.createTrackbar('t', 'thresh', 0, 255, lambda x: None)
     lastt = t = 0
@@ -33,7 +33,12 @@ def manual_thresh(gray_image: np.ndarray, scale=3.) -> int:
     return t
 
 
-def manual_thresh_otsu(image: np.ndarray, template=None, scale=3., stack=np.vstack, grayop=np.min) -> None:
+def manual_thresh_otsu(
+        image: np.ndarray,
+        template: np.ndarray=None,
+        scale: float=3.,
+        stack: Callable[[Sequence[np.ndarray]], np.ndarray]=np.vstack,
+        grayop: Callable[..., Union[np.ndarray, float]]=np.min) -> None:
     if len(image.shape) == 3:
         gray_image = grayop(image, axis=2)
     else:
@@ -41,7 +46,7 @@ def manual_thresh_otsu(image: np.ndarray, template=None, scale=3., stack=np.vsta
     cv2.namedWindow('thresh otsu')
     cv2.createTrackbar('thresh', 'thresh otsu', 0, 255, lambda x: None)
 
-    def set_by_mn_mx(*args):
+    def set_by_mn_mx(*args: Any) -> None:
         mn = cv2.getTrackbarPos('mn', 'thresh otsu')
         mx = cv2.getTrackbarPos('mx', 'thresh otsu')
         tval = imageops.otsu_thresh(
@@ -56,7 +61,7 @@ def manual_thresh_otsu(image: np.ndarray, template=None, scale=3., stack=np.vsta
 
     fraction_max = 3
 
-    def set_by_fraction(val):
+    def set_by_fraction(val: int) -> None:
         fraction = val / 100
         otsu_lb = int(np.mean(image) * fraction)
         cv2.setTrackbarPos('mn', 'thresh otsu', otsu_lb)
@@ -91,13 +96,13 @@ def manual_thresh_otsu(image: np.ndarray, template=None, scale=3., stack=np.vsta
     cv2.destroyAllWindows()
 
 
-def manual_unsharp_mask(image: np.ndarray, scale=2, callback=None):
+def manual_unsharp_mask(image: np.ndarray, scale: float=2, callback: Optional[Callable[[np.ndarray], None]]=None) -> Tuple[float, float, float]:
     if len(image.shape) == 2:
         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
     updated = [True]
 
-    def update(_):
+    def update(_: int) -> None:
         updated[0] = True
 
     cv2.namedWindow('unsharp')
@@ -142,7 +147,7 @@ def manual_unsharp_mask(image: np.ndarray, scale=2, callback=None):
     return size, weight, threshold
 
 
-def show_ocr_segmentations(names: List[np.ndarray], **kwargs) -> None:
+def show_ocr_segmentations(names: List[np.ndarray], **kwargs: Any) -> None:
     cv2.imshow('names', np.vstack(names))
     segmented_names = []
     for im in names:

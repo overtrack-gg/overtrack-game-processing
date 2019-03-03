@@ -1,5 +1,8 @@
 import itertools
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Dict, Optional, Type, TypeVar, TYPE_CHECKING, List, Union
+
+if TYPE_CHECKING:
+    from overtrack.frame import Frame
 
 # noinspection PyUnresolvedReferences
 import dataclasses
@@ -16,12 +19,12 @@ from overtrack.source.stream.ts_stream import TSSource
 
 class Loader(typedload.dataloader.Loader):
     # noinspection PyUnresolvedReferences
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         if 'source_type' not in kwargs:
             self.source_type = TSSource
 
-        self.referenced = {}
+        self.referenced: Dict[object, Any] = {}
 
         from overtrack.frame import Frame
         import overtrack.overwatch.game.loading_map
@@ -62,7 +65,7 @@ class Loader(typedload.dataloader.Loader):
 
         return super().load(value, type_)
 
-def _frameload(loader: Loader, value: Any, type_: type) -> Any:
+def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame':
     from overtrack.frame import Frame, Timings
     import overtrack.overwatch.game.objective
     import overtrack.overwatch.game.killfeed
@@ -109,7 +112,7 @@ def _frameload(loader: Loader, value: Any, type_: type) -> Any:
 
 
 class Dumper(typedload.datadumper.Dumper):
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         # add support for numpy scalars converting them to the equivalent python type
         self.handlers.append((
@@ -123,15 +126,15 @@ class Dumper(typedload.datadumper.Dumper):
 
 
 class ReferencedDumper(Dumper):
-    def __init__(self, combine_equal=True, **kwargs):
+    def __init__(self, combine_equal: bool=True, **kwargs: Any):
         super().__init__(**kwargs)
         self.combine_equal = combine_equal
 
-        self.visited = {}
-        self.dumped = {}
-        self.refs_to_add = []
+        self.visited: Dict[int, Union[bool, int]] = {}
+        self.dumped: Dict[int, object] = {}
+        self.refs_to_add: List[int] = []
 
-        self.equal = {}
+        self.equal: Dict[object, object] = {}
 
         self.idgen = iter(itertools.count())
 
@@ -168,7 +171,7 @@ class ReferencedDumper(Dumper):
             return result
 
 
-def dump(value: object) -> Dict[str, object]:
+def dump(value: object) -> Dict[str, Any]:
     dumper = ReferencedDumper()
     r = dumper.dump(value)
 
@@ -186,6 +189,6 @@ def dump(value: object) -> Dict[str, object]:
 T = TypeVar('T')
 
 
-def load(value: Any, type_: Type[T], **kwargs) -> T:
+def load(value: Any, type_: Type[T], **kwargs: Any) -> T:
     loader = Loader(**kwargs)
     return loader.load(value, type_)
