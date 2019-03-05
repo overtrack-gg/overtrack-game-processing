@@ -772,7 +772,7 @@ class OverGGGame:
             try:
 
                 vod_url = vod.split('?')[0]
-                start_pos = max(0, util.ts2s(parse_twicth_timestamp(vod)) - 1.1 * 60)
+                start_pos = max(0., util.ts2s(parse_twicth_timestamp(vod)) - 1.1 * 60)
                 if nextvod and vod.split('?')[0] == nextvod.split('?')[0]:
                     end_pos = parse_twicth_timestamp(nextvod)
                     end_pos = util.ts2s(end_pos) - self.MIN_GAP * 60

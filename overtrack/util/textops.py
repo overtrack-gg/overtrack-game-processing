@@ -5,7 +5,7 @@ from collections import Counter
 
 import editdistance
 import typing
-from typing import Any, List, Iterable, Optional, TypeVar, overload, Union
+from typing import Any, List, Iterable, Optional, TypeVar, Union, Sequence, overload
 
 import numpy as np
 
@@ -64,34 +64,59 @@ def strip_string(s: str, alphabet: str=string.digits + string.ascii_letters + '_
 
 T = TypeVar('T')
 @overload
-def best_match(text: str, options: Iterable[str], threshold: int=2, level: Optional[int]=logging.INFO) -> Optional[str]:
+def best_match(
+        text: str,
+        options: Iterable[str],
+        choose_from: None = None,
+        default: str = '',  # n.b. this is  *not* the actual default arg - it is required so we can have defaultargs following
+        threshold: int = 2,
+        level: Optional[int] = logging.INFO) -> str:
     ...
 @overload
-def best_match(text: str, options: Iterable[str], default: str, threshold: int=2, level: Optional[int]=logging.INFO) -> str:
+def best_match(
+        text: str,
+        options: Iterable[str],
+        choose_from: None = None,
+        default: None = None,
+        threshold: int = 2,
+        level: Optional[int] = logging.INFO) -> Optional[str]:
     ...
 @overload
-def best_match(text: str, options: Iterable[str], choose_from: List[T], threshold: int=2, level: Optional[int]=logging.INFO) -> Optional[T]:
+def best_match(
+        text: str,
+        options: Iterable[str],
+        choose_from: Sequence[T],
+        default: T,
+        threshold: int = 2,
+        level: Optional[int] = logging.INFO) -> T:
     ...
 @overload
-def best_match(text: str, options: Iterable[str], choose_from: List[T], default: T, threshold: int=2, level: Optional[int]=logging.INFO) -> T:
+def best_match(
+        text: str,
+        options: Iterable[str],
+        choose_from: Sequence[T],
+        default: None = None,
+        threshold: int = 2,
+        level: Optional[int] = logging.INFO) -> Optional[T]:
     ...
 def best_match(
         text: str,
         options: Iterable[str],
-        choose_from: Optional[List[T]]=None,
-        default: Union[str, Optional[T]]=None,
+        choose_from: Optional[Sequence[T]]=None,
+        default: Union[str, T, None]=None,
         threshold: int=2,
         level: Optional[int]=logging.INFO,
         **kwargs: Any) -> Optional[Union[T, str]]:
     options = list(options)
-    if choose_from is None:
-        choose_from = options
     m = matches(text, options, **kwargs)
     index: int = np.argmin(m)
     if m[index] <= threshold:
         if level:
-            logging.log(level, f'Matched "{text}" to "{options[index]}"->{repr(choose_from[index])} - match={m[index]}')
-        return choose_from[index]
+            logging.log(level, f'Matched "{text}" to "{options[index]}"->{repr((choose_from or options)[index])} - match={m[index]}')
+        if choose_from is not None:
+            return choose_from[index]
+        else:
+            return options[index]
     else:
         logger.warning(f'Failed to find match for "{text}" in {options} - closest="{options[index]} with match={m[index]} - using default="{default}"')
         return default

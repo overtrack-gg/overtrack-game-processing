@@ -1,10 +1,13 @@
+import logging
 import os
 import string
 
 import tesserocr
 import cv2
 import numpy as np
-from typing import NamedTuple, List, Tuple, Optional, Any, Union
+from typing import NamedTuple, List, Tuple, Optional, Callable, TypeVar, overload, Sequence, Union
+
+logger = logging.getLogger(__name__)
 
 
 class ConnectedComponent(NamedTuple):
@@ -110,14 +113,47 @@ tesseract_futura = tesserocr.PyTessBaseAPI(
 )
 
 
+T = TypeVar('T', int, float, str)
+# T = int
+@overload
 def tesser_ocr(
         image: np.ndarray,
-        whitelist: str=string.printable,
-        invert: bool=False, scale: float=1,
-        blur: Optional[float]=None,
-        debug: bool=False,
-        engine: tesserocr.PyTessBaseAPI=tesseract_only,
-        get_confidence: bool=False) -> Union[Tuple[str, float], str]:
+        expected_type: None = None,
+        whitelist: Optional[str] = None,
+        invert: bool = False,
+        scale: float = 1,
+        blur: Optional[float] = None,
+        engine: tesserocr.PyTessBaseAPI = None) -> Optional[str]:
+    ...
+@overload
+def tesser_ocr(
+        image: np.ndarray,
+        expected_type: Callable[[str], T],
+        whitelist: Optional[str] = None,
+        invert: bool = False,
+        scale: float = 1,
+        blur: Optional[float] = None,
+        engine: tesserocr.PyTessBaseAPI = None) -> Optional[T]:
+    ...
+def tesser_ocr(
+        image: np.ndarray,
+        expected_type: Optional[Callable[[str], T]] = None,
+        whitelist: Optional[str] = None,
+        invert: bool = False,
+        scale: float = 1,
+        blur: Optional[float] = None,
+        engine: tesserocr.PyTessBaseAPI = tesseract_only):
+
+    if whitelist is None:
+        if expected_type is int:
+            whitelist = string.digits
+        elif expected_type is float:
+            whitelist = string.digits + '.'
+        else:
+            whitelist = string.digits + string.ascii_letters + string.punctuation + ' '
+
+    print('>', whitelist)
+
     engine.SetVariable('tessedit_char_whitelist', whitelist)
     if invert:
         image = 255 - image
@@ -127,9 +163,6 @@ def tesser_ocr(
     if blur:
         image = cv2.GaussianBlur(image, (0, 0), blur)
 
-    if debug:
-        cv2.imshow('tesser_ocr', image)
-        cv2.waitKey(0)
 
     if len(image.shape) == 2:
         height, width = image.shape
@@ -137,17 +170,65 @@ def tesser_ocr(
     else:
         height, width, channels = image.shape
     engine.SetImageBytes(image.tobytes(), width, height, channels, width * channels)
-    s = engine.GetUTF8Text()
+    text: str = engine.GetUTF8Text()
     if ' ' not in whitelist:
-        s = s.replace(' ', '')
+        text = text.replace(' ', '')
     if '\n' not in whitelist:
-        s = s.replace('\n', '')
+        text = text.replace('\n', '')
 
-    if get_confidence:
-        # noinspection PyTypeChecker
-        return s, float(engine.MeanTextConf()) / 100
+    if not any(c in whitelist for c in string.ascii_lowercase):
+        text = text.upper()
+
+    print('>', text)
+
+    if expected_type:
+        try:
+            return expected_type(text)
+        except Exception as e:
+            logger.warning(f'Got exception interpreting "{text}" as {expected_type.__class__.__name__} - {e}')
+            return None
     else:
-        return s
+        return text
+
+
+@overload
+def tesser_ocr_all(
+        images: Sequence[np.ndarray],
+        expected_type: None = None,
+        whitelist: Optional[str] = None,
+        invert: bool = False,
+        scale: float = 1,
+        blur: Optional[float] = None,
+        engine: tesserocr.PyTessBaseAPI = tesseract_only) -> List[Optional[str]]:
+    ...
+@overload
+def tesser_ocr_all(
+        images: Sequence[np.ndarray],
+        expected_type: Callable[[str], T],
+        whitelist: Optional[str] = None,
+        invert: bool = False,
+        scale: float = 1,
+        blur: Optional[float] = None,
+        engine: tesserocr.PyTessBaseAPI = tesseract_only) -> List[Optional[T]]:
+    ...
+def tesser_ocr_all(images,
+                   expected_type=None,
+                   whitelist=None,
+                   invert=False,
+                   scale=1,
+                   blur=None,
+                   engine=tesseract_only):
+    return [
+        tesser_ocr(
+            image,
+            expected_type=expected_type,
+            whitelist=whitelist,
+            invert=invert,
+            scale=scale,
+            blur=blur,
+            engine=engine
+        ) for image in images
+    ]
 
 
 def otsu_mask(image: np.ndarray, dilate: Optional[int]=3) -> np.ndarray:
@@ -170,12 +251,6 @@ def unsharp_mask(image: np.ndarray, unsharp: float, weight: float, threshold: Op
         return thresh
     else:
         return im
-
-
-def tesser_ocr_all(images: List[np.ndarray], **kwargs: Any) -> List[str]:
-    return [
-        tesser_ocr(image, **kwargs) for image in images
-    ]
 
 
 def imread(path: str, mode: Optional[int]=None) -> np.ndarray:
@@ -206,23 +281,9 @@ def findContours(
         return r
 
 
-if __name__ == '__main__':
-    print(os.environ['PATH'])
-    print(tesserocr.tesseract_version())
+def normalise(im: np.ndarray) -> np.ndarray:
+    im = im.astype(np.float)
+    im -= np.percentile(im, 2)
+    im /= np.percentile(im, 98)
+    return np.clip(im * 255, 0, 255).astype(np.uint8)
 
-    # noinspection PyArgumentList
-    ocr = tesserocr.PyTessBaseAPI(oem=tesserocr.OEM.LSTM_ONLY)
-
-    gray = image = cv2.imread('C:\\tmp\\gray.png', 0)
-    height, width = image.shape
-    channels = 1
-
-    ocr.SetImageBytes(image.tobytes(), width, height, channels, width * channels)
-    print(ocr.GetUTF8Text())
-
-    ocr.SetImageBytes((255 - image).tobytes(), width, height, channels, width * channels)
-    print(ocr.GetUTF8Text())
-
-    print('--')
-    print(tesser_ocr(gray, whitelist=string.ascii_uppercase))
-    print(tesser_ocr(gray, invert=True, whitelist=string.ascii_uppercase))

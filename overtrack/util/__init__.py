@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from overtrack.frame import Frame
 
 
-def humansize(nbytes: int, suffixes: Tuple[str, ...]=('B', 'KB', 'MB', 'GB', 'TB', 'PB')) -> str:
+def humansize(nbytes: float, suffixes: Tuple[str, ...]=('B', 'KB', 'MB', 'GB', 'TB', 'PB')) -> str:
     # http://stackoverflow.com/a/14996816
     if nbytes == 0:
         return '0 B'
@@ -40,8 +40,8 @@ def ms2ts(ms: float) -> str:
 
 
 def ts2s(ts: str) -> int:
-    h, m, s = ts.split(':')
-    h, m, s = int(h), int(m), int(s)
+    hs, ms, ss = ts.split(':')
+    h, m, s = int(hs), int(ms), int(ss)
     m = m + 60 * h
     s = m * 60 + s
     return s

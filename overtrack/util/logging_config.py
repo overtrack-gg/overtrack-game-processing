@@ -8,14 +8,44 @@ import time
 from collections import defaultdict
 from threading import Thread
 from typing import Callable, Optional, Sequence, Mapping, DefaultDict, Tuple, Dict, Union, \
-    Any, List
+    Any, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mypy_extensions import TypedDict
+    LogConfig = TypedDict(
+        'LogConfig',
+        {
+            'level': str,
+            'formatter': str,
+            'class': str,
+            'filename': str,
+            'maxBytes': int,
+            'backupCount': int,
+            'delay': bool
+        },
+        total=False
+    )
+    UploadLogsSettingsType = TypedDict(
+        'UploadLogsSettingsType',
+        {
+            'write_to_file': bool,
+            'upload_func': Callable[[str, str], None],
+            'args': Tuple[str, str]
+        },
+        total=False
+    )
+else:
+    LogConfig = Dict
+    UploadLogsSettingsType = Dict
+
 
 LOG_FORMAT = '[%(asctime)16s | %(levelname)8s | %(name)24s | %(filename)s:%(lineno)s %(funcName)s() ] %(message)s'
 
 
 def intermittent_log(
         logger: logging.Logger,
-        line: str, frequency: float=60,
+        line: str,
+        frequency: float=60,
         level: int=logging.INFO,
         negative_level: Optional[int]=None,
         _last_logged: DefaultDict[Tuple[str, int], float]=defaultdict(float)) -> None:
@@ -29,17 +59,16 @@ def intermittent_log(
         if output and logger.isEnabledFor(output):
             co = caller.frame.f_code
             fn, lno, func, sinfo = (co.co_filename, caller.frame.f_lineno, co.co_name, None)
-            record = logger.makeRecord(logger.name, output, fn, lno, line, (), None, func, None, sinfo)
+            record = logger.makeRecord(logger.name, output, str(fn), lno, line, {}, None, func, None, sinfo)
             logger.handle(record)
     except BaseException:
         # noinspection PyProtectedMember
-        logger._log(level, line, ())
+        assert hasattr(logger, '_log'), 'mypy'
+        logger.log(level, line, ())
 
 
-upload_logs_settings = {
+upload_logs_settings: UploadLogsSettingsType = {
     'write_to_file': False,
-    'upload_func': lambda s1, s2: None,
-    'args': ()
 }
 
 
@@ -61,7 +90,7 @@ def config_logger(
 
     logger = logging.getLogger()
 
-    handlers: Dict[str, Dict[str, Union[str, int, bool]]] = {
+    handlers: Dict[str, LogConfig] = {
         'default': {
             'level': logging.getLevelName(level),
             'formatter': 'standard',
@@ -210,6 +239,8 @@ def config_logger(
 
         def upload_loop() -> None:
             while True:
+                assert upload_frequency
+                assert upload_func
                 time.sleep(upload_frequency)
                 upload_func(handlers['file']['filename'], handlers['file_debug']['filename'])
         logger.info(f'Uploading log files every {upload_frequency}s')
@@ -229,7 +260,7 @@ def config_logger(
 
 
 def finish_logging() -> None:
-    if upload_logs_settings['write_to_file'] and upload_logs_settings['upload_func']:
+    if upload_logs_settings.get('write_to_file') and upload_logs_settings.get('upload_func') and upload_logs_settings.get('args'):
         upload_logs_settings['upload_func'](*upload_logs_settings['args'])
 
 
@@ -238,17 +269,18 @@ def patch_sentry_locals_capture() -> None:
     from overtrack.frame import Frame
 
     def object_to_json(obj: object) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
-        def _walk(obj: object, depth: int) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
+        def _walk(obji: object, depth: int) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
             if depth < 4:
-                if isinstance(obj, Frame):
-                    return {'timestamp': obj.timestamp}
-                if isinstance(obj, list) and len(obj) > 2 and isinstance(obj[0], Frame) and isinstance(obj[-1], Frame):
-                    return [_walk(obj[0], depth), f'...<{len(obj)-2}>...', _walk(obj[-1], depth)]
-                if isinstance(obj, Sequence) and not isinstance(obj, (bytes, str)):
-                    return [_walk(x, depth + 1) for x in obj]
-                if isinstance(obj, Mapping):
-                    return {sentry_sdk.utils.safe_str(k): _walk(v, depth + 1) for k, v in obj.items()}
-            return sentry_sdk.utils.safe_repr(obj)
+                if isinstance(obji, Frame):
+                    return {'timestamp': obji.timestamp}
+                if isinstance(obji, list) and len(obji) > 2 and isinstance(obji[0], Frame) and isinstance(obji[-1], Frame):
+                    frames: List[Frame] = obji
+                    return [_walk(frames[0], depth), f'...<{len(frames)-2}>...', _walk(frames[-1], depth)]
+                if isinstance(obji, Sequence) and not isinstance(obji, (bytes, str)):
+                    return [_walk(x, depth + 1) for x in obji]
+                if isinstance(obji, Mapping):
+                    return {sentry_sdk.utils.safe_str(k): _walk(v, depth + 1) for k, v in obji.items()}
+            return sentry_sdk.utils.safe_repr(obji)
 
         return _walk(obj, 0)
 

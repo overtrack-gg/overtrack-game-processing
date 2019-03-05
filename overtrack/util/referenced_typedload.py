@@ -1,5 +1,5 @@
 import itertools
-from typing import Any, Dict, Optional, Type, TypeVar, TYPE_CHECKING, List, Union
+from typing import Any, Dict, Optional, Type, TypeVar, TYPE_CHECKING, List, Union, cast
 
 if TYPE_CHECKING:
     from overtrack.frame import Frame
@@ -101,7 +101,8 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
         elif k in _TYPES:
             f[k] = loader.load(v, _TYPES[k])
         elif k == 'timings':
-            f[k] = Timings(v)
+            # noinspection PyTypeChecker
+            f[k] = Timings(cast(Dict, v))
         elif k in ['image', 'debug_image']:
             pass
         elif k == 'source':
