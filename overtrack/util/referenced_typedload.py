@@ -32,6 +32,7 @@ class Loader(typedload.dataloader.Loader):
         import overtrack.overwatch.game.objective
         import overtrack.overwatch.game.endgame
 
+        assert self.frefs is not None
         self.frefs.update({
             # 'ObjectiveExtractor.Objective': overtrack.game.objective.objective_processor.ObjectiveExtractor.Probabilities,
 
@@ -43,8 +44,8 @@ class Loader(typedload.dataloader.Loader):
         })
 
         # noinspection PyTypeChecker
-        self.handlers.append((lambda type_: type_ == Frame, _frameload))
-        self.handlers.append((lambda type_: isinstance(type_, str), lambda l, value, type_: l.load(value, l.frefs[type_])))
+        cast(Any, self.handlers).append((lambda type_: type_ == Frame, _frameload))
+        cast(Any, self.handlers).append((lambda type_: isinstance(type_, str), lambda l, value, type_: l.load(value, l.frefs[type_])))
 
         # self.handlers[8] = (self.handlers[8][0], _namedtupleload)
         # self.handlers[9] = (self.handlers[9][0], _namedtupleload)
@@ -78,7 +79,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
     import overtrack.overwatch.game.hero
 
     _TYPES = {
-        'objective': overtrack.overwatch.game.objective.ObjectiveProcessor.Objective,
+        'objective': overtrack.overwatch.game.objective.Objective,
         'loading_map': overtrack.overwatch.game.loading_map.LoadingMapProcessor.LoadingMap,
         'tab_screen': overtrack.overwatch.game.tab.tab_processor.TabProcessor.TabScreen,
         'main_menu': overtrack.overwatch.game.menu.MenuProcessor.MainMenu,

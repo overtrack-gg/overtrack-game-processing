@@ -5,7 +5,7 @@ from collections import Counter
 
 import editdistance
 import typing
-from typing import Any, List, Iterable, Optional, TypeVar, Union, Sequence, overload
+from typing import Any, List, Iterable, Optional, TypeVar, Union, Sequence, overload, no_type_check
 
 import numpy as np
 
@@ -67,19 +67,16 @@ T = TypeVar('T')
 def best_match(
         text: str,
         options: Iterable[str],
-        choose_from: None = None,
-        default: str = '',  # n.b. this is  *not* the actual default arg - it is required so we can have defaultargs following
-        threshold: int = 2,
-        level: Optional[int] = logging.INFO) -> str:
+        default: str,
+        threshold: int = 0,
+        level: Optional[int] = 0) -> str:
     ...
 @overload
 def best_match(
         text: str,
         options: Iterable[str],
-        choose_from: None = None,
-        default: None = None,
-        threshold: int = 2,
-        level: Optional[int] = logging.INFO) -> Optional[str]:
+        threshold: int = 0,
+        level: Optional[int] = 0) -> Optional[str]:
     ...
 @overload
 def best_match(
@@ -87,18 +84,18 @@ def best_match(
         options: Iterable[str],
         choose_from: Sequence[T],
         default: T,
-        threshold: int = 2,
-        level: Optional[int] = logging.INFO) -> T:
+        threshold: int = 0,
+        level: Optional[int] = 0) -> T:
     ...
 @overload
 def best_match(
         text: str,
         options: Iterable[str],
         choose_from: Sequence[T],
-        default: None = None,
-        threshold: int = 2,
-        level: Optional[int] = logging.INFO) -> Optional[T]:
+        threshold: int = 0,
+        level: Optional[int] = 0) -> Optional[T]:
     ...
+@no_type_check
 def best_match(
         text: str,
         options: Iterable[str],

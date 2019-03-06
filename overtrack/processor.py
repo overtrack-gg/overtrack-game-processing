@@ -1,5 +1,5 @@
 from collections import deque
-from typing import Callable, Iterable, Any
+from typing import Callable, Iterable, Any, Optional
 
 from overtrack.frame import Frame
 
@@ -14,7 +14,7 @@ class OrderedProcessor(Processor):
     """
     Run all processors in the predefined order
     """
-    def __init__(self, *processors):
+    def __init__(self, *processors: Processor):
         self.processors = processors
 
     def process(self, frame: Frame) -> bool:
@@ -36,9 +36,9 @@ class ConditionalProcessor(Processor):
             self,
             processor: Processor,
             condition: Callable[[Frame], object],  # condition may return falsey objects
-            lookbehind: int=None,
-            lookbehind_behaviour: Callable[[Iterable[Any]], bool]=any,
-            default_without_history=True) -> None:
+            lookbehind: Optional[int] = None,
+            lookbehind_behaviour: Callable[[Iterable[Any]], bool] = any,
+            default_without_history: bool = True):
 
         self.processor = processor
         self.condition = condition
@@ -73,7 +73,7 @@ class ShortCircuitProcessor(Processor):
 
     If order_defined=False then the processor that returned True on the previous frame is run first
     """
-    def __init__(self, *processors, order_defined: bool, invert=False):
+    def __init__(self, *processors: Processor, order_defined: bool, invert: bool=False):
         self.processors = processors
         self.order_defined = order_defined
         self.invert = invert

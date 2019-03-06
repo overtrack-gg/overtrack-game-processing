@@ -1,9 +1,11 @@
 import os
 import zipfile
+from typing import Tuple
+
 import boto3
 
 
-def humansize(nbytes, suffixes=('B', 'KB', 'MB', 'GB', 'TB', 'PB')):
+def humansize(nbytes: float, suffixes: Tuple[str, ...] = ('B', 'KB', 'MB', 'GB', 'TB', 'PB')) -> str:
     # http://stackoverflow.com/a/14996816
     if nbytes == 0:
         return '0 B'
@@ -15,7 +17,7 @@ def humansize(nbytes, suffixes=('B', 'KB', 'MB', 'GB', 'TB', 'PB')):
     return '%s %s' % (f, suffixes[i])
 
 
-def main():
+def main() -> None:
     zf = zipfile.ZipFile('./overtrack.zip', 'w')
     whitelist = [
         'overtrack',

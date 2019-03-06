@@ -32,7 +32,7 @@ def dictify(dic: Any) -> Any:
 
 
 # ¯\_(ツ)_/¯
-def strify(o: Any, depth=0) -> str:
+def strify(o: Any, depth: int=0) -> str:
     if isinstance(o, str):
         return "'" + o + "'"
     if isinstance(o, float):
@@ -48,14 +48,14 @@ def strify(o: Any, depth=0) -> str:
             # noinspection PyProtectedMember
             fields = o._fields
         if len(fields) < 4:
-            return o.__class__.__name__ + '(' + ', '.join(f + '=' + strify(getattr(o, f), depth) for f in fields) + ')'
+            return str(o.__class__.__name__ + '(' + ', '.join(f + '=' + strify(getattr(o, f), depth) for f in fields) + ')')
         else:
             spaces = '  ' * (depth+1)
-            return o.__class__.__name__ + '(\n' + spaces + \
+            return str(o.__class__.__name__ + '(\n' + spaces + \
                (',\n' + spaces).join(
                    f + '=' + strify(getattr(o, f), depth+1)
                    for f in fields
-               ) + '\n' + '  ' * depth + ')'
+               ) + '\n' + '  ' * depth + ')')
     elif isinstance(o, tuple):
         return '(' + ', '.join(strify(e, depth + 1) for e in o) + ')'
     elif isinstance(o, np.ndarray) and len(o.shape) == 1:
@@ -65,22 +65,22 @@ def strify(o: Any, depth=0) -> str:
     return str(o)
 
 
-class Timings(dict):
+class Timings(Dict[str, float]):
 
     @property
-    def total(self):
+    def total(self) -> float:
         return sum(self.values())
 
-    def __setitem__(self, key: str, value: float):
+    def __setitem__(self, key: str, value: float) -> None:
         super().__setitem__(key, round(value, 4))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str({k: round(v, 3) for k, v in dict(TOTAL=self.total, **self).items()})
 
     __repr__ = __str__
 
 
-class Frame(dict):
+class Frame(Dict[str, Any]):
 
     def __init__(
             self,
@@ -99,10 +99,13 @@ class Frame(dict):
         # timestamp: float
         relative_timestamp: float
         timestamp_str: str
+        relative_timestamp_str: str
+
+        frame_no: int
         # debug_image: Optional[np.ndarray]
 
         import overtrack.overwatch.game.objective
-        objective: overtrack.overwatch.game.objective.ObjectiveProcessor.Objective
+        objective: overtrack.overwatch.game.objective.Objective
 
         import overtrack.overwatch.game.loading_map
         loading_map: overtrack.overwatch.game.loading_map.LoadingMapProcessor.LoadingMap
@@ -120,18 +123,19 @@ class Frame(dict):
 
         import overtrack.overwatch.game.killfeed
         killfeed: overtrack.overwatch.game.killfeed.KillfeedProcessor.Killfeed
+        killcam_match: float
 
         import overtrack.overwatch.game.spectator
         spectator_bar: overtrack.overwatch.game.spectator.SpectatorProcessor.SpectatorBar
 
         import overtrack.overwatch.game.score
-        score_screen = overtrack.overwatch.game.score.ScoreProcessor.ScoreScreen
-        score_screen_match = float
-        final_score = overtrack.overwatch.game.score.ScoreProcessor.FinalScore
-        final_score_match = float
+        score_screen: overtrack.overwatch.game.score.ScoreProcessor.ScoreScreen
+        score_screen_match: float
+        final_score: overtrack.overwatch.game.score.ScoreProcessor.FinalScore
+        final_score_match: float
 
         import overtrack.overwatch.game.endgame
-        endgame = overtrack.overwatch.game.endgame.EndgameProcessor.Endgame
+        endgame: overtrack.overwatch.game.endgame.EndgameProcessor.Endgame
         endgame_match: float
 
         import overtrack.overwatch.game.hero
@@ -149,7 +153,7 @@ class Frame(dict):
             image: np.ndarray,
             timestamp: float,
             debug: bool=False,
-            timings: Dict[str, float]=None,
+            timings: Optional[Dict[str, float]]=None,
             **data: Any) -> 'Frame':
         if image.dtype != np.uint8:
             raise TypeError(f'image must have type uint8 but had type { image.dtype }')
@@ -203,20 +207,20 @@ class Frame(dict):
     def copy(self) -> 'Frame':
         return Frame(**self)
 
-    def __getattr__(self, item: str):
+    def __getattr__(self, item: str) -> Any:
         if item not in self:
             raise AttributeError('Frame does not (yet?) have attribute %r' % (item, ))
         return self[item]
 
-    def __setattr__(self, key: str, value: Any):
+    def __setattr__(self, key: str, value: Any) -> None:
         self.__setitem__(key, value)
 
-    def __setitem__(self, key: str, value: Any):
+    def __setitem__(self, key: str, value: Any) -> None:
         if key in self:
             raise ValueError(f'Cannot add item "{ key }": already exists')
         super().__setitem__(key, value)
 
-    def _to_str(self, newlines: bool=True):
+    def _to_str(self, newlines: bool=True) -> str:
         return '%s(%s%s%s)' % (
             self.__class__.__name__,
             '\n  ' if newlines else '',

@@ -1,11 +1,11 @@
 import logging
 import os
 import string
+from typing import Callable, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, no_type_check, overload
 
-import tesserocr
 import cv2
 import numpy as np
-from typing import NamedTuple, List, Tuple, Optional, Callable, TypeVar, overload, Sequence, Union
+import tesserocr
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ def otsu_thresh(vals: np.ndarray, mn: float, mx: float) -> float:
 
     idx = np.argmax(variance12)
     threshold = bin_edges[:-1][idx]
-    return threshold
+    return float(threshold)
 
 
 def fast_gaussian(im: np.ndarray, v: float, scale: float=2) -> np.ndarray:
@@ -118,12 +118,11 @@ T = TypeVar('T', int, float, str)
 @overload
 def tesser_ocr(
         image: np.ndarray,
-        expected_type: None = None,
         whitelist: Optional[str] = None,
         invert: bool = False,
         scale: float = 1,
         blur: Optional[float] = None,
-        engine: tesserocr.PyTessBaseAPI = None) -> Optional[str]:
+        engine: tesserocr.PyTessBaseAPI = None) -> str:
     ...
 @overload
 def tesser_ocr(
@@ -135,6 +134,7 @@ def tesser_ocr(
         blur: Optional[float] = None,
         engine: tesserocr.PyTessBaseAPI = None) -> Optional[T]:
     ...
+@no_type_check
 def tesser_ocr(
         image: np.ndarray,
         expected_type: Optional[Callable[[str], T]] = None,
@@ -142,7 +142,7 @@ def tesser_ocr(
         invert: bool = False,
         scale: float = 1,
         blur: Optional[float] = None,
-        engine: tesserocr.PyTessBaseAPI = tesseract_only):
+        engine: tesserocr.PyTessBaseAPI = tesseract_only) -> Optional[T]:
 
     if whitelist is None:
         if expected_type is int:
@@ -163,6 +163,9 @@ def tesser_ocr(
     if blur:
         image = cv2.GaussianBlur(image, (0, 0), blur)
 
+    # if debug:
+    #     cv2.imshow('tesser_ocr', image)
+    #     cv2.waitKey(0)
 
     if len(image.shape) == 2:
         height, width = image.shape
@@ -194,12 +197,11 @@ def tesser_ocr(
 @overload
 def tesser_ocr_all(
         images: Sequence[np.ndarray],
-        expected_type: None = None,
         whitelist: Optional[str] = None,
         invert: bool = False,
         scale: float = 1,
         blur: Optional[float] = None,
-        engine: tesserocr.PyTessBaseAPI = tesseract_only) -> List[Optional[str]]:
+        engine: tesserocr.PyTessBaseAPI = tesseract_only) -> List[str]:
     ...
 @overload
 def tesser_ocr_all(
@@ -211,13 +213,14 @@ def tesser_ocr_all(
         blur: Optional[float] = None,
         engine: tesserocr.PyTessBaseAPI = tesseract_only) -> List[Optional[T]]:
     ...
-def tesser_ocr_all(images,
-                   expected_type=None,
-                   whitelist=None,
-                   invert=False,
-                   scale=1,
-                   blur=None,
-                   engine=tesseract_only):
+@no_type_check
+def tesser_ocr_all(images: Sequence[np.ndarray],
+                   expected_type: Optional[Callable[[str], T]]=None,
+                   whitelist: Optional[str] = None,
+                   invert: bool = False,
+                   scale: float = 1,
+                   blur: Optional[float] = None,
+                   engine: tesserocr.PyTessBaseAPI = tesseract_only) -> List[Optional[T]]:
     return [
         tesser_ocr(
             image,
@@ -276,9 +279,9 @@ def findContours(
         offset: Optional[Tuple[int, int]]=None) -> Tuple[np.ndarray, np.ndarray]:
     r = cv2.findContours(image, mode, method, contours=contours, hierarchy=hierarchy, offset=offset)
     if len(r) == 3:
-        return r[1:]
+        return r[1], r[2]
     else:
-        return r
+        return r[0], r[1]
 
 
 def normalise(im: np.ndarray) -> np.ndarray:
@@ -287,3 +290,24 @@ def normalise(im: np.ndarray) -> np.ndarray:
     im /= np.percentile(im, 98)
     return np.clip(im * 255, 0, 255).astype(np.uint8)
 
+
+# if __name__ == '__main__':
+#     print(os.environ['PATH'])
+#     print(tesserocr.tesseract_version())
+#
+#     # noinspection PyArgumentList
+#     ocr = tesserocr.PyTessBaseAPI(oem=tesserocr.OEM.LSTM_ONLY)
+#
+#     gray = image = cv2.imread('C:\\tmp\\gray.png', 0)
+#     height, width = image.shape
+#     channels = 1
+#
+#     ocr.SetImageBytes(image.tobytes(), width, height, channels, width * channels)
+#     print(ocr.GetUTF8Text())
+#
+#     ocr.SetImageBytes((255 - image).tobytes(), width, height, channels, width * channels)
+#     print(ocr.GetUTF8Text())
+#
+#     print('--')
+#     print(tesser_ocr(gray, whitelist=string.ascii_uppercase))
+#     print(tesser_ocr(gray, invert=True, whitelist=string.ascii_uppercase))

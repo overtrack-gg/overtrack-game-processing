@@ -189,7 +189,7 @@ class MaxAlongDims(Layer):
     def call(self, inputs, training=None):
         return backend.max(inputs, axis=self.dims)
 
-def make_ctc_loss(sequence_length: int, preprocess_collapse_repeated=False, ctc_merge_repeated=False):
+def make_ctc_loss(sequence_length: int, preprocess_collapse_repeated=False, ctc_merge_repeated: bool = False):
     def ctc_loss(y_true, y_pred):
         y_true = tf.cast(y_true, tf.int32)
         sparse = dense_to_sparse(y_true, eos_token=-1)

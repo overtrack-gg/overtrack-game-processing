@@ -8,7 +8,7 @@ import time
 from collections import defaultdict
 from threading import Thread
 from typing import Callable, Optional, Sequence, Mapping, DefaultDict, Tuple, Dict, Union, \
-    Any, List, TYPE_CHECKING
+    Any, List, TYPE_CHECKING, no_type_check
 
 if TYPE_CHECKING:
     from mypy_extensions import TypedDict
@@ -268,6 +268,7 @@ def patch_sentry_locals_capture() -> None:
     import sentry_sdk.utils
     from overtrack.frame import Frame
 
+    @no_type_check
     def object_to_json(obj: object) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
         def _walk(obji: object, depth: int) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
             if depth < 4:

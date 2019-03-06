@@ -144,7 +144,7 @@ class Kill:
             r += '.' + self.right_name
         return r
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Kill(' + \
                f'left=' + (f'Icon({self.left.hero.hero}, t={"HA"[self.left.team]}, x={self.left.x})' if self.left else 'None') + \
                f', right=Icon({self.right.hero.hero}, t={"HA"[self.right.team]}, x={self.right.x})' \
@@ -239,6 +239,7 @@ class IsOWLProcessor(Processor):
             if self.away_color == (0, 0, 0):
                 away_color = tuple(int(e) for e in np.median(frame.image[:40, -100:], axis=(0, 1)))
                 self.away_color = away_color
+                # noinspection PyTypeChecker
                 self.spec.set_bgcols(((255, 255, 255), self.away_color))
                 logger.info(f'Setting away color to {self.away_color}')
 
@@ -250,6 +251,7 @@ class IsOWLProcessor(Processor):
             if self.away_color == (0, 0, 0):
                 away_color = tuple(int(e) for e in np.median(frame.image[55:55+40, -100:], axis=(0, 1)))
                 self.away_color = away_color
+                # noinspection PyTypeChecker
                 self.spec.set_bgcols(((255, 255, 255), self.away_color))
                 logger.info(f'Setting away color to {self.away_color}')
 
@@ -265,7 +267,7 @@ class IsOWLProcessor(Processor):
 
 class KillfeedExtractor:
 
-    def __init__(self, source: Twitch, away_hex: str, end_pos: int=None, debug=False):
+    def __init__(self, source: Twitch, away_hex: str, end_pos: int=None, debug: bool = False):
         self.source = source
         self.end_pos = end_pos
         self.debug = debug
@@ -419,7 +421,7 @@ class KillfeedExtractor:
         kills_this_frame.extend(new_kills)
         return has_suicide, killrows, kills_this_frame, new_kills
 
-    def draw_fail_reason(self, frame, cnt, text):
+    def draw_fail_reason(self, frame: Frame, cnt, text):
         if frame.debug_image is None:
             return
         if 'cnt_index' not in frame:
@@ -728,7 +730,7 @@ logger.info(f'Loaded team colors: {team_colors}')
 class OverGGGame:
     MIN_GAP = 1
 
-    def __init__(self, url: str, debug=False):
+    def __init__(self, url: str, debug: bool = False):
         self.url = url
         self.debug = debug
 
@@ -906,7 +908,7 @@ def main() -> None:
     #         # download_and_process(match)
     #         print(match['href'])
 
-def download_and_process(match, debug=False):
+def download_and_process(match, debug: bool = False):
     try:
         print(f'Processing {match}')
         game = OverGGGame('https://www.over.gg' + match, debug)
