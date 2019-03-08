@@ -61,9 +61,8 @@ def intermittent_log(
             fn, lno, func, sinfo = (co.co_filename, caller.frame.f_lineno, co.co_name, None)
             record = logger.makeRecord(logger.name, output, str(fn), lno, line, {}, None, func, None, sinfo)
             logger.handle(record)
-    except BaseException:
+    except:
         # noinspection PyProtectedMember
-        assert hasattr(logger, '_log'), 'mypy'
         logger.log(level, line, ())
 
 
