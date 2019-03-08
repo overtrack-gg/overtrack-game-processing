@@ -69,7 +69,7 @@ class Timings(Dict[str, float]):
 
     @property
     def total(self) -> float:
-        return sum(self.values())
+        return sum([v for k, v in self.items() if k != 'fetch'])
 
     def __setitem__(self, key: str, value: float) -> None:
         super().__setitem__(key, round(value, 4))
@@ -181,6 +181,17 @@ class Frame(Dict[str, Any]):
 
                 if 'offset_from_now' in data:
                     s += f' | offset: {data["offset_from_now"] :1.1f}'
+
+                if 'source' in data:
+                    s += f' | {data["source"]}'
+                if 'source_frame_no' in data:
+                    s += f' +{data["source_frame_no"]}'
+                if 'source_timestamp' in data:
+                    s += f'/+{data["source_timestamp"]:1.2f}s'
+
+                if 'offset_from_last' in data and data['offset_from_last'] is not None:
+                    s += f' | +{data["offset_from_last"]:1.2f}s'
+
                 cv2.putText(f.debug_image, s, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, c, t)
         else:
             f.debug_image = None
