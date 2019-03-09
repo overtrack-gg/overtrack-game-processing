@@ -152,7 +152,6 @@ def tesser_ocr(
         else:
             whitelist = string.digits + string.ascii_letters + string.punctuation + ' '
 
-    print('>', whitelist)
 
     engine.SetVariable('tessedit_char_whitelist', whitelist)
     if invert:
@@ -182,7 +181,6 @@ def tesser_ocr(
     if not any(c in whitelist for c in string.ascii_lowercase):
         text = text.upper()
 
-    print('>', text)
 
     if expected_type:
         try:
