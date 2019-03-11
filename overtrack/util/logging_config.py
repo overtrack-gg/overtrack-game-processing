@@ -272,6 +272,10 @@ def patch_sentry_locals_capture() -> None:
 
     @no_type_check
     def object_to_json(obj: object) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
+
+        if (isinstance(obj, bytes) or isinstance(obj, str)) and len(obj) > 128:
+            return repr(obj[:128]) + f'...{len(obj) - 128}'
+
         def _walk(obji: object, depth: int) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
             if depth < 4:
                 if isinstance(obji, Frame):
