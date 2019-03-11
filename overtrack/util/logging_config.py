@@ -263,6 +263,9 @@ def finish_logging() -> None:
         upload_logs_settings['upload_func'](*upload_logs_settings['args'])
 
 
+sentry_logger = logging.getLogger('object_to_json')
+
+
 def patch_sentry_locals_capture() -> None:
     import sentry_sdk.utils
     from overtrack.frame import Frame
@@ -282,7 +285,9 @@ def patch_sentry_locals_capture() -> None:
                     return {sentry_sdk.utils.safe_str(k): _walk(v, depth + 1) for k, v in obji.items()}
             return sentry_sdk.utils.safe_repr(obji)
 
-        return _walk(obj, 0)
+        r = _walk(obj, 0)
+        sentry_logger.debug(f'dumping {obj} -> {len(r)}')
+        return r
 
     sentry_sdk.utils.object_to_json = object_to_json
 
