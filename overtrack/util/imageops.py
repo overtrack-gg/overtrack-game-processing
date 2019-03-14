@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 import string
@@ -152,6 +153,7 @@ def tesser_ocr(
         else:
             whitelist = string.digits + string.ascii_letters + string.punctuation + ' '
 
+    # print('>', whitelist)
 
     engine.SetVariable('tessedit_char_whitelist', whitelist)
     if invert:
@@ -181,12 +183,22 @@ def tesser_ocr(
     if not any(c in whitelist for c in string.ascii_lowercase):
         text = text.upper()
 
+    # print('>', text)
 
     if expected_type:
         try:
             return expected_type(text)
         except Exception as e:
-            logger.warning(f'Got exception interpreting "{text}" as {expected_type.__class__.__name__} - {e}')
+            try:
+                caller = inspect.stack()[1]
+                logger.warning(
+                    f'{os.path.basename(caller.filename)}:{caller.lineno} {caller.function} | '
+                    f'Got exception interpreting "{text}" as {expected_type.__name__}'
+                )
+            except:
+                logger.warning(
+                    f'Got exception interpreting "{text}" as {expected_type.__name__}'
+                )
             return None
     else:
         return text
@@ -288,6 +300,20 @@ def normalise(im: np.ndarray) -> np.ndarray:
     im /= np.percentile(im, 98)
     return np.clip(im * 255, 0, 255).astype(np.uint8)
 
+
+class TemplateMatchException(Exception):
+    pass
+
+
+def matchTemplate(image: np.ndarray, template: np.ndarray, method: int, mask: Optional[np.ndarray]=None) -> np.ndarray:
+    if template.shape[0] > image.shape[0] or template.shape[1] > image.shape[1]:
+        raise TemplateMatchException(f'matchTemplate requires template {template.shape} fit within image to match {image.shape}')
+    if mask is None:
+        return cv2.matchTemplate(image, template, method)
+    else:
+        if template.shape != mask.shape:
+            raise TemplateMatchException(f'matchTemplate requires template {template.shape} matches mask {mask.shape}')
+        return cv2.matchTemplate(image, template, method, mask=mask)
 
 # if __name__ == '__main__':
 #     print(os.environ['PATH'])

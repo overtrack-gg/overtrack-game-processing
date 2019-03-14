@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING, Tuple
 
 import cv2
 import dataclasses
@@ -92,6 +92,7 @@ class Frame(Dict[str, Any]):
             self.image: np.ndarray = None
         if 'debug_image' not in kwargs:
             self.debug_image: Optional[np.ndarray] = None
+        self._image_yuv: Optional[np.ndarray] = None
 
     # typing hints - access to fields is through object-level dict or __getattr__
     if TYPE_CHECKING:
@@ -147,6 +148,20 @@ class Frame(Dict[str, Any]):
         from overtrack.source.stream.ts_stream import TSSource
         source: TSSource
 
+        import overtrack.apex.game.match_status
+        import overtrack.apex.game.match_summary
+        import overtrack.apex.game.menu
+        import overtrack.apex.game.squad
+        import overtrack.apex.game.weapon
+        import overtrack.apex.game.your_squad
+        match_status: overtrack.apex.game.match_status.MatchStatus
+        match_summary: overtrack.apex.game.match_summary.MatchSummary
+        apex_play_menu: overtrack.apex.game.menu.PlayMenu
+        squad: overtrack.apex.game.squad.Squad
+        weapons: overtrack.apex.game.weapon.Weapons
+        your_squad: overtrack.apex.game.your_squad.YourSquad
+        location: Tuple[int, int]
+
     @classmethod
     def create(
             cls,
@@ -162,6 +177,7 @@ class Frame(Dict[str, Any]):
 
         f = cls.__new__(cls)
         f.image = image
+        f._image_yuv: Optional[np.ndarray] = None
 
         f.timestamp = timestamp
         f.timestamp_str = datetime.utcfromtimestamp(timestamp).strftime('%Y/%m/%d %H:%M:%S.') + f'{timestamp % 1 :.2f}'[2:]
@@ -217,6 +233,12 @@ class Frame(Dict[str, Any]):
 
     def copy(self) -> 'Frame':
         return Frame(**self)
+
+    @property
+    def image_yuv(self) -> np.ndarray:
+        if self._image_yuv is None:
+            super().__setitem__('_image_yuv', cv2.cvtColor(self.image, cv2.COLOR_BGR2YUV))
+        return self._image_yuv
 
     def __getattr__(self, item: str) -> Any:
         if item not in self:

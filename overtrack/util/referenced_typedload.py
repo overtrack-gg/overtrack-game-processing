@@ -1,5 +1,5 @@
 import itertools
-from typing import Any, Dict, Optional, Type, TypeVar, TYPE_CHECKING, List, Union, cast
+from typing import Any, Dict, Optional, Type, TypeVar, TYPE_CHECKING, List, Union, cast, Tuple
 
 if TYPE_CHECKING:
     from overtrack.frame import Frame
@@ -12,9 +12,6 @@ import typedload.datadumper
 import typedload.dataloader
 import numpy as np
 from typedload.exceptions import Annotation
-
-from overtrack.overwatch.collect import Game
-from overtrack.source.stream.ts_stream import TSSource
 
 
 class Loader(typedload.dataloader.Loader):
@@ -78,6 +75,13 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
     import overtrack.overwatch.game.endgame
     import overtrack.overwatch.game.hero
 
+    import overtrack.apex.game.match_status
+    import overtrack.apex.game.match_summary
+    import overtrack.apex.game.menu
+    import overtrack.apex.game.squad
+    import overtrack.apex.game.weapon
+    import overtrack.apex.game.your_squad
+
     _TYPES = {
         'objective': overtrack.overwatch.game.objective.Objective,
         'loading_map': overtrack.overwatch.game.loading_map.LoadingMapProcessor.LoadingMap,
@@ -89,7 +93,15 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
         'score_screen': overtrack.overwatch.game.score.ScoreProcessor.ScoreScreen,
         'final_score': overtrack.overwatch.game.score.ScoreProcessor.FinalScore,
         'endgame': overtrack.overwatch.game.endgame.EndgameProcessor.Endgame,
-        'hero': overtrack.overwatch.game.hero.HeroProcessor.Hero
+        'hero': overtrack.overwatch.game.hero.HeroProcessor.Hero,
+
+        'match_status': overtrack.apex.game.match_status.MatchStatus,
+        'match_summary': overtrack.apex.game.match_summary.MatchSummary,
+        'apex_play_menu': overtrack.apex.game.menu.PlayMenu,
+        'squad': overtrack.apex.game.squad.Squad,
+        'weapons': overtrack.apex.game.weapon.Weapons,
+        'your_squad': overtrack.apex.game.your_squad.YourSquad,
+        'location': Tuple[int, int]
     }
 
     f = Frame.__new__(Frame)
@@ -121,10 +133,12 @@ class Dumper(typedload.datadumper.Dumper):
             lambda value: np.isscalar(value),
             lambda l, value: value.item()
         ))
-        self.handlers.append((
-            lambda value: isinstance(value, Game),
-            lambda l, value: l.dump(value.__dict__)
-        ))
+
+        # from overtrack.overwatch.collect import Game
+        # self.handlers.append((
+        #     lambda value: isinstance(value, Game),
+        #     lambda l, value: l.dump(value.__dict__)
+        # ))
 
 
 class ReferencedDumper(Dumper):
