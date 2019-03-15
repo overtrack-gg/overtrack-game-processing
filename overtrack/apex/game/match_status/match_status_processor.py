@@ -47,7 +47,8 @@ class MatchStatusProcessor(Processor):
         '?2',
         'O0',
         'L1',
-        'I1'
+        'I1',
+        'B6',
     ]
 
     @time_processing
@@ -58,7 +59,7 @@ class MatchStatusProcessor(Processor):
         if squads_left is not None:
             frame.match_status = MatchStatus(
                 squads_left=squads_left,
-                players_alive=self._get_players_alive(y) if squads_left > 3 else None,
+                players_alive=self._get_players_alive(y) if squads_left > 4 else None,
                 kills=self._get_kills(y)
             )
             _draw_status(frame.debug_image, frame.match_status)
@@ -75,7 +76,7 @@ class MatchStatusProcessor(Processor):
         ).upper()
         squads_left_text = ''.join(
             c for c in squads_left_text if c in string.ascii_uppercase + string.digits + ' '
-        )
+        ).strip().replace('B', '6')
         text_match = levenshtein.ratio(squads_left_text[2:].replace(' ', ''), 'SQUADSLEFT')
         if text_match > 0.8:
             number_text = squads_left_text[:3].split(' ', 1)[0]
@@ -99,12 +100,18 @@ class MatchStatusProcessor(Processor):
             return None
 
     def _get_players_alive(self, y: np.ndarray) -> Optional[int]:
-        return imageops.tesser_ocr(
+        players_alive = imageops.tesser_ocr(
             self.REGIONS['alive'].extract_one(y),
             engine=ocr.tesseract_ttlakes_digits,
             scale=4,
             expected_type=int
         )
+        # minimum alive = 5 squads * 1 player each
+        if 5 <= players_alive <= 60:
+            return players_alive
+        else:
+            logger.warning(f'Rejecting players_alive={players_alive}')
+            return None
 
     def _get_kills(self, y: np.ndarray) -> Optional[int]:
         kills_image = self.REGIONS['kills'].extract_one(y)
@@ -115,14 +122,16 @@ class MatchStatusProcessor(Processor):
             cv2.TM_CCORR_NORMED
         )
         mn, mx, mnloc, mxloc = cv2.minMaxLoc(match)
-        if mx > 0.95:
-            kills_image = kills_image[:, mnloc[1] + self.SKULL_TEMPLATE.shape[1]:]
+        if mx > 0.9:
+            kills_image = kills_image[:, mxloc[0] + self.SKULL_TEMPLATE.shape[1]:]
+            # cv2.imshow('kills', cv2.resize(kills_image, (100, 100)))
+
             kills_text = imageops.tesser_ocr(
                 kills_image,
                 engine=imageops.tesseract_lstm,
                 scale=2,
                 invert=True
-            ).upper()
+            ).upper().strip()
             for s1, s2 in self.SUBS:
                 kills_text = kills_text.replace(s1, s2)
             try:

@@ -21,11 +21,11 @@ champions = {
     'bloodhound': Champion('Bloodhound'),
     'gibraltar': Champion('Gibraltar'),
     'lifeline': Champion('Lifeline'),
-    # 'pathfinder': Champion('Pathfinder'),
+    'pathfinder': Champion('Pathfinder'),
     'wraith': Champion('Wraith'),
     'bangalore': Champion('Bangalore'),
     'mirage': Champion('Mirage'),
-    # 'caustic': Champion('Caustic')
+    'caustic': Champion('Caustic')
 }
 
 

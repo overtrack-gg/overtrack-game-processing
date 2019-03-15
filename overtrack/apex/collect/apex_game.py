@@ -7,6 +7,7 @@ import numpy as np
 
 from overtrack.apex import data
 from overtrack.apex.data import Champion
+from overtrack.apex.game.map import Location
 from overtrack.frame import Frame
 from overtrack.util import arrayops, s2ts, textops
 
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 class Squad:
 
-    def __init__(self, frames: List[Frame]):
+    def __init__(self, frames: List[Frame], debug: bool = False):
         self.squad = [f.squad for f in frames if 'squad' in f]
         logger.info(f'Processing squad from {len(self.squad)} squad frames')
 
@@ -51,12 +52,13 @@ class Squad:
         return self._get_matching_champion([s.squadmate_champions[index] for s in self.squad])
 
     def _get_matching_champion(self, arr: List[List[float]]) -> Optional[Champion]:
-        # only look at data where we are sure that it was one of the champions
+        # only look at data where we match at least one champions decently
+        # This avoids looking at e.g. respawn screens
         matches = np.array([
-            x for x in arr if np.max(x) > 0.98
+            x for x in arr if np.max(x) > 0.9
         ])
         if len(matches) < 10:
-            logger.warning(f'Could not identify champion - average matches={np.median(arr, axis=0)}')
+            logger.error(f'Could not identify champion - average matches={np.median(arr, axis=0)}')
             return None
 
         matches = np.percentile(
@@ -66,11 +68,11 @@ class Squad:
         )
         match = arrayops.argmax(matches)
         champion = data.champions[list(data.champions.keys())[match]]
-        if matches[match] > 0.99:
+        if matches[match] > 0.9:
             logger.info(f'Got champion={champion}, match={matches[match]:1.4f}')
             return champion
         else:
-            logger.warning(f'Could not identify champion - best={champion}, match={matches[match]:1.4f}')
+            logger.error(f'Could not identify champion - best={champion}, match={matches[match]:1.4f}')
             return None
 
     def __str__(self) -> str:
@@ -82,42 +84,109 @@ class Squad:
     __repr__ = __str__
 
 
+class Weapons:
+    def __init__(self, frames: List[Frame], debug: bool = False):
+        self.weapon_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'weapons' in f]
+        self.have_weapon = [self._weapon_names_valid(f.weapons.weapon_names) for f in frames if 'weapons' in f]
+
+        self.first_weapon_timestamp = self._get_first_weapon_timestamp(debug)
+
+    def _get_first_weapon_timestamp(self, debug: bool = False) -> Optional[float]:
+        # use first weapon pickup to detect when not dropping
+        # TODO: use the "Hold (|) Freelook" or similar to detect when dropping
+        weapon_timestamp = self.weapon_timestamp[:-9]
+        have_weapon = np.convolve(self.have_weapon, np.ones((10,)), mode='valid')
+
+        if debug:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.title('Have Weapon (convolved)')
+            plt.plot(have_weapon)
+            plt.show()
+
+        have_weapon_index = np.where(have_weapon > 6)[0]
+        if len(have_weapon_index):
+            first_weapon_index = have_weapon_index[0] + 2
+            first_weapon_timestamp = weapon_timestamp[first_weapon_index]
+
+            logger.info(f'Got first weapon pickup at {s2ts(first_weapon_timestamp)}')
+            return first_weapon_timestamp
+        else:
+            logger.warning(f'Did not see any weapons')
+            return None
+
+    def _weapon_names_valid(self, weapon_names: Tuple[str, str]) -> bool:
+        for name in weapon_names:
+            name = textops.strip_string(name, string.ascii_uppercase + string.digits + '- ')
+            if len(name) < 3:
+                continue
+            ratio, match = textops.matches_ratio(
+                name,
+                data.weapon_names
+            )
+            if ratio > 0.75:
+                return True
+        return False
+
+
 class Route:
 
-    def __init__(self, frames: List[Frame]):
+    def __init__(self, frames: List[Frame], weapons: Weapons, debug: bool = False):
+
+        if debug:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.title('Location Match')
+            plt.plot([f.location.match for f in frames if 'location' in f])
+            plt.show()
+
         self.locations = []
-        last: Optional[Tuple[int, int]] = None
+        last: Optional[Location] = None
         last_valid = 100
         for frame in [f for f in frames if 'location' in f]:
             ts, location = frame.timestamp, frame.location
+            if location.match > 0.75:
+                continue
             if not last:
                 dist = 0
             else:
-                dist = np.sqrt(np.sum((np.array(last) - np.array(location)) ** 2))
+                dist = np.sqrt(np.sum((np.array(last.coordinates) - np.array(location.coordinates)) ** 2))
             if last_valid < 10:
                 if dist < 50:
                     last_valid += 1
                     if last_valid == 10:
-                        logger.warning(f'Location became valid again')
+                        logger.warning(f'Location became valid again: {location}')
             elif dist < 50:
-                self.locations.append((ts - frames[0].timestamp, location))
+                self.locations.append((ts - frames[0].timestamp, location.coordinates))
             else:
                 logger.warning(
-                    f'Ignoring location {dist:.1f} away from previous - '
+                    f'Ignoring location {dist:.1f} away from previous: {location} - '
                     f'invalidating location until we see 10 locations within close proximity'
                 )
                 last_valid = 0
             last = location
 
         logger.info(f'Processing route from {len(self.locations)} locations')
+        if not len(self.locations):
+            logger.warning(f'Got no locations')
+            self.time_landed = None
+            self.landed_location_index = None
+            self.landed_location = None
+            self.landed_name = None
+            self.locations_visited = []
+        else:
+            if weapons.first_weapon_timestamp is not None:
+                self.time_landed = weapons.first_weapon_timestamp
+            else:
+                logger.warning(f'Did not see weapon - assuming drop location = last location seen')
+                self.time_landed = self.locations[-2][0]
+            self.landed_location_index = max(0, min(bisect.bisect(self.locations, (self.time_landed, (0, 0))) + 1, len(self.locations) - 1))
 
-        self.time_landed = self._get_landed_timestamp(frames)
-        self.landed_location_index = bisect.bisect(self.locations, (self.time_landed, (0, 0))) + 1
-        # TODO: average location of first 5 or so locations
-        self.landed_location = self.locations[self.landed_location_index][1]
-        self.landed_name = data.map_locations[self.landed_location]
+            # TODO: average location of first 5 or so locations
+            self.landed_location = self.locations[self.landed_location_index][1]
+            self.landed_name = data.map_locations[self.landed_location]
 
-        self._process_locations_visited()
+            self._process_locations_visited()
 
     def _process_locations_visited(self):
         self.locations_visited = [self.landed_name]
@@ -133,48 +202,20 @@ class Route:
                 logger.info(f'Spent {ts - last_location[0]:.1f}s in {last_location[1]}')
                 last_location = ts, location_name
 
-    def _get_landed_timestamp(self, frames: List[Frame]) -> float:
-        # use first weapon pickup to detect when not dropping
-        # TODO: use the "Hold (|) Freelook" or similar to detect when dropping
-        weapon_timestamp = [f.timestamp for f in frames if 'weapons' in f]
-        have_weapon = [self._weapon_names_valid(f.weapons.weapon_names) for f in frames if 'weapons' in f]
-
-        weapon_timestamp = weapon_timestamp[:-9]
-        have_weapon = np.convolve(have_weapon, np.ones((10, )), mode='valid')
-
-        got_weapon_index = np.where(have_weapon > 6)[0][0] + 2
-        got_weapon_timestamp = weapon_timestamp[got_weapon_index]
-
-        game_relative_timestamp = got_weapon_timestamp - frames[0].timestamp
-
-        logger.info(f'Got first weapon pickup at {s2ts(game_relative_timestamp)}')
-        return game_relative_timestamp
-
-    def _weapon_names_valid(self, weapon_names: Tuple[str, str]) -> bool:
-        for name in weapon_names:
-            name = textops.strip_string(name, string.ascii_uppercase + string.digits + '- ')
-            if len(name) < 3:
-                continue
-            ratio, match = textops.matches_ratio(
-                name,
-                data.weapon_names
-            )
-            if ratio > 0.75:
-                return True
-        return False
-
     def show(self):
         import cv2
         from overtrack.apex.game.map import MapProcessor
         image = MapProcessor.MAP.copy()
         last = self.locations[self.landed_location_index][1]
         for ts, l in self.locations[self.landed_location_index + 1:]:
+            dist = np.sqrt(np.sum((np.array(last) - np.array(l)) ** 2))
             cv2.line(
                 image,
                 last,
                 l,
-                (0, 255, 0),
-                3
+                (0, 255, 0) if dist < 60 else (0, 0, 255),
+                2,
+                cv2.LINE_AA
             )
             last = l
         import matplotlib.pyplot as plt
@@ -192,14 +233,14 @@ class ApexGame:
         self.match_summary = [f.match_summary for f in self.frames if 'match_summary' in f]
         self.match_status = [f.match_status for f in self.frames if 'match_status' in f]
 
-        self.placed = self._get_placed()
-        self.kills = self._get_kills()
+        self.placed = self._get_placed(debug)
+        self.kills = self._get_kills(debug)
 
-        self.squad = Squad(frames)
+        self.squad = Squad(frames, debug=debug)
+        self.weapons = Weapons(frames, debug=debug)
+        self.route: Route = Route(frames, self.weapons, debug=debug)
 
-        self.route: Route = Route(frames)
-
-    def _get_placed(self) -> int:
+    def _get_placed(self, debug: bool = False) -> int:
         logger.info(f'Getting squad placement from {len(self.match_summary)} summary frames and {len(self.match_status)} match status frames')
 
         summary_placed: Optional[int] = None
@@ -230,12 +271,19 @@ class ApexGame:
             logger.warning(f'Did not get any match summaries - using placed=20')
             return 20
 
-    def _get_kills(self) -> int:
+    def _get_kills(self, debug: bool = False) -> int:
         kills_seen = [s.kills for s in self.match_status if s.kills]
         logger.info(f'Getting kills from {len(self.match_status)} match status frames with {len(kills_seen)} killcounts seen')
         if len(kills_seen) > 10:
             # TODO: record kill timestamps, correlate with weapons
             kills_seen = arrayops.modefilt(kills_seen, 5)
+
+            if debug:
+                import matplotlib.pyplot as plt
+                plt.figure()
+                plt.title('Kills')
+                plt.plot(kills_seen)
+                plt.show()
 
             final_kills = kills_seen[-1]
             logger.info(f'Got final_kills={final_kills}')

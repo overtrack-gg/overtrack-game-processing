@@ -1,1 +1,1 @@
-from .map_processor import MapProcessor
+from .map_processor import Location, MapProcessor

@@ -4,6 +4,7 @@ from typing import List, NamedTuple, Optional, Tuple
 
 import cv2
 import numpy as np
+from dataclasses import dataclass
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
@@ -12,10 +13,16 @@ from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 
 
+@dataclass
+class Location:
+    coordinates: Tuple[int, int]
+    match: float
+
+
 def _draw_map_location(
         debug_image: Optional[np.ndarray],
         map_image: np.ndarray,
-        location: Tuple[int, int],
+        location: Location,
         min_loc: Tuple[int, int],
         shape: Tuple[int, int]) -> None:
     if debug_image is None:
@@ -23,10 +30,19 @@ def _draw_map_location(
     out = map_image.copy()
     cv2.circle(
         out,
-        location,
+        location.coordinates,
         3,
         (0, 255, 0),
         2
+    )
+    cv2.putText(
+        out,
+        f'{location.match:1.4f}',
+        location.coordinates,
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 255, 0),
+        1
     )
     cv2.rectangle(
         out,
@@ -81,20 +97,24 @@ class MapProcessor(Processor):
         )
 
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
-        location = min_loc[0] + template.shape[1] // 2, min_loc[1] + template.shape[0] // 2
+        coords = min_loc[0] + template.shape[1] // 2, min_loc[1] + template.shape[0] // 2
 
-        if min_val < 0.75 and self.MAP_MASK[location[1], location[0]]:
+        location = Location(
+            coords,
+            round(min_val, 5)
+        )
+        _draw_map_location(
+            frame.debug_image,
+            self.MAP,
+            location,
+            min_loc,
+            template.shape
+        )
+
+        if min_val < 0.85 and self.MAP_MASK[location.coordinates[1], location.coordinates[0]]:
             frame.location = location
+            return min_val < 0.6
 
-            _draw_map_location(
-                frame.debug_image,
-                self.MAP,
-                frame.location,
-                min_loc,
-                template.shape
-            )
-            return True
-        
         return False
 
 
@@ -133,7 +153,7 @@ def main() -> None:
 
         if pipeline.process(frame):
             location = frame.location
-            path.append(location)
+            path.append(location.coordinates)
 
         cv2.imshow('debug', frame.debug_image)
 

@@ -19,6 +19,7 @@ class Loader(typedload.dataloader.Loader):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         if 'source_type' not in kwargs:
+            from overtrack.source.stream.ts_stream import TSSource
             self.source_type = TSSource
 
         self.referenced: Dict[object, Any] = {}
@@ -81,6 +82,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
     import overtrack.apex.game.squad
     import overtrack.apex.game.weapon
     import overtrack.apex.game.your_squad
+    import overtrack.apex.game.map
 
     _TYPES = {
         'objective': overtrack.overwatch.game.objective.Objective,
@@ -101,7 +103,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
         'squad': overtrack.apex.game.squad.Squad,
         'weapons': overtrack.apex.game.weapon.Weapons,
         'your_squad': overtrack.apex.game.your_squad.YourSquad,
-        'location': Tuple[int, int]
+        'location': overtrack.apex.game.map.Location
     }
 
     f = Frame.__new__(Frame)

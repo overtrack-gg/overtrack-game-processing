@@ -102,7 +102,7 @@ def main() -> None:
     config_logger('apex_game_extractor.py', logging.INFO, False)
 
     logger.info('Loading frames')
-    with open("C:/Users/simon/workspace/overtrack_2/games/apex_eeveea_apex_19-03-13.json") as f:
+    with open(r"C:\Users\simon\workspace\overtrack_2\games\apex_2019-03-15 12-30-59.json") as f:
         frames = referenced_typedload.load(json.load(f), List[Frame], source_type=VideoFrameExtractor.VideoFrameMetadata)
     logger.info(f'Loaded {len(frames)} frames')
 
@@ -136,7 +136,7 @@ def main() -> None:
     #     )
     # plt.show()
 
-    ex = ApexGameExtractor(keep_games=True)
+    ex = ApexGameExtractor(keep_games=True, debug=False)
 
     for f in frames:
         ex.on_frame(f)

@@ -16,7 +16,10 @@ def create_pipeline() -> Processor:
             YourSquadProcessor(),
             MatchSummaryProcessor(),
 
-            MapProcessor(),
+            OrderedProcessor(
+                MatchStatusProcessor(),
+                MapProcessor(),
+            ),
 
             order_defined=False
         ),
@@ -25,10 +28,9 @@ def create_pipeline() -> Processor:
             OrderedProcessor(
                 SquadProcessor(),
                 WeaponProcessor(),
-                MatchStatusProcessor()
             ),
-            condition=lambda f: 'location' in f,
-            lookbehind=5,
+            condition=lambda f: ('location' in f) or ('match_status' in f),
+            lookbehind=15,
             lookbehind_behaviour=any,
             default_without_history=True,
         ),

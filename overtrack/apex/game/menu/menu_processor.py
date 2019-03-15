@@ -81,7 +81,7 @@ class MenuProcessor(Processor):
                 squadmates=(self._ocr_playername(mate1), self._ocr_playername(mate2)),
                 ready=cancel_match >= self.REQUIRED_MATCH
             )
-            _draw_play_menu(frame.debug_image, frame.play_menu)
+            _draw_play_menu(frame.debug_image, frame.apex_play_menu)
 
             return True
 

@@ -50,9 +50,6 @@ class YourSquadProcessor(Processor):
             thresh, self.YOUR_SQUAD_TEMPLATE, cv2.TM_CCORR_NORMED
         ))
 
-        cv2.imshow('thresh', thresh)
-        print(match)
-
         if match >= self.REQUIRED_MATCH:
             # TODO: improve OCR
             names = imageops.tesser_ocr_all(
@@ -70,7 +67,7 @@ class YourSquadProcessor(Processor):
 
     def _to_name(self, name_text: str) -> Optional[str]:
         name_text = name_text.replace('[', '(').replace(']', ')')
-        if name_text[0] == '(' and name_text[-1] == ')':
+        if len(name_text) > 3 and name_text[0] == '(' and name_text[-1] == ')':
             return name_text[1:-1].replace(' ', '')
         else:
             logger.warning(f'Got name "{name_text}" for player - rejecting')
