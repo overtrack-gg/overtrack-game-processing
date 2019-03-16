@@ -1,12 +1,12 @@
 import datetime
 import os
-from typing import Any, Iterable, no_type_check, TYPE_CHECKING, Optional
+from typing import Any, Iterable, Optional, TYPE_CHECKING, no_type_check
 
-from pynamodb.attributes import BooleanAttribute, JSONAttribute, NumberAttribute, UnicodeAttribute, ListAttribute, MapAttribute
-from pynamodb.indexes import AllProjection, GlobalSecondaryIndex, KeysOnlyProjection
+from pynamodb.attributes import NumberAttribute, UnicodeAttribute
+from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
 from pynamodb.models import Model
 
-from models import TupleAttribute
+from models.common import TupleAttribute
 
 if TYPE_CHECKING:
     from overtrack.apex.collect.apex_game import ApexGame
