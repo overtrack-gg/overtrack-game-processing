@@ -147,7 +147,6 @@ def main() -> None:
         print(game)
         print(' -> '.join(game.route.locations_visited))
 
-        game.route.show()
 
         print()
 

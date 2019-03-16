@@ -1,9 +1,11 @@
 import bisect
+import datetime
 import logging
 import string
 from typing import Counter, List, Optional, Tuple
 
 import numpy as np
+import shortuuid
 
 from overtrack.apex import data
 from overtrack.apex.data import Champion
@@ -228,6 +230,12 @@ class ApexGame:
 
     def __init__(self, frames: List[Frame], key: str = None, debug: bool = False):
         self.timestamp = frames[0].timestamp
+        if key:
+            self.key = key
+        else:
+            datetimestr = datetime.datetime.utcfromtimestamp(self.timestamp).strftime('%Y-%m-%d-%H-%M')
+            self.key = f'{datetimestr}-{shortuuid.uuid()[:6]}'
+
         self.frames = frames
 
         self.match_summary = [f.match_summary for f in self.frames if 'match_summary' in f]
@@ -264,9 +272,9 @@ class ApexGame:
             if summary_placed:
                 if last_squads_alive != summary_placed:
                     logger.warning(f'Match summary placed={summary_placed} did not agree with last seen squads_alive={last_squads_alive} - using summary')
-                return summary_placed
+                return int(summary_placed)
             else:
-                return last_squads_alive
+                return int(last_squads_alive)
         else:
             logger.warning(f'Did not get any match summaries - using placed=20')
             return 20
@@ -288,7 +296,7 @@ class ApexGame:
             final_kills = kills_seen[-1]
             logger.info(f'Got final_kills={final_kills}')
 
-            return final_kills
+            return int(final_kills)
         else:
             logger.info(f'Only saw {len(kills_seen)} killcounts - using final_kills=0')
             return 0
@@ -303,6 +311,7 @@ class ApexGame:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(' \
+               f'key={self.key}, ' \
                f'duration={s2ts(self.duration)}, ' \
                f'frames={len(self.frames)}, ' \
                f'squad={self.squad}, ' \

@@ -106,8 +106,8 @@ class MatchStatusProcessor(Processor):
             scale=4,
             expected_type=int
         )
-        # minimum alive = 5 squads * 1 player each
-        if 5 <= players_alive <= 60:
+        # shows a '?' if below 10
+        if players_alive and 10 <= players_alive <= 60:
             return players_alive
         else:
             logger.warning(f'Rejecting players_alive={players_alive}')
