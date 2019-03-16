@@ -26,7 +26,6 @@ def main() -> None:
         'twitch_overlay',
         'models',
 
-        'pyproject.toml',
         'requirements.txt'
     ]
     blacklist = [
