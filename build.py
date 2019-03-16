@@ -24,6 +24,7 @@ def main() -> None:
         'overtrack_legacy',
         'ingest',
         'twitch_overlay',
+        'models',
 
         'pyproject.toml',
         'requirements.txt'
