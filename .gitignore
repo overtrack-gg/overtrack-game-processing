@@ -22,6 +22,8 @@ gcp-svc.json
 
 /data/
 /dev/images/
+/dev/apex_images/
+/dev/video/
 /twitch_overlay/scoreboard/build
 /games/
 /logs/

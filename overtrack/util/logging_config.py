@@ -48,11 +48,13 @@ def intermittent_log(
         frequency: float=60,
         level: int=logging.INFO,
         negative_level: Optional[int]=None,
-        _last_logged: DefaultDict[Tuple[str, int], float]=defaultdict(float)) -> None:
+        _last_logged: DefaultDict[Tuple[str, int], float]=defaultdict(float),
+        caller_extra_id: Any = None
+    ) -> None:
     try:
         caller = inspect.stack()[1]
         output = negative_level
-        frame_id = caller.filename, caller.lineno
+        frame_id = caller.filename, caller.lineno, caller_extra_id
         if time.time() - _last_logged[frame_id] > frequency:
             _last_logged[frame_id] = time.time()
             output = level

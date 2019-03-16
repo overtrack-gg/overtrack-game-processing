@@ -157,3 +157,37 @@ def show_ocr_segmentations(names: List[np.ndarray], **kwargs: Any) -> None:
         segmented_names.append(segmented_name)
     cv2.imshow('segments', np.vstack(segmented_names))
     cv2.waitKey(0)
+
+
+def tesser_ocr(im: np.ndarray, vscale: float = 3, **kwargs) -> None:
+    def update(_: int) -> None:
+        scale = max(1, cv2.getTrackbarPos('scale', 'ocr'))
+        blur = max(1, cv2.getTrackbarPos('blur', 'ocr') / 10)
+        invert = cv2.getTrackbarPos('invert', 'ocr')
+
+        text = imageops.tesser_ocr(
+            im,
+            scale=scale,
+            blur=blur,
+            invert=bool(invert),
+
+            **kwargs
+        )
+        print(text)
+
+    cv2.namedWindow('ocr')
+    cv2.createTrackbar('scale', 'ocr', 4, 10, update)
+    cv2.createTrackbar('blur', 'ocr', 10, 100, update)
+    cv2.createTrackbar('invert', 'ocr', 0, 1, update)
+    while True:
+        cv2.imshow('ocr', cv2.resize(
+            im,
+            (0, 0),
+            fx=vscale,
+            fy=vscale
+        ))
+        k = cv2.waitKey(1) & 0xFF
+        if k == 27:
+            break
+
+    cv2.destroyAllWindows()

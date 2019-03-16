@@ -1,9 +1,12 @@
 import datetime
+import logging
 import time
 from functools import wraps
 from typing import Callable, Tuple, TypeVar, TYPE_CHECKING
 if TYPE_CHECKING:
     from overtrack.frame import Frame
+
+logger = logging.getLogger(__name__)
 
 
 def humansize(nbytes: float, suffixes: Tuple[str, ...]=('B', 'KB', 'MB', 'GB', 'TB', 'PB')) -> str:

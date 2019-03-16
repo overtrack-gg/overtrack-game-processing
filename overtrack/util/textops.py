@@ -1,12 +1,12 @@
 import itertools
 import logging
 import string
+import typing
 from collections import Counter
+import Levenshtein as levenshtein
+from typing import Any, Iterable, List, Optional, Sequence, Tuple, TypeVar, Union, no_type_check, overload
 
 import editdistance
-import typing
-from typing import Any, List, Iterable, Optional, TypeVar, Union, Sequence, overload, no_type_check
-
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,15 @@ def matches(to_match: str, possible_matches: List[str], ignore_spaces: bool=True
         else:
             r.append(float('inf'))
     return r
+
+def matches_ratio(to_match: str, possible_matches: List[str]) -> Tuple[float, str]:
+    best = 0, possible_matches[0]
+    for s in possible_matches:
+        if s:
+            ratio = levenshtein.ratio(to_match, s)
+            if ratio > best[0]:
+                best = ratio, s
+    return best
 
 
 def matches_product(seq1: List[str], seq2: List[str]) -> List[List[str]]:
