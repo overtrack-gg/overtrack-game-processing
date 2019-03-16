@@ -49,8 +49,7 @@ def intermittent_log(
         level: int=logging.INFO,
         negative_level: Optional[int]=None,
         _last_logged: DefaultDict[Tuple[str, int], float]=defaultdict(float),
-        caller_extra_id: Any = None
-    ) -> None:
+        caller_extra_id: Any = None) -> None:
     try:
         caller = inspect.stack()[1]
         output = negative_level

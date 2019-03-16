@@ -1,7 +1,7 @@
 import logging
 import os
 import string
-from typing import List, NamedTuple, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from overtrack.apex import ocr
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import arrayops, imageops, ts2s, time_processing
+from overtrack.util import arrayops, imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 

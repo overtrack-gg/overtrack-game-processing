@@ -1,20 +1,19 @@
 import logging
 import os
 import string
-import Levenshtein as levenshtein
-from typing import List, Optional, Tuple
+from typing import Optional
 
+import Levenshtein as levenshtein
 import cv2
 import numpy as np
 from dataclasses import dataclass
 
-from overtrack.apex import data, ocr
+from overtrack.apex import ocr
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-
 
 logger = logging.getLogger(__name__)
 

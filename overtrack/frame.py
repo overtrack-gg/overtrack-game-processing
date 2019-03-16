@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, Optional, TYPE_CHECKING, Tuple
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 import cv2
 import dataclasses
