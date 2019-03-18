@@ -152,6 +152,7 @@ class Frame(Dict[str, Any]):
         import overtrack.apex.game.match_summary
         import overtrack.apex.game.menu
         import overtrack.apex.game.squad
+        import overtrack.apex.game.squad_summary
         import overtrack.apex.game.weapon
         import overtrack.apex.game.your_squad
         import overtrack.apex.game.map
@@ -159,6 +160,7 @@ class Frame(Dict[str, Any]):
         match_summary: overtrack.apex.game.match_summary.MatchSummary
         apex_play_menu: overtrack.apex.game.menu.PlayMenu
         squad: overtrack.apex.game.squad.Squad
+        squad_summary: overtrack.apex.game.squad_summary.SquadSummary
         weapons: overtrack.apex.game.weapon.Weapons
         your_squad: overtrack.apex.game.your_squad.YourSquad
         location: overtrack.apex.game.map.Location

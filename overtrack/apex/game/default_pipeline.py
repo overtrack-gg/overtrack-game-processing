@@ -3,6 +3,7 @@ from overtrack.apex.game.match_status.match_status_processor import MatchStatusP
 from overtrack.apex.game.match_summary.match_summary_processor import MatchSummaryProcessor
 from overtrack.apex.game.menu.menu_processor import MenuProcessor
 from overtrack.apex.game.squad.squad_processor import SquadProcessor
+from overtrack.apex.game.squad_summary import SquadSummaryProcessor
 from overtrack.apex.game.weapon.weapon_processor import WeaponProcessor
 from overtrack.apex.game.your_squad.your_squad_processor import YourSquadProcessor
 from overtrack.processor import OrderedProcessor, ShortCircuitProcessor, ConditionalProcessor, Processor
@@ -15,6 +16,7 @@ def create_pipeline() -> Processor:
 
             YourSquadProcessor(),
             MatchSummaryProcessor(),
+            SquadSummaryProcessor(),
 
             OrderedProcessor(
                 MatchStatusProcessor(),

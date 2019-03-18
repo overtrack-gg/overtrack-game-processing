@@ -51,6 +51,7 @@ class ApexGameSummary(Model):
     kills = NumberAttribute()
     placed = NumberAttribute()
     landed = UnicodeAttribute(null=True)
+    squad_kills = NumberAttribute(null=True)
     # weapons = ListAttribute(of=Weapon)
 
     @classmethod
@@ -70,7 +71,8 @@ class ApexGameSummary(Model):
             squadmates=(champion_name(game.squad.squadmates[0]), champion_name(game.squad.squadmates[1])),
             kills=game.kills,
             placed=game.placed,
-            landed=game.route.landed_name
+            landed=game.route.landed_name,
+            squad_kills=game.squad.squad_kills
         )
 
     @property

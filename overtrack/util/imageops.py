@@ -104,6 +104,12 @@ tesseract_lstm = tesserocr.PyTessBaseAPI(
     oem=tesserocr.OEM.LSTM_ONLY,
     psm=tesserocr.PSM.SINGLE_LINE
 )
+# noinspection PyArgumentList
+tesseract_lstm_multiline = tesserocr.PyTessBaseAPI(
+    path=os.path.join(os.path.dirname(__file__), 'data'),
+    oem=tesserocr.OEM.LSTM_ONLY,
+    psm=tesserocr.PSM.AUTO
+)
 
 # noinspection PyArgumentList
 tesseract_futura = tesserocr.PyTessBaseAPI(

@@ -33,6 +33,33 @@ def manual_thresh(gray_image: np.ndarray, scale: float=3.) -> int:
     return t
 
 
+def manul_thresh_adaptive(gray_image: np.ndarray, scale: float = 3.) -> Tuple[int, int, int]:
+    cv2.namedWindow('thresh')
+    cv2.createTrackbar('method', 'thresh', 0, 1, lambda x: None)
+    cv2.createTrackbar('block_size', 'thresh', 0, 100, lambda x: None)
+    cv2.createTrackbar('c', 'thresh', 100, 200, lambda x: None)
+    while True:
+        method = [cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.ADAPTIVE_THRESH_MEAN_C][cv2.getTrackbarPos('method', 'thresh')]
+        block_size = cv2.getTrackbarPos('block_size', 'thresh') * 2 + 3
+        c = cv2.getTrackbarPos('c', 'thresh') - 100
+        thresh = cv2.adaptiveThreshold(gray_image, 255, method, cv2.THRESH_BINARY, block_size, c)
+        cv2.imshow('thresh', cv2.resize(
+            np.vstack((
+                gray_image,
+                thresh
+            )),
+            (0, 0),
+            fx=scale,
+            fy=scale
+        ))
+        k = cv2.waitKey(1) & 0xFF
+        if k == 27:
+            break
+    cv2.destroyAllWindows()
+    print(['ADAPTIVE_THRESH_GAUSSIAN_C', 'ADAPTIVE_THRESH_MEAN_C'][cv2.getTrackbarPos('method', 'thresh')], block_size, c)
+    return method, block_size, c
+
+
 def manual_thresh_otsu(
         image: np.ndarray,
         template: np.ndarray=None,
