@@ -105,6 +105,7 @@ class WeaponProcessor(Processor):
             ammo=ammo
         )
 
+        self.REGIONS.draw(frame.debug_image)
         _draw_weapons(
             frame.debug_image,
             frame.weapons

@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 
 import cv2
 import zipfile
@@ -59,6 +59,26 @@ class ExtractionRegions:
     def extract_one(self, image: np.ndarray) -> np.ndarray:
         return self.extract(image)[0]
 
+    def draw(self, image: np.ndarray) -> None:
+        for i, (x, y, w, h) in enumerate(self.regions):
+            cv2.rectangle(
+                image,
+                (x, y),
+                (x + w, y + h),
+                (0, 255, 0),
+                1
+            )
+            for t, c in (3, (0, 0, 0)), (1, (0, 255, 0)):
+                cv2.putText(
+                    image,
+                    f'{self.name}[{i}]',
+                    (x + 5, y - 7),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    c,
+                    t
+                )
+
     def __str__(self) -> str:
         return f'{ self.__class__.__name__ }(name="{ self.name }", { len(self.regions) } regions)'
 
@@ -91,6 +111,12 @@ class ExtractionRegionsCollection:
 
     def __str__(self) -> str:
         return f'{ self.__class__.__name__ }(regions={ self.regions } regions)'
+
+    def draw(self, image: Optional[np.ndarray]) -> None:
+        if image is None:
+            return
+        for region in self.regions.values():
+            region.draw(image)
 
 
 if __name__ == '__main__':

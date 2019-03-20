@@ -90,7 +90,9 @@ class MatchSummaryProcessor(Processor):
         match = np.max(cv2.matchTemplate(
             thresh, self.MATCH_SUMMARY_TEMPLATE, cv2.TM_CCORR_NORMED
         ))
+        frame.match_summary_match = round(float(match), 5)
         if match >= self.REQUIRED_MATCH:
+            self.REGIONS.draw(frame.debug_image)
             placed = self._get_placed(frame)
             if placed is not None:
                 frame.match_summary = MatchSummary(

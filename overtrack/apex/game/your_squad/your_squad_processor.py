@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import imageops, time_processing
+from overtrack.util import imageops, time_processing, debugops
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 
@@ -49,7 +49,7 @@ class YourSquadProcessor(Processor):
         match = np.max(cv2.matchTemplate(
             thresh, self.YOUR_SQUAD_TEMPLATE, cv2.TM_CCORR_NORMED
         ))
-
+        frame.your_squad_match = round(float(match), 5)
         if match >= self.REQUIRED_MATCH:
             # TODO: improve OCR
             names = imageops.tesser_ocr_all(
@@ -60,6 +60,7 @@ class YourSquadProcessor(Processor):
             frame.your_squad = YourSquad(
                 (self._to_name(names[0]), self._to_name(names[1]), self._to_name(names[2]))
             )
+            self.REGIONS.draw(frame.debug_image)
             _draw_your_squad(frame.debug_image, frame.your_squad)
             return True
         else:

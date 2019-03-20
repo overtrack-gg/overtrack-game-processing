@@ -1,3 +1,5 @@
+import datetime
+
 import cv2
 import logging
 import os
@@ -25,7 +27,8 @@ champions = {
     'wraith': Champion('Wraith'),
     'bangalore': Champion('Bangalore'),
     'mirage': Champion('Mirage'),
-    'caustic': Champion('Caustic')
+    'caustic': Champion('Caustic'),
+    'octane': Champion('Octane')
 }
 
 
@@ -84,6 +87,30 @@ weapons = \
     smgs + \
     snipers
 weapon_names = [w.name.upper() for w in weapons]
+
+
+@dataclass
+class Season:
+    index: int
+    start: float
+    end: float
+
+    @property
+    def name(self) -> str:
+        return f'Season {self.index}'
+
+
+_PDT = datetime.timezone(datetime.timedelta(hours=-7))
+_season_1_start = datetime.datetime.strptime(
+    # https://twitter.com/PlayApex/status/1107733497450356742
+    'Mar 19 2019 10:00AM',
+    '%b %d %Y %I:%M%p'
+).replace(tzinfo=_PDT)
+
+seasons = [
+    Season(0, 0, _season_1_start.timestamp()),
+    Season(1, _season_1_start.timestamp(), float('inf'))
+]
 
 
 class MapLocations:

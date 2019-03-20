@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import imageops, time_processing
+from overtrack.util import imageops, time_processing, debugops
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 
@@ -55,6 +55,8 @@ class MenuProcessor(Processor):
     CANCEL = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'cancel.png'), 0)
     REQUIRED_MATCH = 0.9
 
+    CROWN = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'crown.png'), 0)
+
     @time_processing
     def process(self, frame: Frame):
         y = frame.image_yuv[:, :, 0]
@@ -71,6 +73,7 @@ class MenuProcessor(Processor):
             cancel_match = np.max(cv2.matchTemplate(
                 thresh, self.CANCEL, cv2.TM_CCORR_NORMED
             ))
+        frame.apex_play_menu_match = round(float(max(ready_match, cancel_match)), 5)
         _draw_buttons_match(frame.debug_image, ready_match, cancel_match, self.REQUIRED_MATCH)
 
         if ready_match >= self.REQUIRED_MATCH or cancel_match >= self.REQUIRED_MATCH:
@@ -81,6 +84,7 @@ class MenuProcessor(Processor):
                 squadmates=(self._ocr_playername(mate1), self._ocr_playername(mate2)),
                 ready=cancel_match >= self.REQUIRED_MATCH
             )
+            self.REGIONS.draw(frame.debug_image)
             _draw_play_menu(frame.debug_image, frame.apex_play_menu)
 
             return True
@@ -89,7 +93,12 @@ class MenuProcessor(Processor):
             return False
 
     def _ocr_playername(self, player_name_image: np.ndarray) -> str:
-        # TODO: filter leader icon
+        # crop out crown
+        _, thresh = cv2.threshold(player_name_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        mnv, mxv, mnl, mxl = cv2.minMaxLoc(cv2.matchTemplate(thresh, self.CROWN, cv2.TM_CCORR_NORMED))
+        if mxv > 0.99:
+            player_name_image = player_name_image[:, mxl[0] + self.CROWN.shape[1]:]
+
         player_name = imageops.tesser_ocr(
             player_name_image,
             scale=4
@@ -103,7 +112,7 @@ def main() -> None:
     pipeline = MenuProcessor()
 
     import glob
-    for p in glob.glob('../../../../dev/apex_images/squad/*.png') + glob.glob('../../../../dev/apex_images/**/*.png'):
+    for p in glob.glob('../../../../dev/apex_images/menu/*.png') + glob.glob('../../../../dev/apex_images/**/*.png'):
         frame = Frame.create(
             cv2.resize(cv2.imread(p), (1920, 1080)),
             0,

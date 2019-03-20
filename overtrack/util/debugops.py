@@ -218,3 +218,45 @@ def tesser_ocr(im: np.ndarray, vscale: float = 3, **kwargs) -> None:
             break
 
     cv2.destroyAllWindows()
+
+
+def test_tesser_engines(image: np.ndarray) -> None:
+    import overtrack.apex.ocr
+
+    table = []
+    for name, engine in [
+        ('tesseract_lstm', imageops.tesseract_lstm),
+        ('tesseract_futura', imageops.tesseract_futura),
+        ('tesseract_only', imageops.tesseract_only),
+
+        ('tesseract_ttlakes_digits', overtrack.apex.ocr.tesseract_ttlakes_digits),
+        ('tesseract_ttlakes', overtrack.apex.ocr.tesseract_ttlakes),
+        ('tesseract_ttlakes_medium', overtrack.apex.ocr.tesseract_ttlakes_medium),
+        ('tesseract_arame', overtrack.apex.ocr.tesseract_arame),
+        ('tesseract_mensura', overtrack.apex.ocr.tesseract_mensura),
+    ]:
+        if len(image.shape) == 2:
+            height, width = image.shape
+            channels = 1
+        else:
+            height, width, channels = image.shape
+        engine.SetImageBytes(image.tobytes(), width, height, channels, width * channels)
+        table.append((name, engine.GetUTF8Text(), engine.AllWordConfidences()))
+
+    import tabulate
+    print(tabulate.tabulate(table))
+
+
+def hstack(images: Sequence[np.ndarray]) -> np.ndarray:
+    images = list(images)
+    h = max(i.shape[0] for i in images)
+    return np.hstack(
+        cv2.copyMakeBorder(
+            i,
+            0,
+            h - i.shape[0],
+            0,
+            0,
+            cv2.BORDER_CONSTANT
+        ) for i in images
+    )

@@ -1,5 +1,6 @@
 import json
 import logging
+from collections import deque
 from typing import Callable, List, Optional
 
 from overtrack.apex.collect.apex_game import ApexGame
@@ -27,6 +28,7 @@ class ApexGameExtractor:
 
         self.have_current_game = False
         self.current_key: Optional[str] = None
+        self.menuframes = deque(maxlen=25)
         self.frames: List[Frame] = []
         self.last_seen_frame: Optional[Frame] = None
 
@@ -53,7 +55,8 @@ class ApexGameExtractor:
 
     def get_game_in_progress(self, force: bool = False) -> Optional[ApexGame]:
         if self.have_current_game and len(self.frames) > 2:
-            return ApexGame(self.frames, key=self.current_key, debug=self.debug)
+            frames = list(self.menuframes) + self.frames
+            return ApexGame(frames, key=self.current_key, debug=self.debug)
         else:
             return None
 
@@ -68,6 +71,7 @@ class ApexGameExtractor:
                     f'{time_since_game_start:1.1f}s after a game had started with no menu between - starting new game'
                 )
                 self._finish_game()
+                self.menuframes.clear()
 
             if not self.have_current_game:
                 logger.info(f'Saw YOUR SQUAD @{frame.relative_timestamp_str} - starting game')
@@ -79,9 +83,11 @@ class ApexGameExtractor:
                 for game_started in self.on_game_started:
                     game_started()
 
-        if 'apex_play_menu' in frame and self.have_current_game:
-            logger.info(f'Saw play menu @{frame.relative_timestamp_str} - emitting game')
-            self._finish_game()
+        if 'apex_play_menu' in frame:
+            self.menuframes.append(frame)
+            if self.have_current_game:
+                logger.info(f'Saw play menu @{frame.relative_timestamp_str} - emitting game')
+                self._finish_game()
 
         if self.have_current_game:
             self.frames.append(frame)
@@ -96,13 +102,15 @@ def main() -> None:
     import matplotlib.pyplot as plt
     import matplotlib
     from matplotlib.ticker import Formatter
+    import pprint
+    pprint.sorted = lambda x, **_: x
     from pprint import pprint
     from overtrack.source.video import VideoFrameExtractor
 
     config_logger('apex_game_extractor.py', logging.INFO, False)
 
     logger.info('Loading frames')
-    with open(r"C:\Users\simon\workspace\overtrack_2\games\apex_2019-03-15 12-30-59.json") as f:
+    with open(r"C:\Users\simon\workspace\overtrack_2\games\apex_eeveea_apex_19-03-13.json") as f:
         frames = referenced_typedload.load(json.load(f), List[Frame], source_type=VideoFrameExtractor.VideoFrameMetadata)
     logger.info(f'Loaded {len(frames)} frames')
 
@@ -142,11 +150,14 @@ def main() -> None:
         ex.on_frame(f)
     ex.finish()
 
+    assert ex.games is not None
     for game in ex.games:
         print(game.frames[0].relative_timestamp_str)
         print(game)
         print(' -> '.join(game.route.locations_visited))
+        pprint(game.to_dict())
 
+        # game.route.show()
 
         print()
 

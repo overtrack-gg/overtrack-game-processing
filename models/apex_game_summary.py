@@ -44,6 +44,8 @@ class ApexGameSummary(Model):
     key = UnicodeAttribute(hash_key=True)
     user_id = NumberAttribute()
 
+    season = NumberAttribute(default=0)
+
     timestamp = NumberAttribute()
     duration = NumberAttribute()
     champion = UnicodeAttribute(null=True)
@@ -54,25 +56,26 @@ class ApexGameSummary(Model):
     squad_kills = NumberAttribute(null=True)
     # weapons = ListAttribute(of=Weapon)
 
+    url = UnicodeAttribute(null=True)
+
     @classmethod
-    def create(cls, game: 'ApexGame', user_id: int) -> 'ApexGameSummary':
-        def champion_name(c: Optional['Champion']) -> Optional[str]:
-            if c:
-                return c.name.lower()
-            else:
-                return None
+    def create(cls, game: 'ApexGame', user_id: int, url: str = None) -> 'ApexGameSummary':
         return cls(
             key=game.key,
             user_id=user_id,
 
+            season=game.season,
+
             timestamp=game.timestamp,
             duration=game.duration,
-            champion=champion_name(game.squad.champion),
-            squadmates=(champion_name(game.squad.squadmates[0]), champion_name(game.squad.squadmates[1])),
+            champion=game.squad.player.champion,
+            squadmates=(game.squad.squadmates[0].champion, game.squad.squadmates[1].champion),
             kills=game.kills,
             placed=game.placed,
             landed=game.route.landed_name,
-            squad_kills=game.squad.squad_kills
+            squad_kills=game.squad.squad_kills,
+
+            url=url
         )
 
     @property
@@ -80,6 +83,6 @@ class ApexGameSummary(Model):
         return datetime.datetime.utcfromtimestamp(self.timestamp)
 
     def __str__(self) -> str:
-        return f'ApexGameSummary(key={self.key}, time={self.timestamp})'
+        return f'ApexGameSummary(key={self.key}, time={self.time}, url={self.url})'
 
     __repr__ = __str__

@@ -157,11 +157,16 @@ class Frame(Dict[str, Any]):
         import overtrack.apex.game.your_squad
         import overtrack.apex.game.map
         match_status: overtrack.apex.game.match_status.MatchStatus
+        match_summary_match: float
         match_summary: overtrack.apex.game.match_summary.MatchSummary
+        apex_play_menu_match: float
         apex_play_menu: overtrack.apex.game.menu.PlayMenu
+        squad_match: float
         squad: overtrack.apex.game.squad.Squad
+        squad_summary_match: float
         squad_summary: overtrack.apex.game.squad_summary.SquadSummary
         weapons: overtrack.apex.game.weapon.Weapons
+        your_squad_match: float
         your_squad: overtrack.apex.game.your_squad.YourSquad
         location: overtrack.apex.game.map.Location
 

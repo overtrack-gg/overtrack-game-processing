@@ -82,6 +82,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
     import overtrack.apex.game.squad
     import overtrack.apex.game.weapon
     import overtrack.apex.game.your_squad
+    import overtrack.apex.game.squad_summary
     import overtrack.apex.game.map
 
     _TYPES = {
@@ -103,6 +104,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
         'squad': overtrack.apex.game.squad.Squad,
         'weapons': overtrack.apex.game.weapon.Weapons,
         'your_squad': overtrack.apex.game.your_squad.YourSquad,
+        'squad_summary': overtrack.apex.game.squad_summary.SquadSummary,
         'location': overtrack.apex.game.map.Location
     }
 

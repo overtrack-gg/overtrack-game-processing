@@ -34,3 +34,11 @@ tesseract_ttlakes = tesserocr.PyTessBaseAPI(
     psm=tesserocr.PSM.SINGLE_LINE
 )
 
+# noinspection PyArgumentList
+tesseract_ttlakes_medium = tesserocr.PyTessBaseAPI(
+    path=os.path.join(os.path.dirname(__file__), 'data'),
+    lang='TTLakes_Medium',
+    oem=tesserocr.OEM.TESSERACT_ONLY,
+    psm=tesserocr.PSM.SINGLE_LINE
+)
+

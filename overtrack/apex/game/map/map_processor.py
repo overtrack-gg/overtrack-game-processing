@@ -31,27 +31,27 @@ def _draw_map_location(
     cv2.circle(
         out,
         location.coordinates,
-        3,
+        6,
         (0, 255, 0),
-        2
+        4
     )
     cv2.putText(
         out,
         f'{location.match:1.4f}',
         location.coordinates,
         cv2.FONT_HERSHEY_SIMPLEX,
-        1,
+        3,
         (0, 255, 0),
-        1
+        2
     )
     cv2.rectangle(
         out,
         min_loc,
         (min_loc[0] + shape[1], min_loc[1] + shape[0]),
         (0, 0, 255),
-        2
+        4
     )
-    out = cv2.resize(out, (0, 0), fx=0.5, fy=0.5)
+    out = cv2.resize(out, (0, 0), fx=0.25, fy=0.25)
     debug_image[100:100 + out.shape[0], 400:400 + out.shape[1]] = out
 
 
@@ -112,6 +112,7 @@ class MapProcessor(Processor):
         )
 
         if min_val < 0.85 and self.MAP_MASK[location.coordinates[1], location.coordinates[0]]:
+            self.REGIONS.draw(frame.debug_image)
             frame.location = location
             return min_val < 0.6
 

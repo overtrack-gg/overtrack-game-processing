@@ -61,6 +61,7 @@ class MatchStatusProcessor(Processor):
                 players_alive=self._get_players_alive(y) if squads_left > 4 else None,
                 kills=self._get_kills(y)
             )
+            self.REGIONS.draw(frame.debug_image)
             _draw_status(frame.debug_image, frame.match_status)
             return True
         else:
