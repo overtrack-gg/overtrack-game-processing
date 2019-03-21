@@ -11,7 +11,7 @@ import numpy as np
 import typedload
 from tqdm import tqdm
 
-from overtrack.overwatch.collect.killfeed import Kill, Killfeed, KillfeedName, KillfeedProcessor
+from overtrack.overwatch.collect.killfeed import Kill, Killfeed, KillfeedProcessor
 from overtrack.overwatch.collect.teams import Teams
 from overtrack.frame import Frame
 from overtrack.overwatch.game.endgame import EndgameProcessor
@@ -38,47 +38,47 @@ KILL_SAVE_CHANCE = 0.25
 POSITION_SAVE_CHANCE = 0.1
 
 
-def make_player_key(p: KillfeedName):
-    if p is None:
-        return ''
-    return '.'.join([
-        ['red', 'blue'][p.player.blue_team],
-        p.player.name,
-        p.hero.replace('.', '-')
-    ])
-
-
-def save_images(key: str, ts: float, image: np.ndarray, kills: List[Kill], rows: List[KillfeedProcessor.KillRow]):
-    dest = os.path.join(TARGET, key)
-    for row in rows:
-        matching_kills = []
-        for kill in kills:
-            if (row.left is None) != (kill.left is None):
-                continue
-            if row.left and kill.left and row.left.hero != kill.left.hero:
-                continue
-            if row.right.hero != kill.right.hero:
-                continue
-            matching_kills.append(kill)
-        if len(matching_kills) != 1:
-            logger.warning(f'Got {len(matching_kills)} matching kills for {row} - {matching_kills}')
-        else:
-            kill = matching_kills[0]
-            if random.random() < KILL_SAVE_CHANCE and (kill.left is None or kill.left.player.name_correct) and kill.right.player.name_correct:
-                kill_image = image[
-                    30 + row.y - 6: 30 + row.y + 40,
-                    1920 - 500:
-                ]
-                kill_key = '_'.join(make_player_key(p) for p in (kill.left, kill.right))
-                d = dest + '/kills/' + kill_key
-                logger.debug(f'Saving {d}')
-                os.makedirs(d, exist_ok=True)
-                cv2.imwrite(f'{d}/{ts:.2f}.png', kill_image)
-    if random.random() < POSITION_SAVE_CHANCE:
-        d = f'{dest}/frames'
-        os.makedirs(d, exist_ok=True)
-        killrows_str = '_'.join(f'{r.y + 30 + 16.5:1.1f}' for r in rows)
-        cv2.imwrite(f'{d}/{ts:.2f}_{killrows_str}.png', image)
+# def make_player_key(p: KillfeedName):
+#     if p is None:
+#         return ''
+#     return '.'.join([
+#         ['red', 'blue'][p.player.blue_team],
+#         p.player.name,
+#         p.hero.replace('.', '-')
+#     ])
+#
+#
+# def save_images(key: str, ts: float, image: np.ndarray, kills: List[Kill], rows: List[KillRow]):
+#     dest = os.path.join(TARGET, key)
+#     for row in rows:
+#         matching_kills = []
+#         for kill in kills:
+#             if (row.left is None) != (kill.left is None):
+#                 continue
+#             if row.left and kill.left and row.left.hero != kill.left.hero:
+#                 continue
+#             if row.right.hero != kill.right.hero:
+#                 continue
+#             matching_kills.append(kill)
+#         if len(matching_kills) != 1:
+#             logger.warning(f'Got {len(matching_kills)} matching kills for {row} - {matching_kills}')
+#         else:
+#             kill = matching_kills[0]
+#             if random.random() < KILL_SAVE_CHANCE and (kill.left is None or kill.left.player.name_correct) and kill.right.player.name_correct:
+#                 kill_image = image[
+#                     30 + row.y - 6: 30 + row.y + 40,
+#                     1920 - 500:
+#                 ]
+#                 kill_key = '_'.join(make_player_key(p) for p in (kill.left, kill.right))
+#                 d = dest + '/kills/' + kill_key
+#                 logger.debug(f'Saving {d}')
+#                 os.makedirs(d, exist_ok=True)
+#                 cv2.imwrite(f'{d}/{ts:.2f}.png', kill_image)
+#     if random.random() < POSITION_SAVE_CHANCE:
+#         d = f'{dest}/frames'
+#         os.makedirs(d, exist_ok=True)
+#         killrows_str = '_'.join(f'{r.y + 30 + 16.5:1.1f}' for r in rows)
+#         cv2.imwrite(f'{d}/{ts:.2f}_{killrows_str}.png', image)
 
 
 def save_killframes(game_key: str, playlist: str, killfeed: Killfeed):
