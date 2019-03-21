@@ -75,6 +75,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
     import overtrack.overwatch.game.score
     import overtrack.overwatch.game.endgame
     import overtrack.overwatch.game.hero
+    import overtrack.overwatch.game.endgame_sr
 
     import overtrack.apex.game.match_status
     import overtrack.apex.game.match_summary
@@ -97,6 +98,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
         'final_score': overtrack.overwatch.game.score.ScoreProcessor.FinalScore,
         'endgame': overtrack.overwatch.game.endgame.EndgameProcessor.Endgame,
         'hero': overtrack.overwatch.game.hero.HeroProcessor.Hero,
+        'endgame_sr': overtrack.overwatch.game.endgame_sr.EndgameSR,
 
         'match_status': overtrack.apex.game.match_status.MatchStatus,
         'match_summary': overtrack.apex.game.match_summary.MatchSummary,
@@ -105,7 +107,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
         'weapons': overtrack.apex.game.weapon.Weapons,
         'your_squad': overtrack.apex.game.your_squad.YourSquad,
         'squad_summary': overtrack.apex.game.squad_summary.SquadSummary,
-        'location': overtrack.apex.game.map.Location
+        'location': overtrack.apex.game.map.Location,
     }
 
     f = Frame.__new__(Frame)
