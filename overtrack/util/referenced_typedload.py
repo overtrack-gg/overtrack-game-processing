@@ -35,8 +35,8 @@ class Loader(typedload.dataloader.Loader):
             # 'ObjectiveExtractor.Objective': overtrack.game.objective.objective_processor.ObjectiveExtractor.Probabilities,
 
             'LoadingMapProcessor.Teams': overtrack.overwatch.game.loading_map.LoadingMapProcessor.Teams,
-            'KillfeedProcessor.KillRow': overtrack.overwatch.game.killfeed.KillfeedProcessor.KillRow,
-            'KillfeedProcessor.Player': overtrack.overwatch.game.killfeed.KillfeedProcessor.Player,
+            # 'KillRow': overtrack.overwatch.game.killfeed.KillRow,
+            # 'Player': overtrack.overwatch.game.killfeed.Player,
             'EndgameProcessor.Stats': overtrack.overwatch.game.endgame.EndgameProcessor.Stats
             # 'TSFrameExtractor.TSChunk': overtrack.source.stream.opencv_ts_stream.TSFrameExtractor.TSChunk
         })
@@ -91,7 +91,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
         'tab_screen': overtrack.overwatch.game.tab.tab_processor.TabProcessor.TabScreen,
         'main_menu': overtrack.overwatch.game.menu.MenuProcessor.MainMenu,
         'play_menu': overtrack.overwatch.game.menu.MenuProcessor.PlayMenu,
-        'killfeed': overtrack.overwatch.game.killfeed.KillfeedProcessor.Killfeed,
+        'killfeed': overtrack.overwatch.game.killfeed.Killfeed,
         'spectator_bar': overtrack.overwatch.game.spectator.SpectatorProcessor.SpectatorBar,
         'score_screen': overtrack.overwatch.game.score.ScoreProcessor.ScoreScreen,
         'final_score': overtrack.overwatch.game.score.ScoreProcessor.FinalScore,

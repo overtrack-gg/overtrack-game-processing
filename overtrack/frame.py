@@ -123,7 +123,7 @@ class Frame(Dict[str, Any]):
         play_menu_match: float
 
         import overtrack.overwatch.game.killfeed
-        killfeed: overtrack.overwatch.game.killfeed.KillfeedProcessor.Killfeed
+        killfeed: overtrack.overwatch.game.killfeed.Killfeed
         killcam_match: float
 
         import overtrack.overwatch.game.spectator

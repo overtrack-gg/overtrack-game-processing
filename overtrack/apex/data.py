@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import zipfile
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from urllib.parse import unquote
 
 import numpy as np
@@ -116,6 +116,11 @@ seasons = [
 class MapLocations:
 
     def __init__(self):
+        self.layers: Optional[List] = None
+
+    def _ensure_loaded(self) -> None:
+        if self.layers is not None:
+            return
         self.layers = []
         with zipfile.ZipFile(os.path.join(os.path.dirname(__file__), 'map_locations.zip')) as z:
             for f in z.namelist():
@@ -132,6 +137,7 @@ class MapLocations:
                         self.layers.append((layer_name, mask))
 
     def get_location_name(self, location: Tuple[int, int]) -> str:
+        self._ensure_loaded()
         for name, mask in self.layers:
             if mask[location[1], location[0]]:
                 # logger.info(f'Resolving {location} -> {name}')

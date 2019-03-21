@@ -87,9 +87,17 @@ class ExtractionRegions:
 
 class ExtractionRegionsCollection:
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, lazy: bool = True):
+        self.path = path
+        self.regions: Optional[Dict[str, ExtractionRegions]] = None
+        if not lazy:
+            self._ensure_loaded()
+
+    def _ensure_loaded(self) -> None:
+        if self.regions is not None:
+            return
         self.regions: Dict[str, ExtractionRegions] = {}
-        with zipfile.ZipFile(path) as z:
+        with zipfile.ZipFile(self.path) as z:
             for f in z.namelist():
                 if not f.startswith('L') or not f.endswith('.png'):
                     # not a layer
@@ -100,21 +108,24 @@ class ExtractionRegionsCollection:
                     continue
                 region_name = layer_name[len('region.'):]
                 with z.open(f, 'r') as fobj:
-                    logger.debug('Loading region %s from %s', region_name, path)
+                    logger.debug('Loading region %s from %s', region_name, self.path)
                     layer = cv2.imdecode(np.frombuffer(fobj.read(), dtype=np.uint8), -1)
                     self.regions[region_name] = ExtractionRegions(region_name, layer)
 
     def __getitem__(self, key: str) -> ExtractionRegions:
+        self._ensure_loaded()
         if key not in self.regions:
             raise KeyError(f'region {key} was not in regions: {self.regions.keys()}')
         return self.regions[key]
 
     def __str__(self) -> str:
+        self._ensure_loaded()
         return f'{ self.__class__.__name__ }(regions={ self.regions } regions)'
 
     def draw(self, image: Optional[np.ndarray]) -> None:
         if image is None:
             return
+        self._ensure_loaded()
         for region in self.regions.values():
             region.draw(image)
 
