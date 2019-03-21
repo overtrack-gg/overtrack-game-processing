@@ -1,4 +1,5 @@
 from pynamodb.attributes import ListAttribute
+from pynamodb.models import Model
 
 
 class TupleAttribute(ListAttribute):
@@ -28,3 +29,24 @@ class TupleAttribute(ListAttribute):
             if self.length is not None and len(result) != self.length:
                 raise TypeError('Expected tuple of length %d but had %d' % (self.length, len(result)))
             return tuple(result)
+
+
+# noinspection PyAbstractClass
+class OverTrackModel(Model):
+    def __str__(self):
+        # make `key` the first item
+        key_name = [k for k, v in self._attributes.items() if v.is_hash_key][0]
+        attributes = list(self._attributes.keys())
+        attributes.remove(key_name)
+        attributes.insert(0, key_name)
+        items_str = ', '.join('%s=%s' % (attr, repr(getattr(self, attr))) for attr in attributes)
+        return self.__class__.__name__ + '(' + items_str + ')'
+
+    def asdict(self):
+        key_name = [k for k, v in self._attributes.items() if v.is_hash_key][0]
+        attributes = list(self._attributes.keys())
+        attributes.remove(key_name)
+        attributes.insert(0, key_name)
+        return {
+            attr: getattr(self, attr) for attr in attributes
+        }

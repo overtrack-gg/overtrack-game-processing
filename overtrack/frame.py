@@ -106,40 +106,32 @@ class Frame(Dict[str, Any]):
         # debug_image: Optional[np.ndarray]
 
         import overtrack.overwatch.game.objective
-        objective: overtrack.overwatch.game.objective.Objective
-
         import overtrack.overwatch.game.loading_map
+        import overtrack.overwatch.game.tab
+        import overtrack.overwatch.game.menu
+        import overtrack.overwatch.game.killfeed
+        import overtrack.overwatch.game.spectator
+        import overtrack.overwatch.game.score
+        import overtrack.overwatch.game.endgame
+        import overtrack.overwatch.game.hero
+        objective: overtrack.overwatch.game.objective.Objective
         loading_map: overtrack.overwatch.game.loading_map.LoadingMapProcessor.LoadingMap
         loading_match: float
-
-        import overtrack.overwatch.game.tab
         tab_screen: overtrack.overwatch.game.tab.TabProcessor.TabScreen
         tab_match: float
-
-        import overtrack.overwatch.game.menu
         main_menu: overtrack.overwatch.game.menu.MenuProcessor.MainMenu
         main_menu_match: float
         play_menu: overtrack.overwatch.game.menu.MenuProcessor.PlayMenu
         play_menu_match: float
-
-        import overtrack.overwatch.game.killfeed
         killfeed: overtrack.overwatch.game.killfeed.Killfeed
         killcam_match: float
-
-        import overtrack.overwatch.game.spectator
         spectator_bar: overtrack.overwatch.game.spectator.SpectatorProcessor.SpectatorBar
-
-        import overtrack.overwatch.game.score
         score_screen: overtrack.overwatch.game.score.ScoreProcessor.ScoreScreen
         score_screen_match: float
         final_score: overtrack.overwatch.game.score.ScoreProcessor.FinalScore
         final_score_match: float
-
-        import overtrack.overwatch.game.endgame
         endgame: overtrack.overwatch.game.endgame.EndgameProcessor.Endgame
         endgame_match: float
-
-        import overtrack.overwatch.game.hero
         hero: overtrack.overwatch.game.hero.HeroProcessor.Hero
 
         timings: Timings

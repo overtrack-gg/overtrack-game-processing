@@ -3,10 +3,7 @@ import os
 from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
 from pynamodb.attributes import UnicodeAttribute, NumberAttribute, BooleanAttribute
 
-try:
-    from .util import OverTrackModel, TupleAttribute
-except SystemError:
-    from util import OverTrackModel, TupleAttribute
+from models.common import OverTrackModel, TupleAttribute
 
 
 class UserIDTimeIndex(GlobalSecondaryIndex):
@@ -37,7 +34,7 @@ class HasExceptionIndex(GlobalSecondaryIndex):
 
 
 # noinspection PyAbstractClass
-class Game(OverTrackModel):
+class OverwatchGameSummary(OverTrackModel):
 
     class Meta:
         table_name = os.environ.get('GAMES_TABLE', 'overtrack_games')
@@ -51,12 +48,12 @@ class Game(OverTrackModel):
     time = NumberAttribute(attr_name='time')
     player_name = UnicodeAttribute(attr_name='player-name')
     player_battletag = UnicodeAttribute(attr_name='player-battletag', null=True)
-    log_id = TupleAttribute(attr_name='log-id', length=3, of=UnicodeAttribute, null=True, default=None)
+    log_id = TupleAttribute(attr_name='log-id', length=3, null=True, default=None)
 
     map = UnicodeAttribute(attr_name='map', null=True)
     heroes_played = TupleAttribute(attr_name='heroes-played', null=True, default=None)
     result = UnicodeAttribute(attr_name='result', null=True)
-    score = TupleAttribute(attr_name='score', length=2, of=NumberAttribute, null=True, default=None)
+    score = TupleAttribute(attr_name='score', length=2, null=True, default=None)
     duration = NumberAttribute(attr_name='duration', null=True)
     start_sr = NumberAttribute(attr_name='start-sr', null=True)
     end_sr = NumberAttribute(attr_name='end-sr', null=True)
