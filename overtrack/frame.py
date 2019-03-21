@@ -114,6 +114,7 @@ class Frame(Dict[str, Any]):
         import overtrack.overwatch.game.score
         import overtrack.overwatch.game.endgame
         import overtrack.overwatch.game.hero
+        import overtrack.overwatch.game.endgame_sr
         objective: overtrack.overwatch.game.objective.Objective
         loading_map: overtrack.overwatch.game.loading_map.LoadingMapProcessor.LoadingMap
         loading_match: float
@@ -133,6 +134,8 @@ class Frame(Dict[str, Any]):
         endgame: overtrack.overwatch.game.endgame.EndgameProcessor.Endgame
         endgame_match: float
         hero: overtrack.overwatch.game.hero.HeroProcessor.Hero
+        endgame_sr_match: float
+        endgame_sr: overtrack.overwatch.game.endgame_sr.EndgameSRProcessor
 
         timings: Timings
 
