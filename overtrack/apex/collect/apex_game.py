@@ -130,7 +130,7 @@ class Squad:
             x for x in arr if np.max(x) > 0.9
         ])
         if len(matches) < 10:
-            logger.error(f'Could not identify champion - average matches={np.median(arr, axis=0)}')
+            logger.warning(f'Could not identify champion - average matches={np.median(arr, axis=0)}')
             return None
 
         matches = np.percentile(
@@ -144,7 +144,7 @@ class Squad:
             logger.info(f'Got champion={champion}, match={matches[match]:1.4f}')
             return champion.name
         else:
-            logger.error(f'Could not identify champion - best={champion}, match={matches[match]:1.4f}')
+            logger.warning(f'Could not identify champion - best={champion}, match={matches[match]:1.4f}')
             return None
 
     def _get_squad_kills(self, frames: List[Frame]) -> Optional[int]:
@@ -378,7 +378,7 @@ class Weapons:
                 logger.info(f'Got first weapon pickup at {s2ts(ts)}')
                 return ts
             else:
-                logger.error(f'Got weapon pickup at invalid index: {first_weapon_index}')
+                logger.warning(f'Got weapon pickup at invalid index: {first_weapon_index}')
                 return None
         else:
             logger.warning(f'Did not see any weapons')
@@ -422,7 +422,7 @@ class Weapons:
     def _get_weapon_at(self, timestamp: float, max_distance: float = 10) -> Optional[WeaponStats]:
         index = bisect.bisect(self.weapon_timestamp, timestamp) - 1
         if not (0 <= index < len(self.weapon_timestamp)):
-            logger.error(f'Got invalid index trying to find weapon for {timestamp:.1f}s')
+            logger.error(f'Got invalid index trying to find weapon @ {timestamp:.1f}s', exc_info=True)
             return None
 
         logger.debug(
@@ -606,7 +606,7 @@ class Route:
         xy = [l[1] for l in self.locations]
         index = bisect.bisect(ts, timestamp) - 1
         if not (0 <= index < len(ts)):
-            logger.error(f'Got invalid index trying to find location at {timestamp:.1f}s')
+            logger.error(f'Got invalid index trying to find location @ {timestamp:.1f}s', exc_info=True)
             return None
 
         logger.debug(
@@ -767,7 +767,7 @@ class ApexGame:
         for season in data.seasons:
             if season.start < self.timestamp < season.end:
                 return season.index
-        logger.error(f'Could not get season for {self.timestamp} - using {len(data.seasons)}')
+        logger.error(f'Could not get season for {self.timestamp} - using {len(data.seasons)}', exc_info=True)
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(' \

@@ -291,7 +291,10 @@ def patch_sentry_locals_capture() -> None:
             return sentry_sdk.utils.safe_repr(obji)
 
         r = _walk(obj, 0)
-        sentry_logger.debug(f'dumping {obj} -> {len(r)}')
+        try:
+            sentry_logger.debug(f'dumping {obj} -> {len(r)}')
+        except:
+            sentry_logger.debug(f'dumping {obj.__class__} instance -> {len(r)}')
         return r
 
     sentry_sdk.utils.object_to_json = object_to_json
