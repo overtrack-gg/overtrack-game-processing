@@ -3,10 +3,7 @@ import os
 from pynamodb.attributes import BooleanAttribute, NumberAttribute, UnicodeAttribute
 from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
 
-try:
-    from .util import OverTrackModel, TupleAttribute
-except (SystemError, ModuleNotFoundError):
-    from util import OverTrackModel, TupleAttribute
+from models.common import OverTrackModel
 
 
 class UserIDIndex(GlobalSecondaryIndex):
