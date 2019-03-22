@@ -85,6 +85,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
     import overtrack.apex.game.your_squad
     import overtrack.apex.game.squad_summary
     import overtrack.apex.game.map
+    import overtrack.apex.game.combat
 
     _TYPES = {
         'objective': overtrack.overwatch.game.objective.Objective,
@@ -108,6 +109,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame'
         'your_squad': overtrack.apex.game.your_squad.YourSquad,
         'squad_summary': overtrack.apex.game.squad_summary.SquadSummary,
         'location': overtrack.apex.game.map.Location,
+        'combat_log': overtrack.apex.game.combat.CombatLog
     }
 
     f = Frame.__new__(Frame)

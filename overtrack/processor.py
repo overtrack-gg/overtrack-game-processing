@@ -110,6 +110,20 @@ class ShortCircuitProcessor(Processor):
                 self.last_processor = self.processors[0]
                 return False
 
+class EveryN(Processor):
+
+    def __init__(self, processor: Processor, n: int):
+        self.processor = processor
+        self.n = n
+        self.i = -1
+
+    def process(self, frame: Frame) -> bool:
+        self.i += 1
+        if self.i % self.n == 0:
+            return self.processor.process(frame)
+        else:
+            return False
+
 
 # class RepeatProcessor(Processor):
 #

@@ -151,6 +151,7 @@ class Frame(Dict[str, Any]):
         import overtrack.apex.game.weapon
         import overtrack.apex.game.your_squad
         import overtrack.apex.game.map
+        import overtrack.apex.game.combat
         match_status: overtrack.apex.game.match_status.MatchStatus
         match_summary_match: float
         match_summary: overtrack.apex.game.match_summary.MatchSummary
@@ -164,6 +165,7 @@ class Frame(Dict[str, Any]):
         your_squad_match: float
         your_squad: overtrack.apex.game.your_squad.YourSquad
         location: overtrack.apex.game.map.Location
+        combat_log: overtrack.apex.game.combat.CombatLog
 
     @classmethod
     def create(
@@ -198,8 +200,8 @@ class Frame(Dict[str, Any]):
                 if 'relative_timestamp_str' in f:
                     s += f' | {f.relative_timestamp_str}'
 
-                if 'offset_from_now' in data:
-                    s += f' | offset: {data["offset_from_now"] :1.1f}'
+                if data.get('offset_from_now') is not None:
+                    s += f' | offset: {s2ts(data["offset_from_now"])}'
 
                 if 'source' in data:
                     s += f' | {data["source"]}'
@@ -211,7 +213,7 @@ class Frame(Dict[str, Any]):
                 if 'offset_from_last' in data and data['offset_from_last'] is not None:
                     s += f' | +{data["offset_from_last"]:1.2f}s'
 
-                cv2.putText(f.debug_image, s, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, c, t)
+                cv2.putText(f.debug_image, s, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, c, t)
         else:
             f.debug_image = None
 

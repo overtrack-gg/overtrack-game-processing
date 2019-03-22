@@ -1,3 +1,4 @@
+from overtrack.apex.game.combat.combat_processor import CombatProcessor
 from overtrack.apex.game.map.map_processor import MapProcessor
 from overtrack.apex.game.match_status.match_status_processor import MatchStatusProcessor
 from overtrack.apex.game.match_summary.match_summary_processor import MatchSummaryProcessor
@@ -6,7 +7,7 @@ from overtrack.apex.game.squad.squad_processor import SquadProcessor
 from overtrack.apex.game.squad_summary import SquadSummaryProcessor
 from overtrack.apex.game.weapon.weapon_processor import WeaponProcessor
 from overtrack.apex.game.your_squad.your_squad_processor import YourSquadProcessor
-from overtrack.processor import OrderedProcessor, ShortCircuitProcessor, ConditionalProcessor, Processor
+from overtrack.processor import OrderedProcessor, ShortCircuitProcessor, ConditionalProcessor, EveryN, Processor
 
 
 def create_pipeline() -> Processor:
@@ -28,8 +29,9 @@ def create_pipeline() -> Processor:
 
         ConditionalProcessor(
             OrderedProcessor(
-                SquadProcessor(),
-                WeaponProcessor(),
+                EveryN(SquadProcessor(), 3),
+                EveryN(WeaponProcessor(), 2),
+                CombatProcessor()
             ),
             condition=lambda f: ('location' in f) or ('match_status' in f),
             lookbehind=15,

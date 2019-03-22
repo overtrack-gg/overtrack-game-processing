@@ -51,6 +51,7 @@ class ApexGameSummary(Model):
     champion = UnicodeAttribute(null=True)
     squadmates = TupleAttribute(2)
     kills = NumberAttribute()
+    knockdowns = NumberAttribute(null=True)
     placed = NumberAttribute()
     landed = UnicodeAttribute(null=True)
     squad_kills = NumberAttribute(null=True)
@@ -71,6 +72,7 @@ class ApexGameSummary(Model):
             champion=game.squad.player.champion,
             squadmates=(game.squad.squadmates[0].champion, game.squad.squadmates[1].champion),
             kills=game.kills,
+            knockdowns=len(game.combat.knockdowns),
             placed=game.placed,
             landed=game.route.landed_name,
             squad_kills=game.squad.squad_kills,

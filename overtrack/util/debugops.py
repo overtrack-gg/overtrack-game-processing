@@ -147,13 +147,17 @@ def manual_unsharp_mask(image: np.ndarray, scale: float=2, callback: Optional[Ca
         _, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
 
         cv2.imshow('unsharp', cv2.resize(
-            np.hstack((
-                image,
-                cv2.cvtColor(np.min(image, axis=2), cv2.COLOR_GRAY2BGR),
-                unsharp,
-                im,
-                cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR),
-                cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR),
+            np.vstack((
+                np.hstack((
+                    image,
+                    cv2.cvtColor(np.min(image, axis=2), cv2.COLOR_GRAY2BGR),
+                    unsharp,
+                )),
+                np.hstack((
+                    im,
+                    cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR),
+                    cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR),
+                ))
             )),
             (0, 0),
             fx=scale,

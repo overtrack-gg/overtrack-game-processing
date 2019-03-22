@@ -2,13 +2,15 @@ import bisect
 import datetime
 import logging
 import string
-from collections import defaultdict
-from typing import Counter, List, Optional, Tuple, Dict, Any
+from collections import defaultdict, deque, namedtuple
+from typing import Counter, List, Optional, Tuple, Dict, Any, Sequence
 
 import numpy as np
 import shortuuid
 import Levenshtein as levenshtein
 import typedload
+from dataclasses import dataclass
+from scipy.signal import medfilt
 
 from overtrack.apex import data
 from overtrack.apex.game.map import Location
@@ -175,91 +177,306 @@ class Squad:
         }
 
 
-class Weapons:
+@dataclass
+class CombatEvent:
+    timestamp: float
+    type: str
+    inferred: bool = False
+    weapon: Optional[str] = None
+    location: Optional[Tuple[int, int]] = None
+
+
+class Combat:
+
     def __init__(self, frames: List[Frame], debug: bool = False):
-        self.weapon_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'weapons' in f]
-        self.have_weapon = [self._weapon_names_valid(f.weapons.weapon_names) for f in frames if 'weapons' in f]
-
-        self.first_weapon_timestamp = self._get_first_weapon_timestamp(debug)
-
-    def _get_first_weapon_timestamp(self, debug: bool = False) -> Optional[float]:
-        # use first weapon pickup to detect when not dropping
-        # TODO: use the "Hold (|) Freelook" or similar to detect when dropping
-        weapon_timestamp = self.weapon_timestamp[:-9]
-        have_weapon = np.convolve(self.have_weapon, np.ones((10,)), mode='valid')
+        self.combat_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'combat_log' in f]
+        self.combat_data = [f.combat_log for f in frames if 'combat_log' in f]
+        logger.info(f'Resolving combat from {len(self.combat_data)} combat frames')
 
         if debug:
             import matplotlib.pyplot as plt
             plt.figure()
-            plt.title('Have Weapon (convolved)')
-            plt.plot(have_weapon)
+            plt.title('Combat Log Widths')
+            for t, l in zip(self.combat_timestamp, self.combat_data):
+                plt.scatter([t]*len(l.events), [e.width for e in l.events])
             plt.show()
 
-        have_weapon_index = np.where(have_weapon > 6)[0]
-        if len(have_weapon_index):
-            first_weapon_index = have_weapon_index[0] + 2
-            first_weapon_timestamp = weapon_timestamp[first_weapon_index]
+        self.events = []
 
-            logger.info(f'Got first weapon pickup at {s2ts(first_weapon_timestamp)}')
-            return first_weapon_timestamp
+        self.eliminations = []
+        self.knockdowns = []
+        self.elimination_assists = []
+        self.knockdown_assists = []
+
+        seen_events = []
+        for ts, combat in zip(self.combat_timestamp, self.combat_data):
+            for event in combat.events:
+                matching = [
+                    other_ts for other_ts, other in seen_events if
+                    ts - other_ts < 10 and event.type == other.type and abs(event.width - other.width) < 10
+                ]
+                if not len(matching):
+                    # new event
+                    logger.info(f'Got new event @ {ts:.1f}s: {event}')
+                    combat_event = None
+                    if event.type == 'ELIMINATED':
+                        # If we see an ELIMINATED, it means we have also scored a knockdown on that player
+                        # Because knocking and eliminating the last player is equivalent, only ELIMINATED will show
+                        # Insert the missing knock down if needed
+                        matching_knockdowns = [
+                            other_ts for other_ts, other in seen_events if
+                            ts - other_ts < 30 and other.type == 'KNOCKED DOWN' and abs(event.width - other.width) < 7
+                        ]
+                        if not len(matching_knockdowns):
+                            # don't have a matching knockdown for this elim - create one now
+                            knockdown = CombatEvent(ts, 'KNOCKED DOWN', inferred=True)
+                            logger.info(f'Could not find knockdown for {event} - inserting {knockdown}')
+                            self.knockdowns.append(knockdown)
+                            self.events.append(knockdown)
+
+                        # add after inferred event
+                        combat_event = CombatEvent(ts, 'eliminated')
+                        self.eliminations.append(combat_event)
+
+                    elif event.type == 'KNOCKED DOWN':
+                        combat_event = CombatEvent(ts, 'downed')
+                        self.knockdowns.append(combat_event)
+                    elif event.type == 'ASSIST, ELIMINATION':
+                        combat_event = CombatEvent(ts, 'assist')
+                        self.elimination_assists.append(combat_event)
+                    elif event.type == 'ASSIST, KNOCK DOWN':
+                        self.knockdown_assists.append(combat_event)
+
+                    # add last so inferred events are inserted first
+                    self.events.append(combat_event)
+
+                else:
+                    logger.info(f'Already seen event @ {ts:.1f}s: {event} {ts - matching[-1]:.1f}s ago')
+                seen_events.append((ts, event))
+
+        logger.info(
+            f'Got '
+            f'eliminations: {self.eliminations}, '
+            f'knockdowns: {self.knockdowns}, '
+            f'elimination_assists: {self.elimination_assists}, '
+            f'knockdown_assists: {self.knockdown_assists}'
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'eliminations': typedload.dump(self.eliminations),
+            'knockdowns': typedload.dump(self.knockdowns),
+            'elimination_assists': typedload.dump(self.elimination_assists),
+            'knockdown_assists': typedload.dump(self.knockdown_assists),
+        }
+
+
+@dataclass
+class WeaponStats:
+    weapon: str
+    time_held: float = 0
+    time_active: float = 0
+
+    knockdowns: int = 0
+
+
+class Weapons:
+
+    def __init__(self, frames: List[Frame], combat: Combat, debug: bool = False):
+        self.weapon_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'weapons' in f]
+        self.weapon_data = [f.weapons for f in frames if 'weapons' in f]
+        logger.info(f'Resolving weapons from {len(self.weapon_data)} weapon frames')
+
+        weapon1 = self._get_weapon_map(0)
+        weapon1_selected_vals = np.array([w.selected_weapons[0] for w in self.weapon_data])
+        weapon1_selected = medfilt(weapon1_selected_vals, 3) < 200
+        # ammo1 = [wep.clip if sel else np.nan for sel, wep in zip(weapon1_selected, self.weapon_data)]
+
+        weapon2 = self._get_weapon_map(1)
+        weapon2_selected_vals = np.array([w.selected_weapons[1] for w in self.weapon_data])
+        weapon2_selected = medfilt(weapon2_selected_vals, 3) < 200
+        # ammo2 = [wep.clip if sel else np.nan for sel, wep in zip(weapon2_selected, self.weapon_data)]
+
+        have_weapon = np.convolve(np.not_equal(weapon1, -1) + np.not_equal(weapon2,  -1), np.ones((10,)), mode='valid')
+        self.first_weapon_timestamp = self._get_firstweapon_pickup_time(have_weapon)
+
+        self.weapon_stats: List[WeaponStats] = []
+        self.selected_weapon_at: List[WeaponStats] = [None for _ in self.weapon_timestamp]
+        self._add_weapon_stats(weapon1, weapon1_selected)
+        self._add_weapon_stats(weapon2, weapon2_selected)
+        self._add_combat_weaponstats(combat)
+        self.weapon_stats = sorted(self.weapon_stats, key=lambda stat: (stat.knockdowns, stat.time_active), reverse=True)
+        self.weapon_stats = [w for w in self.weapon_stats if w.time_held > 15 or w.knockdown_assists > 0 or w.knockdowns > 0]
+        logger.info(f'Resolved weapon stats: {self.weapon_stats}')
+
+        if debug:
+            self._debug(combat, have_weapon, weapon1, weapon1_selected, weapon1_selected_vals, weapon2, weapon2_selected, weapon2_selected_vals)
+
+    def _debug(self, combat, have_weapon, weapon1, weapon1_selected, weapon1_selected_vals, weapon2, weapon2_selected, weapon2_selected_vals):
+        import matplotlib.pyplot as plt
+
+        plt.figure()
+        plt.title('Selected Weapon')
+        plt.plot(self.weapon_timestamp, weapon1_selected_vals)
+        plt.plot(self.weapon_timestamp, weapon2_selected_vals)
+
+        # plt.figure()
+        # plt.title('Ammo')
+        # plt.plot(self.weapon_timestamp, ammo1)
+        # plt.plot(self.weapon_timestamp, ammo2)
+
+        def make_weaponplot():
+            for event in combat.events:
+                c = None
+                if event.type == 'KNOCKED DOWN':
+                    c = 'red'
+                elif event.type == 'ASSIST, ELIMINATION':
+                    c = 'orange'
+                if c:
+                    plt.axvline(event.timestamp, color=c)
+            for i, n in enumerate(data.weapon_names):
+                plt.text(0, i + 0.25, n)
+
+        plt.figure()
+        plt.title('Weapon 1')
+        plt.scatter(self.weapon_timestamp, weapon1)
+        plt.plot(self.weapon_timestamp, weapon1_selected * 5)
+        make_weaponplot()
+        plt.figure()
+
+        plt.title('Weapon 2')
+        plt.scatter(self.weapon_timestamp, weapon2)
+        plt.plot(self.weapon_timestamp, weapon2_selected * 5)
+        make_weaponplot()
+
+        plt.figure('Have Weapon')
+        plt.plot(have_weapon)
+        plt.axhline(6, color='r')
+        plt.show()
+
+    def _get_weapon_map(self, index: int) -> np.ndarray:
+        normname = lambda n: textops.strip_string(n, string.ascii_uppercase + string.digits + '- ')
+
+        weapon = np.full((len(self.weapon_data, )), fill_value=-1, dtype=np.int)
+        name2index = {normname(n): i for i, n in enumerate(data.weapon_names)}
+        for i, weapons in enumerate(self.weapon_data):
+            name = weapons.weapon_names[index]
+            ratio, match = textops.matches_ratio(
+                normname(name),
+                data.weapon_names
+            )
+            if ratio > 0.75:
+                weapon[i] = name2index[match]
+        return weapon
+
+    def _get_firstweapon_pickup_time(self, have_weapon: np.ndarray) -> Optional[float]:
+        have_weapon_inds = np.where(have_weapon > 6)[0]
+        if len(have_weapon_inds):
+            first_weapon_index = have_weapon_inds[0] + 5
+            if 0 <= first_weapon_index < len(self.weapon_timestamp):
+                ts = self.weapon_timestamp[first_weapon_index]
+                logger.info(f'Got first weapon pickup at {s2ts(ts)}')
+                return ts
+            else:
+                logger.error(f'Got weapon pickup at invalid index: {first_weapon_index}')
+                return None
         else:
             logger.warning(f'Did not see any weapons')
             return None
 
-    def _weapon_names_valid(self, weapon_names: Tuple[str, str]) -> bool:
-        for name in weapon_names:
-            name = textops.strip_string(name, string.ascii_uppercase + string.digits + '- ')
-            if len(name) < 3:
-                continue
-            ratio, match = textops.matches_ratio(
-                name,
-                data.weapon_names
-            )
-            if ratio > 0.75:
-                return True
-        return False
+    def _add_weapon_stats(self, weapon: Sequence[int], weapon_selected: Sequence[bool]) -> None:
+        weapon_stats_lookup = {
+            s.weapon: s for s in self.weapon_stats
+        }
+
+        last: Optional[Tuple[float, int, bool]] = None
+        for i, (ts, weapon_index, selected) in enumerate(zip(self.weapon_timestamp, weapon, weapon_selected)):
+            if last is not None:
+                weapon_name = data.weapon_names[weapon_index]
+                weapon_stats = weapon_stats_lookup.get(weapon_name)
+                if not weapon_stats:
+                    weapon_stats = WeaponStats(weapon_name)
+                    self.weapon_stats.append(weapon_stats)
+                    weapon_stats_lookup[weapon_name] = weapon_stats
+
+                if last[1] == weapon_index:
+                    weapon_stats.time_held += ts - last[0]
+
+                if selected:
+                    self.selected_weapon_at[i] = weapon_stats
+                    if last[2]:
+                        weapon_stats.time_active += ts - last[0]
+
+            last = ts, weapon_index, selected
+
+    def _add_combat_weaponstats(self, combat: Combat):
+        # n.b. the weapon is only relevant for knockdowns and elimination_assists, and only useful for knockdowns of these
+        # knockdowns: we knocked someone down - don't know who will finish or how
+        # elimination_assists: we eliminated someone ourselves with a weapon
+        for event in combat.knockdowns:
+            weapon_stats = self._get_weapon_at(event.timestamp)
+            if weapon_stats:
+                weapon_stats.knockdowns += 1
+                event.weapon = weapon_stats.weapon
+
+    def _get_weapon_at(self, timestamp: float, max_distance: float = 10) -> Optional[WeaponStats]:
+        index = bisect.bisect(self.weapon_timestamp, timestamp) - 1
+        if not (0 <= index < len(self.weapon_timestamp)):
+            logger.error(f'Got invalid index trying to find weapon for {timestamp:.1f}s')
+            return None
+
+        logger.debug(
+            f'Trying to resolve weapon at {timestamp:.1f}s - '
+            f'got weapon index={index} -> {self.weapon_timestamp[index]:.1f}s'
+        )
+        for ofs in range(-5, 6):
+            check = index + ofs
+            if 0 <= check < len(self.weapon_timestamp):
+                logger.debug(f'{ofs}: {check} {self.weapon_timestamp[check]} > {self.selected_weapon_at[check]}')
+
+        for fan_out in range(20):
+            for sign in -1, 1:
+                check = index + sign * fan_out
+                if 0 <= check < len(self.weapon_timestamp):
+                    ts = self.weapon_timestamp[check]
+                    distance = abs(timestamp - ts)
+                    if distance < max_distance:
+                        stat = self.selected_weapon_at[check]
+                        if stat:
+                            logger.debug(f'Found {stat} at {ts:.1f}s - distance {distance}')
+                            return stat
+
+        logger.warning(f'Could not find weapon for ts={timestamp:.1f}s')
 
     def to_dict(self) -> Dict[str, Any]:
-        # TODO: Weapons.to_dict
-        return {}
+        return {
+            'weapon_stats': typedload.dump(self.weapon_stats)
+        }
 
 
 class Route:
 
-    def __init__(self, frames: List[Frame], weapons: Weapons, debug: bool = False):
-
-        if debug:
-            import matplotlib.pyplot as plt
-            plt.figure()
-            plt.title('Location Match')
-            plt.plot([f.location.match for f in frames if 'location' in f])
-            plt.show()
-
+    def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, debug: bool = False):
         self.locations = []
-        last: Optional[Location] = None
-        last_valid = 100
-        for frame in [f for f in frames if 'location' in f]:
+        recent = deque(maxlen=5)
+        for i, frame in enumerate([f for f in frames if 'location' in f]):
             ts, location = frame.timestamp, frame.location
-            if location.match > 0.75:
+            if location.match > 0.85:
                 continue
-            if not last:
-                dist = 0
-            else:
-                dist = np.sqrt(np.sum((np.array(last.coordinates) - np.array(location.coordinates)) ** 2))
-            if last_valid < 10:
-                if dist < 50:
-                    last_valid += 1
-                    if last_valid == 10:
-                        logger.warning(f'Location became valid again: {location}')
-            elif dist < 50:
-                self.locations.append((ts - frames[0].timestamp, location.coordinates))
-            else:
-                logger.warning(
-                    f'Ignoring location {dist:.1f} away from previous: {location} - '
-                    f'invalidating location until we see 10 locations within close proximity'
-                )
-                last_valid = 0
-            last = location
+
+            if len(recent) >= recent.maxlen:
+                last = np.mean(recent, axis=0)
+                dist = np.sqrt(np.sum((np.array(last) - np.array(location.coordinates)) ** 2))
+                if dist < 10:
+                    # too close to last - filter data down
+                    pass
+                if dist < 150:
+                    self.locations.append((ts - frames[0].timestamp, location.coordinates))
+                else:
+                    logger.warning(
+                        f'Ignoring location {i}: {location} {dist:.1f} away from average {np.round(last, 1)}'
+                    )
+            recent.append(location.coordinates)
 
         logger.info(f'Processing route from {len(self.locations)} locations')
         if not len(self.locations):
@@ -277,11 +494,53 @@ class Route:
                 self.time_landed = self.locations[-2][0]
             self.landed_location_index = max(0, min(bisect.bisect(self.locations, (self.time_landed, (0, 0))) + 1, len(self.locations) - 1))
 
-            # TODO: average location of first 5 or so locations
-            self.landed_location = self.locations[self.landed_location_index][1]
+            # average location of first 5 locations
+            mean_location = np.mean([
+                l[1] for l
+                in self.locations[
+                   max(0, self.landed_location_index - 2):
+                   min(self.landed_location_index + 3, len(self.locations) - 1)
+                   ]],
+                axis=0
+            )
+            self.landed_location = int(mean_location[0]), int(mean_location[1])
             self.landed_name = data.map_locations[self.landed_location]
 
             self._process_locations_visited()
+
+        for event in combat.events:
+            event.location = self._get_location_at(event.timestamp)
+
+        if debug:
+            self._debug(frames)
+
+    def _debug(self, frames):
+        import matplotlib.pyplot as plt
+
+        plt.figure()
+        plt.title('Location Match')
+        plt.plot([f.location.match for f in frames if 'location' in f])
+
+        import cv2
+        from overtrack.apex.game.map import MapProcessor
+        from colorsys import hsv_to_rgb
+        image = MapProcessor.MAP.copy()
+        for frame in [f for f in frames if 'location' in f]:
+            h = 240 - 240 * frame.location.match
+            c = np.array(hsv_to_rgb(h / 255, 1, 1))
+            cv2.circle(
+                image,
+                frame.location.coordinates,
+                5,
+                c * 255,
+                -1
+            )
+        plt.figure()
+        plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), interpolation='none')
+
+        plt.figure()
+        plt.imshow(cv2.cvtColor(self.make_image(), cv2.COLOR_BGR2RGB), interpolation='none')
+        plt.show()
 
     def _process_locations_visited(self):
         self.locations_visited = [self.landed_name]
@@ -297,7 +556,7 @@ class Route:
                 logger.info(f'Spent {ts - last_location[0]:.1f}s in {last_location[1]}')
                 last_location = ts, location_name
 
-    def show(self):
+    def make_image(self, combat: Optional[Combat] = None) -> np.ndarray:
         import cv2
         from overtrack.apex.game.map import MapProcessor
         image = MapProcessor.MAP.copy()
@@ -313,14 +572,71 @@ class Route:
                 cv2.LINE_AA
             )
             last = l
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), interpolation='none')
-        plt.show()
+
+        if self.landed_location:
+            for t, c in (10, (0, 0, 0)), (2, (180, 0, 200)):
+                cv2.putText(
+                    image,
+                    'Landed',
+                    self.landed_location,
+                    cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                    1.2,
+                    c,
+                    t
+                )
+
+        if combat:
+            for event in combat.events:
+                location = self._get_location_at(event.timestamp)
+                if location:
+                    cv2.putText(
+                        image,
+                        'x',
+                        location,
+                        cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                        1.2,
+                        (0, 0, 255),
+                        1
+                    )
+
+        return image
+
+    def _get_location_at(self, timestamp: float, max_distance: float = 20) -> Optional[Tuple[int, int]]:
+        ts = [l[0] for l in self.locations]
+        xy = [l[1] for l in self.locations]
+        index = bisect.bisect(ts, timestamp) - 1
+        if not (0 <= index < len(ts)):
+            logger.error(f'Got invalid index trying to find location at {timestamp:.1f}s')
+            return None
+
+        logger.debug(
+            f'Trying to resolve location at {timestamp:.1f}s - '
+            f'got weapon index={index} -> {ts[index]:.1f}s'
+        )
+        for fan_out in range(20):
+            for sign in -1, 1:
+                check = index + sign * fan_out
+                if 0 <= check < len(ts):
+                    ts = ts[check]
+                    distance = abs(timestamp - ts)
+                    if distance < max_distance:
+                        loc = xy[check]
+                        logger.debug(f'Found {loc} at {ts:.1f}s - distance {distance}')
+                        return loc
+
+        logger.warning(f'Could not find location for ts={timestamp:.1f}s')
+        return None
 
     def to_dict(self) -> Dict[str, Any]:
-        # TODO: Route.to_dict
-        return {}
+        return {
+            'locations': self.locations,
+
+            'time_landed': self.time_landed,
+            'landed_location_index': self.landed_location_index,
+            'landed_location': self.landed_location,
+            'landed_name': self.landed_name,
+            'locations_visited': self.locations_visited
+        }
 
 
 class ApexGame:
@@ -350,15 +666,18 @@ class ApexGame:
         self.match_status = [f.match_status for f in self.frames if 'match_status' in f]
 
         self.squad = Squad(frames, debug=debug)
-        self.weapons = Weapons(frames, debug=debug)
-        self.route = Route(frames, self.weapons, debug=debug)
+        self.combat = Combat(frames, debug=debug)
+        self.weapons = Weapons(frames, self.combat, debug=debug)
+        self.route: Route = Route(frames, self.weapons, self.combat, debug=debug)
         # self.stats = Stats(frames, self.squad)  # TODO: stats using match summary
 
         self.placed = self._get_placed(debug)
-        self.kills = self._get_kills(debug)
-
-        # TODO: check playername, kills against Squad.player and Stats.
-        # TODO: remove some logic from _get_placed/_get_kills and just read from squad/stats
+        self.kills = max(
+            self._get_kills(debug) or 0,
+            self.squad.player.stats.kills or 0 if self.squad.player.stats else 0,
+            len(self.combat.eliminations),
+            # self.stats.kills
+        )
 
     def _get_placed(self, debug: bool = False) -> int:
         logger.info(f'Getting squad placement from {len(self.match_summary)} summary frames and {len(self.match_status)} match status frames')
@@ -407,7 +726,6 @@ class ApexGame:
                 logger.warning(f'Got disagreeing summary kill counts: {kills_counter}')
 
         if len(kills_seen) > 10:
-            # TODO: record kill timestamps, correlate with weapons
             kills_seen = arrayops.modefilt(kills_seen, 5)
 
             if debug:
@@ -471,11 +789,12 @@ class ApexGame:
             'duration': self.duration,
             'season': self.season,
 
-            'player_name': self.player_name,
+            # 'player_name': self.player_name,
             'kills': self.kills,
             'placed': self.placed,
 
             'squad': self.squad.to_dict(),
+            'combat': self.combat.to_dict(),
             'route': self.route.to_dict(),
             'weapons': self.weapons.to_dict()
         }
