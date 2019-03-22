@@ -242,10 +242,13 @@ class Combat:
                         combat_event = CombatEvent(ts, 'downed')
                         self.knockdowns.append(combat_event)
                     elif event.type == 'ASSIST, ELIMINATION':
-                        combat_event = CombatEvent(ts, 'assist')
+                        combat_event = CombatEvent(ts, 'assist.eliminated')
                         self.elimination_assists.append(combat_event)
                     elif event.type == 'ASSIST, KNOCK DOWN':
+                        combat_event = CombatEvent(ts, 'assist.downed')
                         self.knockdown_assists.append(combat_event)
+
+                    assert combat_event
 
                     # add last so inferred events are inserted first
                     self.events.append(combat_event)
