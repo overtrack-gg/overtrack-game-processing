@@ -1,6 +1,6 @@
 import os
 
-from pynamodb.attributes import BooleanAttribute, NumberAttribute, UnicodeAttribute
+from pynamodb.attributes import BooleanAttribute, JSONAttribute, NumberAttribute, UnicodeAttribute
 from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
 
 from models.common import OverTrackModel
@@ -79,6 +79,8 @@ class User(OverTrackModel):
     stream_key = UnicodeAttribute(attr_name='stream-key', null=True)
     twitch_overlay = UnicodeAttribute(attr_name='twitch-overlay', null=True)
 
+    discord_id = JSONAttribute(null=True)
+
     @classmethod
     def get(cls, hash_key, **kwargs):
         """ :rtype: User """
@@ -119,7 +121,6 @@ if __name__ == '__main__':
     import logging
     import time
     import string
-    import shortuuid
 
     ALLOWED = string.ascii_letters + string.digits + '_-'
 
