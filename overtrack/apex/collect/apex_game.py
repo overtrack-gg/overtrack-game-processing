@@ -744,8 +744,7 @@ class ApexGame:
         logger.info(f'Resolved player name={repr(self.player_name)} from menu frames')
 
         self.frames = frames[your_squad_index:]
-
-        self.timestamp = round(frames[0].timestamp, 2)
+        self.timestamp = round(self.frames[0].timestamp, 2)
         if key:
             self.key = key
         else:
