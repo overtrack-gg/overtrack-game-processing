@@ -1,3 +1,4 @@
+from collections import Counter
 from typing import Sequence, Union, Tuple
 
 import numpy as np
@@ -20,6 +21,10 @@ def monotonic(seq: Union[Sequence[Num], np.ndarray], increasing: bool = True):
         return np.all(diff > 0)
     else:
         return np.all(diff < 0)
+
+
+def most_common(vals):
+    return Counter(vals).most_common(1)[0][0]
 
 
 def mode(arr: np.ndarray, axis: int = 0) -> Tuple[np.ndarray, int]:

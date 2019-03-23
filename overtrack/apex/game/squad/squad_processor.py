@@ -81,10 +81,22 @@ class SquadProcessor(Processor):
     ]
     SPEAKER_LARGE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'speaker_lg.png'), 0)
     SPEAKER_SMALL = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'speaker_sm.png'), 0)
+    ESC = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'esc.png'), 0)
 
     @time_processing
     def process(self, frame: Frame):
         y = frame.image_yuv[:, :, 0]
+
+        # if we see escape menu option then don't process as positions of squad or POV has changed
+        check_region = np.hstack((
+            y[-60:, :180],
+            y[-60:, -300:],
+        ))
+        _, thresh = cv2.threshold(check_region, 180, 255, cv2.THRESH_BINARY)
+        match = np.max(cv2.matchTemplate(thresh, self.ESC, cv2.TM_CCORR_NORMED))
+        if match > 0.9:
+            return False
+
         squadmate_names = self.REGIONS['squadmate_names'].extract(y)
 
         # noinspection PyTypeChecker
@@ -162,6 +174,7 @@ def main() -> None:
 
     pipeline = SquadProcessor()
     ps = ["C:/Users/simon/mpv-screenshots/mpv-shot0176.png"]
+    ps += glob.glob('../../../../dev/apex_images/squad/*.png')
     ps += glob.glob('M:/Videos/apex/*.png')
     for p in ps:
         frame = Frame.create(

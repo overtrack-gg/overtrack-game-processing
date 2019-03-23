@@ -135,13 +135,13 @@ class Squad:
 
         self.player = Player(
             self._get_name(),
-            self._get_champion(),
+            self._get_champion(debug),
             frames,
             use_match_summary=True
         )
         self.squadmates = (
-            Player(self._get_squadmate_name(0), self._get_squadmate_champion(0), frames),
-            Player(self._get_squadmate_name(1), self._get_squadmate_champion(1), frames),
+            Player(self._get_squadmate_name(0), self._get_squadmate_champion(0, debug), frames),
+            Player(self._get_squadmate_name(1), self._get_squadmate_champion(1, debug), frames),
         )
         self.squad_kills = self._get_squad_kills(frames)
 
@@ -172,16 +172,16 @@ class Squad:
     def _get_name(self) -> Optional[str]:
         return levenshtein.median([s.name for s in self.squad if s.name])
 
-    def _get_champion(self) -> Optional[str]:
-        return self._get_matching_champion([s.champion for s in self.squad])
+    def _get_champion(self, debug: Union[bool, str] = False) -> Optional[str]:
+        return self._get_matching_champion([s.champion for s in self.squad], debug)
 
     def _get_squadmate_name(self, index: int) -> Optional[str]:
         return levenshtein.median([s.squadmate_names[index] for s in self.squad if s.squadmate_names[index]])
 
-    def _get_squadmate_champion(self, index: int) -> Optional[str]:
-        return self._get_matching_champion([s.squadmate_champions[index] for s in self.squad])
+    def _get_squadmate_champion(self, index: int, debug: Union[bool, str] = False) -> Optional[str]:
+        return self._get_matching_champion([s.squadmate_champions[index] for s in self.squad], debug)
 
-    def _get_matching_champion(self, arr: List[List[float]]) -> Optional[str]:
+    def _get_matching_champion(self, arr: List[List[float]], debug: Union[bool, str] = False ) -> Optional[str]:
         champions = list(data.champions.keys())
 
         current_champ = np.full((len(arr), ), fill_value=np.nan, dtype=np.float)
@@ -192,35 +192,44 @@ class Squad:
 
         current_champ_where_known = current_champ[~np.isnan(current_champ)].astype(np.int)
 
-        if len(current_champ_where_known) < 10:
-            logger.warning(f'Could not identify champion - average matches={np.median(arr, axis=0)}')
+        if len(current_champ_where_known) <= 3:
+            logger.warning(f'Could not identify champion - average matches={np.nanmedian(arr, axis=0)}')
             return None
 
         current_champ_where_known = arrayops.modefilt(current_champ_where_known, 9)
 
+        if debug is True or debug == self.__class__.__name__:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.title('Champion Index')
+            plt.plot(current_champ_where_known)
+            plt.show()
+
         champion_changed = np.where(current_champ_where_known[1:] != current_champ_where_known[:-1])[0]
         if len(champion_changed) and 1 < champion_changed[0] < len(current_champ_where_known):
-            before = champions[current_champ_where_known[champion_changed[0] - 1]]
+            before = champions[arrayops.most_common(current_champ_where_known[:champion_changed[0] - 1])]
             count_before = champion_changed[0]
 
-            after = champions[current_champ_where_known[champion_changed[0] + 1]]
+            after = champions[arrayops.most_common(current_champ_where_known[champion_changed[0] + 1:])]
             count_after = len(current_champ_where_known) - count_before
 
-            if count_before > count_after:
-                logger.warning(
-                    f'Champion changed from {before} -> {after} at {count_before} / {len(current_champ_where_known)} - '
-                    f'using first champion'
-                )
-                return before
-            else:
-                logger.warning(
-                    f'Champion changed from {before} -> {after} at {count_before} / {len(current_champ_where_known)} - '
-                    f'using second champion'
-                )
-                return after
+            if before != after:
+                if count_before > count_after:
+                    logger.warning(
+                        f'Champion changed from {before} -> {after} at {count_before} / {len(current_champ_where_known)} - '
+                        f'using first champion'
+                    )
+                    return before
+                else:
+                    logger.warning(
+                        f'Champion changed from {before} -> {after} at {count_before} / {len(current_champ_where_known)} - '
+                        f'using second champion'
+                    )
+                    return after
 
-        champion = champions[Counter(current_champ_where_known).most_common(1)[0][0]]
-        logger.info(f'Got champion={champion}')
+        champion, count = Counter(current_champ_where_known).most_common(1)[0]
+        champion = champions[champion]
+        logger.info(f'Got champion={champion} ~ {count}')
         return champion
 
     def _get_squad_kills(self, frames: List[Frame]) -> Optional[int]:
@@ -449,7 +458,7 @@ class Weapons:
         return weapon
 
     def _get_firstweapon_pickup_time(self, have_weapon: np.ndarray) -> Optional[float]:
-        have_weapon_inds = np.where(have_weapon > 6)[0]
+        have_weapon_inds = np.where(have_weapon > 4)[0]
         if len(have_weapon_inds):
             first_weapon_index = have_weapon_inds[0] + 5
             if 0 <= first_weapon_index < len(self.weapon_timestamp):
@@ -678,7 +687,7 @@ class Route:
 
         return image
 
-    def _get_location_at(self, timestamp: float, max_distance: float = 20) -> Optional[Tuple[int, int]]:
+    def _get_location_at(self, timestamp: float, max_distance: float = 120) -> Optional[Tuple[int, int]]:
         ts = [l[0] for l in self.locations]
         xy = [l[1] for l in self.locations]
         index = bisect.bisect(ts, timestamp) - 1
@@ -690,7 +699,7 @@ class Route:
             f'Trying to resolve location at {timestamp:.1f}s - '
             f'got weapon index={index} -> {ts[index]:.1f}s'
         )
-        for fan_out in range(20):
+        for fan_out in range(100):
             for sign in -1, 1:
                 check = index + sign * fan_out
                 if 0 <= check < len(ts):
@@ -698,7 +707,11 @@ class Route:
                     distance = abs(timestamp - ats)
                     if distance < max_distance:
                         loc = xy[check]
-                        logger.debug(f'Found {loc} at {ats:.1f}s - distance {distance}')
+                        if distance < 30:
+                            level = logging.DEBUG
+                        else:
+                            level = logging.WARNING
+                        logger.log(level, f'Found {loc} at {ats:.1f}s - distance {distance}s')
                         return loc
 
         logger.warning(f'Could not find location for ts={timestamp:.1f}s')
