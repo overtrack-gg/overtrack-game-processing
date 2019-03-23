@@ -755,10 +755,10 @@ class ApexGame:
         self.match_summary = [f.match_summary for f in self.frames if 'match_summary' in f]
         self.match_status = [f.match_status for f in self.frames if 'match_status' in f]
 
-        self.squad = Squad(frames, debug=debug)
-        self.combat = Combat(frames, debug=debug)
-        self.weapons = Weapons(frames, self.combat, debug=debug)
-        self.route: Route = Route(frames, self.weapons, self.combat, debug=debug)
+        self.squad = Squad(self.frames, debug=debug)
+        self.combat = Combat(self.frames, debug=debug)
+        self.weapons = Weapons(self.frames, self.combat, debug=debug)
+        self.route: Route = Route(self.frames, self.weapons, self.combat, debug=debug)
         # self.stats = Stats(frames, self.squad)  # TODO: stats using match summary
 
         self.placed = self._get_placed(debug)
