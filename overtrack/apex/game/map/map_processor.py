@@ -73,6 +73,7 @@ class MapProcessor(Processor):
         1.5
     )
     MAP_MASK = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'map_mask.png'), 0) == 255
+    TEMPLATE_OFFSET = (0, -3)
 
     class Location(NamedTuple):
         location: Tuple[int, int]
@@ -97,7 +98,7 @@ class MapProcessor(Processor):
         )
 
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
-        coords = min_loc[0] + template.shape[1] // 2, min_loc[1] + template.shape[0] // 2
+        coords = min_loc[0] + template.shape[1] // 2 + self.TEMPLATE_OFFSET[0], min_loc[1] + template.shape[0] // 2 + self.TEMPLATE_OFFSET[1]
 
         location = Location(
             coords,
