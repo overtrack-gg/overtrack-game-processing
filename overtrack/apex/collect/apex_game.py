@@ -2,31 +2,43 @@ import bisect
 import datetime
 import logging
 import string
-from collections import defaultdict, deque, namedtuple
-from typing import Counter, List, Optional, Tuple, Dict, Any, Sequence
+from collections import deque
+from typing import Any, Counter, Dict, List, Optional, Sequence, Tuple, Union
 
+import Levenshtein as levenshtein
 import numpy as np
 import shortuuid
-import Levenshtein as levenshtein
 import typedload
 from dataclasses import dataclass
 from scipy.signal import medfilt
 
 from overtrack.apex import data
-from overtrack.apex.game.map import Location
-from overtrack.apex.game.squad_summary.squad_summary_processor import PlayerStats
+from overtrack.apex.game.match_summary import MatchSummary
+from overtrack.apex.game.squad_summary.squad_summary_processor import PlayerStats as FramePlayerStats
 from overtrack.frame import Frame
 from overtrack.util import arrayops, s2ts, textops
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class PlayerStats:
+    kills: Optional[int]
+    damage_dealt: Optional[int]
+    survival_time: Optional[int]
+    players_revived: Optional[int]
+    players_respawned: Optional[int]
+
+
 class Player:
 
-    def __init__(self, name: Optional[str], champion: str, frames: List[Frame]):
+    def __init__(self, name: Optional[str], champion: str, frames: List[Frame], use_match_summary: bool = False):
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
 
-        logger.info(f'Resolving player with estimated name="{name}", champion={champion} from {len(squad_summaries)} squad summary frames')
+        logger.info(
+            f'Resolving player with estimated name="{name}", champion={champion} '
+            f'from {len(squad_summaries)} squad summary frames'
+        )
         self.name = name
         self.champion = champion
 
@@ -43,7 +55,7 @@ class Player:
             else:
                 logger.info(f'Got stats for {name} = {Counter(s.name for s in each_stats[best])}')
 
-            own_stats = each_stats[best]
+            own_stats: List[FramePlayerStats] = each_stats[best]
 
             # use name from stats screen as this is easier to OCR
             names = [s.name for s in own_stats]
@@ -56,9 +68,20 @@ class Player:
         else:
             self.stats = None
 
+        if use_match_summary:
+            summaries = [f.match_summary for f in frames if 'match_summary' in f]
+            logger.info(f'Resolving stat from {len(summaries)} match summary (XP) frames')
+            stats = self._get_mode_summary_stats(summaries)
+            if stats:
+                if self.stats is None:
+                    logger.info(f'Using stats from summary: {stats}')
+                elif self.stats != stats:
+                    logger.error(f'Got mismatching stats from match summary: {self.stats} and squad summary: {stats}', exc_info=True)
+            self.stats = stats
+
         logger.info(f'Resolved to: {self}')
 
-    def _get_mode_stats(self, stats: List[PlayerStats]) -> PlayerStats:
+    def _get_mode_stats(self, stats: List[FramePlayerStats]) -> PlayerStats:
         mode = {}
         for name in 'kills', 'damage_dealt', 'survival_time', 'players_revived', 'players_respawned':
             values = [getattr(s, name) for s in stats]
@@ -69,9 +92,20 @@ class Player:
                 mode[name] = None
             logger.info(f'{self.name} > {name} : {counter} > {mode[name]}')
         return PlayerStats(
-            self.name,
             **mode
         )
+
+    def _get_mode_summary_stats(self, summaries: List[MatchSummary]) -> PlayerStats:
+        return self._get_mode_stats([
+            FramePlayerStats(
+                name='',
+                kills=s.xp_stats.kills,
+                damage_dealt=s.xp_stats.damage_done,
+                survival_time=s.xp_stats.time_survived,
+                players_revived=s.xp_stats.revive_ally,
+                players_respawned=s.xp_stats.respawn_ally
+            ) for s in summaries
+        ])
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(' \
@@ -86,7 +120,6 @@ class Player:
         stats = None
         if self.stats:
             stats = typedload.dump(self.stats)
-            del stats['name']
         return {
             'name': self.name,
             'champion': self.champion,
@@ -96,20 +129,45 @@ class Player:
 
 class Squad:
 
-    def __init__(self, frames: List[Frame], debug: bool = False):
+    def __init__(self, frames: List[Frame], debug: Union[bool, str]= False):
         self.squad = [f.squad for f in frames if 'squad' in f]
         logger.info(f'Processing squad from {len(self.squad)} squad frames')
 
         self.player = Player(
             self._get_name(),
             self._get_champion(),
-            frames
+            frames,
+            use_match_summary=True
         )
         self.squadmates = (
             Player(self._get_squadmate_name(0), self._get_squadmate_champion(0), frames),
             Player(self._get_squadmate_name(1), self._get_squadmate_champion(1), frames),
         )
         self.squad_kills = self._get_squad_kills(frames)
+
+        if debug is True or debug == self.__class__.__name__:
+            import matplotlib.pyplot as plt
+
+            ts = [frame.timestamp - frames[0].timestamp for frame in frames if 'squad' in frame]
+
+            def make_champion_plot(vals):
+                for i, (s, c) in enumerate(data.champions.items()):
+                    plt.plot(ts, [v[i] for v in vals], label=s)
+                plt.legend()
+
+            plt.figure()
+            plt.title('Player Champion')
+            make_champion_plot([s.champion for s in self.squad])
+
+            plt.figure()
+            plt.title('Squadmate 1 Champion')
+            make_champion_plot([s.squadmate_champions[0] for s in self.squad])
+
+            plt.figure()
+            plt.title('Squadmate 2 Champion')
+            make_champion_plot([s.squadmate_champions[1] for s in self.squad])
+
+            plt.show()
 
     def _get_name(self) -> Optional[str]:
         return levenshtein.median([s.name for s in self.squad if s.name])
@@ -124,28 +182,46 @@ class Squad:
         return self._get_matching_champion([s.squadmate_champions[index] for s in self.squad])
 
     def _get_matching_champion(self, arr: List[List[float]]) -> Optional[str]:
-        # only look at data where we match at least one champions decently
-        # This avoids looking at e.g. respawn screens
-        matches = np.array([
-            x for x in arr if np.max(x) > 0.9
-        ])
-        if len(matches) < 10:
+        champions = list(data.champions.keys())
+
+        current_champ = np.full((len(arr), ), fill_value=np.nan, dtype=np.float)
+        for i, vals in enumerate(arr):
+            am = int(np.argmax(vals))
+            if vals[am] > 0.9:
+                current_champ[i] = am
+
+        current_champ_where_known = current_champ[~np.isnan(current_champ)].astype(np.int)
+
+        if len(current_champ_where_known) < 10:
             logger.warning(f'Could not identify champion - average matches={np.median(arr, axis=0)}')
             return None
 
-        matches = np.percentile(
-            matches,
-            25,
-            axis=0
-        )
-        match = arrayops.argmax(matches)
-        champion = data.champions[list(data.champions.keys())[match]]
-        if matches[match] > 0.9:
-            logger.info(f'Got champion={champion}, match={matches[match]:1.4f}')
-            return champion.name
-        else:
-            logger.warning(f'Could not identify champion - best={champion}, match={matches[match]:1.4f}')
-            return None
+        current_champ_where_known = arrayops.modefilt(current_champ_where_known, 9)
+
+        champion_changed = np.where(current_champ_where_known[1:] != current_champ_where_known[:-1])[0]
+        if len(champion_changed) and 1 < champion_changed[0] < len(current_champ_where_known):
+            before = champions[current_champ_where_known[champion_changed[0] - 1]]
+            count_before = champion_changed[0]
+
+            after = champions[current_champ_where_known[champion_changed[0] + 1]]
+            count_after = len(current_champ_where_known) - count_before
+
+            if count_before > count_after:
+                logger.warning(
+                    f'Champion changed from {before} -> {after} at {count_before} / {len(current_champ_where_known)} - '
+                    f'using first champion'
+                )
+                return before
+            else:
+                logger.warning(
+                    f'Champion changed from {before} -> {after} at {count_before} / {len(current_champ_where_known)} - '
+                    f'using second champion'
+                )
+                return after
+
+        champion = champions[Counter(current_champ_where_known).most_common(1)[0][0]]
+        logger.info(f'Got champion={champion}')
+        return champion
 
     def _get_squad_kills(self, frames: List[Frame]) -> Optional[int]:
         squad_summary = [f.squad_summary for f in frames if 'squad_summary' in f]
@@ -188,12 +264,12 @@ class CombatEvent:
 
 class Combat:
 
-    def __init__(self, frames: List[Frame], debug: bool = False):
+    def __init__(self, frames: List[Frame], debug: Union[bool, str]= False):
         self.combat_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'combat_log' in f]
         self.combat_data = [f.combat_log for f in frames if 'combat_log' in f]
         logger.info(f'Resolving combat from {len(self.combat_data)} combat frames')
 
-        if debug:
+        if debug is True or debug == self.__class__.__name__:
             import matplotlib.pyplot as plt
             plt.figure()
             plt.title('Combat Log Widths')
@@ -229,7 +305,7 @@ class Combat:
                         ]
                         if not len(matching_knockdowns):
                             # don't have a matching knockdown for this elim - create one now
-                            knockdown = CombatEvent(ts, 'KNOCKED DOWN', inferred=True)
+                            knockdown = CombatEvent(ts, 'downed', inferred=True)
                             logger.info(f'Could not find knockdown for {event} - inserting {knockdown}')
                             self.knockdowns.append(knockdown)
                             self.events.append(knockdown)
@@ -285,19 +361,19 @@ class WeaponStats:
 
 class Weapons:
 
-    def __init__(self, frames: List[Frame], combat: Combat, debug: bool = False):
+    def __init__(self, frames: List[Frame], combat: Combat, debug: Union[bool, str]= False):
         self.weapon_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'weapons' in f]
         self.weapon_data = [f.weapons for f in frames if 'weapons' in f]
         logger.info(f'Resolving weapons from {len(self.weapon_data)} weapon frames')
 
         weapon1 = self._get_weapon_map(0)
         weapon1_selected_vals = np.array([w.selected_weapons[0] for w in self.weapon_data])
-        weapon1_selected = medfilt(weapon1_selected_vals, 3) < 200
+        weapon1_selected = (medfilt(weapon1_selected_vals, 3) < 200) & np.not_equal(weapon1, -1)
         # ammo1 = [wep.clip if sel else np.nan for sel, wep in zip(weapon1_selected, self.weapon_data)]
 
         weapon2 = self._get_weapon_map(1)
         weapon2_selected_vals = np.array([w.selected_weapons[1] for w in self.weapon_data])
-        weapon2_selected = medfilt(weapon2_selected_vals, 3) < 200
+        weapon2_selected = (medfilt(weapon2_selected_vals, 3) < 200) & np.not_equal(weapon2, -1)
         # ammo2 = [wep.clip if sel else np.nan for sel, wep in zip(weapon2_selected, self.weapon_data)]
 
         have_weapon = np.convolve(np.not_equal(weapon1, -1) + np.not_equal(weapon2,  -1), np.ones((10,)), mode='valid')
@@ -309,10 +385,10 @@ class Weapons:
         self._add_weapon_stats(weapon2, weapon2_selected)
         self._add_combat_weaponstats(combat)
         self.weapon_stats = sorted(self.weapon_stats, key=lambda stat: (stat.knockdowns, stat.time_active), reverse=True)
-        self.weapon_stats = [w for w in self.weapon_stats if w.time_held > 15 or w.knockdown_assists > 0 or w.knockdowns > 0]
+        self.weapon_stats = [w for w in self.weapon_stats if w.time_held > 15 or w.knockdowns > 0]
         logger.info(f'Resolved weapon stats: {self.weapon_stats}')
 
-        if debug:
+        if debug is True or debug == self.__class__.__name__:
             self._debug(combat, have_weapon, weapon1, weapon1_selected, weapon1_selected_vals, weapon2, weapon2_selected, weapon2_selected_vals)
 
     def _debug(self, combat, have_weapon, weapon1, weapon1_selected, weapon1_selected_vals, weapon2, weapon2_selected, weapon2_selected_vals):
@@ -394,8 +470,10 @@ class Weapons:
 
         last: Optional[Tuple[float, int, bool]] = None
         for i, (ts, weapon_index, selected) in enumerate(zip(self.weapon_timestamp, weapon, weapon_selected)):
+            if weapon_index == -1:
+                continue
             if last is not None:
-                weapon_name = data.weapon_names[weapon_index]
+                weapon_name = data.weapons[weapon_index].name
                 weapon_stats = weapon_stats_lookup.get(weapon_name)
                 if not weapon_stats:
                     weapon_stats = WeaponStats(weapon_name)
@@ -459,7 +537,7 @@ class Weapons:
 
 class Route:
 
-    def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, debug: bool = False):
+    def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, debug: Union[bool, str]= False):
         self.locations = []
         recent = deque(maxlen=5)
         for i, frame in enumerate([f for f in frames if 'location' in f]):
@@ -514,7 +592,7 @@ class Route:
         for event in combat.events:
             event.location = self._get_location_at(event.timestamp)
 
-        if debug:
+        if debug is True or debug == self.__class__.__name__:
             self._debug(frames)
 
     def _debug(self, frames):
@@ -644,7 +722,7 @@ class Route:
 
 class ApexGame:
 
-    def __init__(self, frames: List[Frame], key: str = None, debug: bool = False):
+    def __init__(self, frames: List[Frame], key: str = None, debug: Union[bool, str]= False):
         your_squad_index = 0
         for i, f in enumerate(frames):
             if 'your_squad' in f:
@@ -682,7 +760,7 @@ class ApexGame:
             # self.stats.kills
         )
 
-    def _get_placed(self, debug: bool = False) -> int:
+    def _get_placed(self, debug: Union[bool, str]= False) -> int:
         logger.info(f'Getting squad placement from {len(self.match_summary)} summary frames and {len(self.match_status)} match status frames')
 
         summary_placed: Optional[int] = None
@@ -713,7 +791,7 @@ class ApexGame:
             logger.warning(f'Did not get any match summaries - using placed=20')
             return 20
 
-    def _get_kills(self, debug: bool = False) -> int:
+    def _get_kills(self, debug: Union[bool, str]= False) -> int:
         summary_kills_seen = [s.xp_stats.kills for s in self.match_summary if s.xp_stats.kills is not None]
         kills_seen = [s.kills for s in self.match_status if s.kills]
         logger.info(
@@ -731,7 +809,7 @@ class ApexGame:
         if len(kills_seen) > 10:
             kills_seen = arrayops.modefilt(kills_seen, 5)
 
-            if debug:
+            if debug is True or debug == self.__class__.__name__:
                 import matplotlib.pyplot as plt
                 plt.figure()
                 plt.title('Kills')
@@ -804,7 +882,6 @@ class ApexGame:
 
 
 def main() -> None:
-    import requests
     import json
     from pprint import pprint
     from overtrack.util import referenced_typedload
