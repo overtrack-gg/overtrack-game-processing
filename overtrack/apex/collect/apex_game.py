@@ -548,9 +548,6 @@ class Route:
             if len(recent) >= recent.maxlen:
                 last = np.mean(recent, axis=0)
                 dist = np.sqrt(np.sum((np.array(last) - np.array(location.coordinates)) ** 2))
-                if dist < 10:
-                    # too close to last - filter data down
-                    pass
                 if dist < 150:
                     self.locations.append((ts - frames[0].timestamp, location.coordinates))
                 else:
@@ -612,7 +609,7 @@ class Route:
             cv2.circle(
                 image,
                 frame.location.coordinates,
-                5,
+                1,
                 c * 255,
                 -1
             )
@@ -649,8 +646,7 @@ class Route:
                 last,
                 l,
                 (0, 255, 0) if dist < 60 else (0, 0, 255),
-                2,
-                cv2.LINE_AA
+                1,
             )
             last = l
 
@@ -698,11 +694,11 @@ class Route:
             for sign in -1, 1:
                 check = index + sign * fan_out
                 if 0 <= check < len(ts):
-                    ts = ts[check]
-                    distance = abs(timestamp - ts)
+                    ats = ts[check]
+                    distance = abs(timestamp - ats)
                     if distance < max_distance:
                         loc = xy[check]
-                        logger.debug(f'Found {loc} at {ts:.1f}s - distance {distance}')
+                        logger.debug(f'Found {loc} at {ats:.1f}s - distance {distance}')
                         return loc
 
         logger.warning(f'Could not find location for ts={timestamp:.1f}s')
