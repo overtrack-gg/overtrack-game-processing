@@ -1,38 +1,20 @@
 import logging
 import os
-from typing import Optional, Tuple
 
 import cv2
 import numpy as np
-from dataclasses import dataclass
 
 from overtrack.apex import ocr
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import imageops, time_processing, debugops
+from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.util.textops import mmss_to_seconds
+from .models import *
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class PlayerStats:
-    name: str
-
-    kills: Optional[int]
-    damage_dealt: Optional[int]
-    survival_time: Optional[int]
-    players_revived: Optional[int]
-    players_respawned: Optional[int]
-
-
-@dataclass
-class SquadSummary:
-    champions: bool
-    # placed: Optional[int]
-    squad_kills: Optional[int]
-    player_stats: Tuple[PlayerStats, PlayerStats, PlayerStats]
 
 
 def _draw_squad_summary(debug_image: Optional[np.ndarray], squad_summary: SquadSummary) -> None:

@@ -1,1 +1,1 @@
-from .your_squad_processor import YourSquad, YourSquadProcessor
+from .models import YourSquad

@@ -1,19 +1,17 @@
 import json
 import logging
 import os
-import random
 from collections import defaultdict
 from typing import List
 
 import boto3
 import cv2
-import numpy as np
 import typedload
 from tqdm import tqdm
 
-from overtrack.overwatch.collect.killfeed import Kill, Killfeed, KillfeedProcessor
-from overtrack.overwatch.collect.teams import Teams
 from overtrack.frame import Frame
+from overtrack.overwatch.collect.killfeed import Killfeed
+from overtrack.overwatch.collect.teams import Teams
 from overtrack.overwatch.game.endgame import EndgameProcessor
 from overtrack.source.stream import HLSPlaylist
 from overtrack.util import referenced_typedload

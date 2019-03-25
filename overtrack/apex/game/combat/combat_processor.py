@@ -1,40 +1,18 @@
 import logging
 import os
-from typing import Optional, List
+from typing import Optional
 
 import cv2
 import numpy as np
-from dataclasses import dataclass
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import imageops, time_processing, debugops
+from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
+from .models import *
 
 logger = logging.getLogger(__name__)
-
-
-EventTypes = [
-    'ELIMINATED',
-    'KNOCKED DOWN',
-    'ASSIST, ELIMINATION',
-    'ASSIST, KNOCK DOWN'
-]
-
-@dataclass
-class Event:
-    type: str
-    width: int
-    # name: str
-    # damage: Optional[int]
-
-    match: float
-
-
-@dataclass
-class CombatLog:
-    events: List[Event]
 
 
 def _draw_log(debug_image: Optional[np.ndarray], log: CombatLog) -> None:

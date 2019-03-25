@@ -1,1 +1,2 @@
-from .map_processor import Location, MapProcessor
+from .models import Location
+

@@ -31,7 +31,7 @@ class TupleAttribute(ListAttribute):
             return tuple(result)
 
 
-# noinspection PyAbstractClass
+# noinspection PyAbstractClass,PyUnresolvedReferences
 class OverTrackModel(Model):
     def __str__(self):
         # make `key` the first item

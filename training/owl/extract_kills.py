@@ -21,6 +21,7 @@ from overtrack import util
 from overtrack.frame import Frame
 from overtrack.overwatch.game.killfeed.icon_parser import IconParser
 from overtrack.overwatch.game.spectator import SpectatorProcessor
+from overtrack.overwatch.game.spectator.models import Player as SpectatorPlayer
 from overtrack.source.stream import Twitch
 from overtrack.util import imageops, s2ts
 from overtrack.util.logging_config import config_logger
@@ -57,7 +58,7 @@ class Icon(NamedTuple):
     width: float
     height: float
 
-    hero: Optional[IconParser.ParsedIcon]
+    hero: Optional[ParsedIcon]
     team: bool
 
     team_index: Optional[int]
@@ -70,7 +71,7 @@ class KillRow(NamedTuple):
     right: Icon
     source: np.ndarray
 
-    def matches(self, other: 'KillRow') -> bool:
+    def matches(self, other: KillRow) -> bool:
         if self.left:
             if not self.left.hero:
                 return False
@@ -865,7 +866,7 @@ def main() -> None:
 
     pipeline.process(frame)
 
-    frame.spectator_bar.left_team[1] = SpectatorProcessor.Player('winston', 1, False, None)
+    frame.spectator_bar.left_team[1] = SpectatorPlayer('winston', 1, False, None)
 
     kex.frames.append(frame)
     icons, killfeed_region = kex.extract_icons(frame)

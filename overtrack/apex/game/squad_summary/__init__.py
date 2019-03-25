@@ -1,1 +1,2 @@
-from .squad_summary_processor import SquadSummary, SquadSummaryProcessor
+from .models import SquadSummary
+

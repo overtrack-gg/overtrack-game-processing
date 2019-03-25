@@ -1,1 +1,1 @@
-from .weapon_processor import Weapons, WeaponProcessor
+from .models import Weapons

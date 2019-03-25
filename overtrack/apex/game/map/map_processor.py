@@ -1,22 +1,16 @@
 import logging
 import os
-from typing import List, NamedTuple, Optional, Tuple
+from typing import List, NamedTuple, Optional
 
 import cv2
 import numpy as np
-from dataclasses import dataclass
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import imageops, ts2s, time_processing
+from overtrack.util import imageops, time_processing, ts2s
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-
-
-@dataclass
-class Location:
-    coordinates: Tuple[int, int]
-    match: float
+from .models import *
 
 
 def _draw_map_location(
@@ -122,18 +116,20 @@ class MapProcessor(Processor):
 
 
 def main() -> None:
-    # frame = Frame.create(
-    #     cv2.imread(
-    #         "C:/Users/simon/workspace/overtrack_2/dev/apex_images/mpv-shot0171.png"
-    #     ),
-    #     0,
-    #     True
-    # )
-    # MapProcessor().process(
-    #     frame
-    # )
-    # cv2.imshow('debug', frame.debug_image)
-    # cv2.waitKey(0)
+    frame = Frame.create(
+        cv2.imread(
+            "C:/Users/simon/mpv-screenshots/mpv-shot0209.png"
+        ),
+        0,
+        True
+    )
+    MapProcessor().process(
+        frame
+    )
+    cv2.imshow('debug', frame.debug_image)
+    frame.strip()
+    print(frame)
+    cv2.waitKey(0)
     config_logger('map_processor', logging.INFO, write_to_file=False)
 
     pipeline = MapProcessor()

@@ -105,37 +105,37 @@ class Frame(Dict[str, Any]):
         frame_no: int
         # debug_image: Optional[np.ndarray]
 
-        import overtrack.overwatch.game.objective
-        import overtrack.overwatch.game.loading_map
-        import overtrack.overwatch.game.tab
-        import overtrack.overwatch.game.menu
-        import overtrack.overwatch.game.killfeed
-        import overtrack.overwatch.game.spectator
-        import overtrack.overwatch.game.score
-        import overtrack.overwatch.game.endgame
-        import overtrack.overwatch.game.hero
-        import overtrack.overwatch.game.endgame_sr
+        import overtrack.overwatch.game.objective.models
+        import overtrack.overwatch.game.loading_map.models
+        import overtrack.overwatch.game.tab.models
+        import overtrack.overwatch.game.menu.models
+        import overtrack.overwatch.game.killfeed.models
+        import overtrack.overwatch.game.spectator.models
+        import overtrack.overwatch.game.score.models
+        import overtrack.overwatch.game.endgame.models
+        import overtrack.overwatch.game.hero.models
+        import overtrack.overwatch.game.endgame_sr.models
         objective: overtrack.overwatch.game.objective.Objective
-        loading_map: overtrack.overwatch.game.loading_map.LoadingMapProcessor.LoadingMap
+        loading_map: overtrack.overwatch.game.loading_map.models.LoadingMap
         loading_match: float
-        tab_screen: overtrack.overwatch.game.tab.TabProcessor.TabScreen
+        tab_screen: overtrack.overwatch.game.tab.models.TabScreen
         tab_match: float
-        main_menu: overtrack.overwatch.game.menu.MenuProcessor.MainMenu
+        main_menu: overtrack.overwatch.game.menu.models.MainMenu
         main_menu_match: float
-        play_menu: overtrack.overwatch.game.menu.MenuProcessor.PlayMenu
+        play_menu: overtrack.overwatch.game.menu.models.PlayMenu
         play_menu_match: float
-        killfeed: overtrack.overwatch.game.killfeed.Killfeed
+        killfeed: overtrack.overwatch.game.killfeed.models.Killfeed
         killcam_match: float
-        spectator_bar: overtrack.overwatch.game.spectator.SpectatorProcessor.SpectatorBar
-        score_screen: overtrack.overwatch.game.score.ScoreProcessor.ScoreScreen
+        spectator_bar: overtrack.overwatch.game.spectator.models.SpectatorBar
+        score_screen: overtrack.overwatch.game.score.models.ScoreScreen
         score_screen_match: float
-        final_score: overtrack.overwatch.game.score.ScoreProcessor.FinalScore
+        final_score: overtrack.overwatch.game.score.models.FinalScore
         final_score_match: float
-        endgame: overtrack.overwatch.game.endgame.EndgameProcessor.Endgame
+        endgame: overtrack.overwatch.game.endgame.models.Endgame
         endgame_match: float
-        hero: overtrack.overwatch.game.hero.HeroProcessor.Hero
+        hero: overtrack.overwatch.game.hero.models.Hero
         endgame_sr_match: float
-        endgame_sr: overtrack.overwatch.game.endgame_sr.EndgameSRProcessor
+        endgame_sr: overtrack.overwatch.game.endgame_sr.models.EndgameSR
 
         timings: Timings
 
@@ -143,29 +143,29 @@ class Frame(Dict[str, Any]):
         from overtrack.source.stream.ts_stream import TSSource
         source: TSSource
 
-        import overtrack.apex.game.match_status
-        import overtrack.apex.game.match_summary
-        import overtrack.apex.game.menu
-        import overtrack.apex.game.squad
-        import overtrack.apex.game.squad_summary
-        import overtrack.apex.game.weapon
-        import overtrack.apex.game.your_squad
-        import overtrack.apex.game.map
-        import overtrack.apex.game.combat
-        match_status: overtrack.apex.game.match_status.MatchStatus
+        import overtrack.apex.game.match_status.models
+        import overtrack.apex.game.match_summary.models
+        import overtrack.apex.game.menu.models
+        import overtrack.apex.game.squad.models
+        import overtrack.apex.game.squad_summary.models
+        import overtrack.apex.game.weapon.models
+        import overtrack.apex.game.your_squad.models
+        import overtrack.apex.game.map.models
+        import overtrack.apex.game.combat.models
+        match_status: overtrack.apex.game.match_status.models.MatchStatus
         match_summary_match: float
-        match_summary: overtrack.apex.game.match_summary.MatchSummary
+        match_summary: overtrack.apex.game.match_summary.models.MatchSummary
         apex_play_menu_match: float
-        apex_play_menu: overtrack.apex.game.menu.PlayMenu
+        apex_play_menu: overtrack.apex.game.menu.models.PlayMenu
         squad_match: float
-        squad: overtrack.apex.game.squad.Squad
+        squad: overtrack.apex.game.squad.models.Squad
         squad_summary_match: float
-        squad_summary: overtrack.apex.game.squad_summary.SquadSummary
-        weapons: overtrack.apex.game.weapon.Weapons
+        squad_summary: overtrack.apex.game.squad_summary.models.SquadSummary
+        weapons: overtrack.apex.game.weapon.models.Weapons
         your_squad_match: float
-        your_squad: overtrack.apex.game.your_squad.YourSquad
-        location: overtrack.apex.game.map.Location
-        combat_log: overtrack.apex.game.combat.CombatLog
+        your_squad: overtrack.apex.game.your_squad.models.YourSquad
+        location: overtrack.apex.game.map.models.Location
+        combat_log: overtrack.apex.game.combat.models.CombatLog
 
     @classmethod
     def create(

@@ -1,12 +1,10 @@
 import logging
 import os
 import string
-from typing import Optional
 
 import Levenshtein as levenshtein
 import cv2
 import numpy as np
-from dataclasses import dataclass
 
 from overtrack.apex import ocr
 from overtrack.frame import Frame
@@ -14,15 +12,9 @@ from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
+from .models import *
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class MatchStatus:
-    squads_left: int
-    players_alive: Optional[int]
-    kills: Optional[int]
 
 
 def _draw_status(debug_image: Optional[np.ndarray], status: MatchStatus) -> None:

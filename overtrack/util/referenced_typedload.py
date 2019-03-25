@@ -1,8 +1,5 @@
 import itertools
-from typing import Any, Dict, Optional, Type, TypeVar, TYPE_CHECKING, List, Union, cast, Tuple
-
-if TYPE_CHECKING:
-    from overtrack.frame import Frame
+from typing import Any, Dict, Optional, Type, TypeVar, List, Union, cast
 
 # noinspection PyUnresolvedReferences
 import dataclasses
@@ -12,6 +9,28 @@ import typedload.datadumper
 import typedload.dataloader
 import numpy as np
 from typedload.exceptions import Annotation
+
+from overtrack.frame import Frame, Timings
+import overtrack.overwatch.game.objective.models
+import overtrack.overwatch.game.killfeed.models
+import overtrack.overwatch.game.tab.models
+import overtrack.overwatch.game.loading_map.models
+import overtrack.overwatch.game.spectator.models
+import overtrack.overwatch.game.menu.models
+import overtrack.overwatch.game.score.models
+import overtrack.overwatch.game.endgame.models
+import overtrack.overwatch.game.hero.models
+import overtrack.overwatch.game.endgame_sr.models
+
+import overtrack.apex.game.match_status.models
+import overtrack.apex.game.match_summary.models
+import overtrack.apex.game.menu.models
+import overtrack.apex.game.squad.models
+import overtrack.apex.game.weapon.models
+import overtrack.apex.game.your_squad.models
+import overtrack.apex.game.squad_summary.models
+import overtrack.apex.game.map.models
+import overtrack.apex.game.combat.models
 
 
 class Loader(typedload.dataloader.Loader):
@@ -24,22 +43,16 @@ class Loader(typedload.dataloader.Loader):
 
         self.referenced: Dict[object, Any] = {}
 
-        from overtrack.frame import Frame
-        import overtrack.overwatch.game.loading_map
-        import overtrack.overwatch.game.killfeed
-        import overtrack.overwatch.game.objective
-        import overtrack.overwatch.game.endgame
-
-        assert self.frefs is not None
-        self.frefs.update({
-            # 'ObjectiveExtractor.Objective': overtrack.game.objective.objective_processor.ObjectiveExtractor.Probabilities,
-
-            'LoadingMapProcessor.Teams': overtrack.overwatch.game.loading_map.LoadingMapProcessor.Teams,
-            # 'KillRow': overtrack.overwatch.game.killfeed.KillRow,
-            # 'Player': overtrack.overwatch.game.killfeed.Player,
-            'EndgameProcessor.Stats': overtrack.overwatch.game.endgame.EndgameProcessor.Stats
-            # 'TSFrameExtractor.TSChunk': overtrack.source.stream.opencv_ts_stream.TSFrameExtractor.TSChunk
-        })
+        # assert self.frefs is not None
+        # self.frefs.update({
+        #     # 'ObjectiveExtractor.Objective': overtrack.game.objective.objective_processor.ObjectiveExtractor.Probabilities,
+        #
+        #     #'LoadingMapProcessor.Teams': overtrack.overwatch.game.loading_map.LoadingMapProcessor.Teams,
+        #     # 'KillRow': overtrack.overwatch.game.killfeed.KillRow,
+        #     # 'Player': overtrack.overwatch.game.killfeed.Player,
+        #     #'EndgameProcessor.Stats': overtrack.overwatch.game.endgame.EndgameProcessor.Stats
+        #     # 'TSFrameExtractor.TSChunk': overtrack.source.stream.opencv_ts_stream.TSFrameExtractor.TSChunk
+        # })
 
         # noinspection PyTypeChecker
         cast(Any, self.handlers).append((lambda type_: type_ == Frame, _frameload))
@@ -64,52 +77,31 @@ class Loader(typedload.dataloader.Loader):
 
         return super().load(value, type_)
 
-def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> 'Frame':
-    from overtrack.frame import Frame, Timings
-    import overtrack.overwatch.game.objective
-    import overtrack.overwatch.game.killfeed
-    import overtrack.overwatch.game.tab
-    import overtrack.overwatch.game.loading_map
-    import overtrack.overwatch.game.spectator
-    import overtrack.overwatch.game.menu
-    import overtrack.overwatch.game.score
-    import overtrack.overwatch.game.endgame
-    import overtrack.overwatch.game.hero
-    import overtrack.overwatch.game.endgame_sr
 
-    import overtrack.apex.game.match_status
-    import overtrack.apex.game.match_summary
-    import overtrack.apex.game.menu
-    import overtrack.apex.game.squad
-    import overtrack.apex.game.weapon
-    import overtrack.apex.game.your_squad
-    import overtrack.apex.game.squad_summary
-    import overtrack.apex.game.map
-    import overtrack.apex.game.combat
-
+def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> Frame:
     _TYPES = {
-        'objective': overtrack.overwatch.game.objective.Objective,
-        'loading_map': overtrack.overwatch.game.loading_map.LoadingMapProcessor.LoadingMap,
-        'tab_screen': overtrack.overwatch.game.tab.tab_processor.TabProcessor.TabScreen,
-        'main_menu': overtrack.overwatch.game.menu.MenuProcessor.MainMenu,
-        'play_menu': overtrack.overwatch.game.menu.MenuProcessor.PlayMenu,
-        'killfeed': overtrack.overwatch.game.killfeed.Killfeed,
-        'spectator_bar': overtrack.overwatch.game.spectator.SpectatorProcessor.SpectatorBar,
-        'score_screen': overtrack.overwatch.game.score.ScoreProcessor.ScoreScreen,
-        'final_score': overtrack.overwatch.game.score.ScoreProcessor.FinalScore,
-        'endgame': overtrack.overwatch.game.endgame.EndgameProcessor.Endgame,
-        'hero': overtrack.overwatch.game.hero.HeroProcessor.Hero,
-        'endgame_sr': overtrack.overwatch.game.endgame_sr.EndgameSR,
+        'objective': overtrack.overwatch.game.objective.models.Objective,
+        'loading_map': overtrack.overwatch.game.loading_map.models.LoadingMap,
+        'tab_screen': overtrack.overwatch.game.tab.models.TabScreen,
+        'main_menu': overtrack.overwatch.game.menu.models.MainMenu,
+        'play_menu': overtrack.overwatch.game.menu.models.PlayMenu,
+        'killfeed': overtrack.overwatch.game.killfeed.models.Killfeed,
+        'spectator_bar': overtrack.overwatch.game.spectator.models.SpectatorBar,
+        'score_screen': overtrack.overwatch.game.score.models.ScoreScreen,
+        'final_score': overtrack.overwatch.game.score.models.FinalScore,
+        'endgame': overtrack.overwatch.game.endgame.models.Endgame,
+        'hero': overtrack.overwatch.game.hero.models.Hero,
+        'endgame_sr': overtrack.overwatch.game.endgame_sr.models.EndgameSR,
 
-        'match_status': overtrack.apex.game.match_status.MatchStatus,
-        'match_summary': overtrack.apex.game.match_summary.MatchSummary,
-        'apex_play_menu': overtrack.apex.game.menu.PlayMenu,
-        'squad': overtrack.apex.game.squad.Squad,
-        'weapons': overtrack.apex.game.weapon.Weapons,
-        'your_squad': overtrack.apex.game.your_squad.YourSquad,
-        'squad_summary': overtrack.apex.game.squad_summary.SquadSummary,
-        'location': overtrack.apex.game.map.Location,
-        'combat_log': overtrack.apex.game.combat.CombatLog
+        'match_status': overtrack.apex.game.match_status.models.MatchStatus,
+        'match_summary': overtrack.apex.game.match_summary.models.MatchSummary,
+        'apex_play_menu': overtrack.apex.game.menu.models.PlayMenu,
+        'squad': overtrack.apex.game.squad.models.Squad,
+        'weapons': overtrack.apex.game.weapon.models.Weapons,
+        'your_squad': overtrack.apex.game.your_squad.models.YourSquad,
+        'squad_summary': overtrack.apex.game.squad_summary.models.SquadSummary,
+        'location': overtrack.apex.game.map.models.Location,
+        'combat_log': overtrack.apex.game.combat.models.CombatLog
     }
 
     f = Frame.__new__(Frame)
@@ -167,8 +159,6 @@ class ReferencedDumper(Dumper):
         if type(value) in self.basictypes or np.isscalar(value):
             return super().dump(value)
         elif isinstance(value, (list, tuple, set)) and not is_namedtuple:
-            if id(value) in self.visited:
-                raise ValueError(f'Cannot serialise a sequence containing itself')
             self.visited[id(value)] = True
             return super().dump(value)
         elif id(value) in self.visited:

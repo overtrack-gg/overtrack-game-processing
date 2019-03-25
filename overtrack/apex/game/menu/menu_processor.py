@@ -1,23 +1,15 @@
 import logging
 import os
-from typing import Optional, Tuple
 
 import cv2
 import numpy as np
-from dataclasses import dataclass
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import imageops, time_processing, debugops
+from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-
-
-@dataclass
-class PlayMenu:
-    player_name: str
-    squadmates: Tuple[Optional[str], Optional[str]]
-    ready: bool
+from .models import *
 
 
 def _draw_buttons_match(debug_image: Optional[np.ndarray], ready_match: float, cancel_match: float, required_match: float) -> None:

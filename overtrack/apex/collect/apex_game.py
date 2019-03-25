@@ -10,11 +10,10 @@ import numpy as np
 import shortuuid
 import typedload
 from dataclasses import dataclass
-from scipy.signal import medfilt
 
 from overtrack.apex import data
-from overtrack.apex.game.match_summary import MatchSummary
-from overtrack.apex.game.squad_summary.squad_summary_processor import PlayerStats as FramePlayerStats
+from overtrack.apex.game.match_summary.models import MatchSummary
+from overtrack.apex.game.squad_summary.models import PlayerStats as SquadSummaryStats
 from overtrack.frame import Frame
 from overtrack.util import arrayops, s2ts, textops
 
@@ -43,7 +42,7 @@ class Player:
         self.champion = champion
 
         if len(squad_summaries) and self.name:
-            each_stats: Tuple[List[PlayerStats], List[PlayerStats], List[PlayerStats]] = ([], [], [])
+            each_stats: Tuple[List[SquadSummaryStats], List[SquadSummaryStats], List[SquadSummaryStats]] = ([], [], [])
             for summary in squad_summaries:
                 for i in range(3):
                     each_stats[i].append(summary.player_stats[i])
@@ -55,7 +54,7 @@ class Player:
             else:
                 logger.info(f'Got stats for {name} = {Counter(s.name for s in each_stats[best])}')
 
-            own_stats: List[FramePlayerStats] = each_stats[best]
+            own_stats: List[SquadSummaryStats] = each_stats[best]
 
             # use name from stats screen as this is easier to OCR
             names = [s.name for s in own_stats]
@@ -81,7 +80,7 @@ class Player:
 
         logger.info(f'Resolved to: {self}')
 
-    def _get_mode_stats(self, stats: List[FramePlayerStats]) -> PlayerStats:
+    def _get_mode_stats(self, stats: List[SquadSummaryStats]) -> PlayerStats:
         mode = {}
         for name in 'kills', 'damage_dealt', 'survival_time', 'players_revived', 'players_respawned':
             values = [getattr(s, name) for s in stats]
@@ -97,7 +96,7 @@ class Player:
 
     def _get_mode_summary_stats(self, summaries: List[MatchSummary]) -> PlayerStats:
         return self._get_mode_stats([
-            FramePlayerStats(
+            SquadSummaryStats(
                 name='',
                 kills=s.xp_stats.kills,
                 damage_dealt=s.xp_stats.damage_done,
@@ -377,12 +376,12 @@ class Weapons:
 
         weapon1 = self._get_weapon_map(0)
         weapon1_selected_vals = np.array([w.selected_weapons[0] for w in self.weapon_data])
-        weapon1_selected = (medfilt(weapon1_selected_vals, 3) < 200) & np.not_equal(weapon1, -1)
+        weapon1_selected = (arrayops.medfilt(weapon1_selected_vals, 3) < 200) & np.not_equal(weapon1, -1)
         # ammo1 = [wep.clip if sel else np.nan for sel, wep in zip(weapon1_selected, self.weapon_data)]
 
         weapon2 = self._get_weapon_map(1)
         weapon2_selected_vals = np.array([w.selected_weapons[1] for w in self.weapon_data])
-        weapon2_selected = (medfilt(weapon2_selected_vals, 3) < 200) & np.not_equal(weapon2, -1)
+        weapon2_selected = (arrayops.medfilt(weapon2_selected_vals, 3) < 200) & np.not_equal(weapon2, -1)
         # ammo2 = [wep.clip if sel else np.nan for sel, wep in zip(weapon2_selected, self.weapon_data)]
 
         have_weapon = np.convolve(np.not_equal(weapon1, -1) + np.not_equal(weapon2,  -1), np.ones((10,)), mode='valid')

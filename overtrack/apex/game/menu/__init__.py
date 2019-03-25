@@ -1,1 +1,1 @@
-from .menu_processor import PlayMenu, MenuProcessor
+from .models import PlayMenu

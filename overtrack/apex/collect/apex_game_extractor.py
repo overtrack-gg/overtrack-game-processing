@@ -99,9 +99,9 @@ class ApexGameExtractor:
 
 
 def main() -> None:
-    import matplotlib.pyplot as plt
-    import matplotlib
-    from matplotlib.ticker import Formatter
+    # import matplotlib.pyplot as plt
+    # import matplotlib
+    # from matplotlib.ticker import Formatter
     import pprint
     pprint.sorted = lambda x, **_: x
     from pprint import pprint

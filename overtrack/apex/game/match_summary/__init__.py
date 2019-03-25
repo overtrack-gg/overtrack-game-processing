@@ -1,1 +1,1 @@
-from .match_summary_processor import MatchSummary, MatchSummaryProcessor
+from .models import MatchSummary, XPStats

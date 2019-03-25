@@ -1,36 +1,21 @@
 import logging
 import os
 import string
-from typing import Optional, Tuple
+from typing import Tuple
 
 import cv2
 import numpy as np
-from dataclasses import dataclass, fields
+from dataclasses import fields
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import imageops, time_processing, debugops, textops
+from overtrack.util import imageops, textops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.util.textops import mmss_to_seconds
+from .models import *
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class XPStats:
-    won: bool = False
-    top3_finish: bool = False
-    time_survived: Optional[int] = None
-    kills: Optional[int] = None
-    damage_done: Optional[int] = None
-    revive_ally: Optional[int] = None
-    respawn_ally: Optional[int] = None
-
-@dataclass
-class MatchSummary:
-    placed: int
-    xp_stats: XPStats
 
 
 def _draw_match_summary(debug_image: Optional[np.ndarray], summary: MatchSummary) -> None:

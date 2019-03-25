@@ -1,33 +1,17 @@
 import logging
 import os
 import string
-from typing import List, Optional, Tuple
 
 import cv2
-import numpy as np
-from dataclasses import dataclass
 
 from overtrack.apex import ocr
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import arrayops, imageops, time_processing
+from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
+from .models import *
 
-
-@dataclass
-class Weapons:
-    weapon_names: List[str]
-    selected_weapons: Tuple[int, int]
-    clip: Optional[int]
-    ammo: Optional[int]
-
-    @property
-    def selected_weapon_index(self) -> Optional[int]:
-        if np.max(self.selected_weapons) > 190 and np.min(self.selected_weapons) < 100:
-            return arrayops.argmin(self.selected_weapons)
-        else:
-            return None
 
 def _draw_weapons(debug_image: Optional[np.ndarray], weapons: Weapons) -> None:
     if debug_image is None:
