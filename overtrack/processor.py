@@ -116,14 +116,13 @@ class EveryN(Processor):
         self.processor = processor
         self.n = n
         self.i = -1
+        self.last = False
 
     def process(self, frame: Frame) -> bool:
         self.i += 1
         if self.i % self.n == 0:
-            return self.processor.process(frame)
-        else:
-            return False
-
+            self.last = self.processor.process(frame)
+        return self.last
 
 # class RepeatProcessor(Processor):
 #

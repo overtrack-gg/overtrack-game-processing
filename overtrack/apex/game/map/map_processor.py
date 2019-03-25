@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import imageops, ts2s
+from overtrack.util import imageops, ts2s, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 
@@ -78,6 +78,7 @@ class MapProcessor(Processor):
     class Location(NamedTuple):
         location: Tuple[int, int]
 
+    @time_processing
     def process(self, frame: Frame):
         map_image = self.REGIONS['map'].extract_one(frame.image)
 

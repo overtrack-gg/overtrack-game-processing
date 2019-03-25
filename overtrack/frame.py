@@ -194,7 +194,7 @@ class Frame(Dict[str, Any]):
         f.timings = Timings(**timings if timings else {})
         if debug:
             f.debug_image = image.copy()
-            for t, c in (7, (0, 0, 0)), (2, (255, 0, 255)):
+            for t, c in (5, (0, 0, 0)), (1, (255, 0, 255)):
                 s = f'{f.timestamp_str}'
 
                 if 'relative_timestamp_str' in f:
@@ -213,7 +213,7 @@ class Frame(Dict[str, Any]):
                 if 'offset_from_last' in data and data['offset_from_last'] is not None:
                     s += f' | +{data["offset_from_last"]:1.2f}s'
 
-                cv2.putText(f.debug_image, s, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, c, t)
+                cv2.putText(f.debug_image, s, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, c, t)
         else:
             f.debug_image = None
 
