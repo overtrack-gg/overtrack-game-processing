@@ -843,6 +843,10 @@ class ApexGame:
             return last_killcount
 
     @property
+    def time(self) -> datetime.datetime:
+        return datetime.datetime.utcfromtimestamp(self.timestamp)
+
+    @property
     def won(self) -> bool:
         return self.placed == 1
 
