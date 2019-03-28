@@ -49,18 +49,30 @@ def intermittent_log(
         level: int=logging.INFO,
         negative_level: Optional[int]=None,
         _last_logged: DefaultDict[Tuple[str, int], float]=defaultdict(float),
-        caller_extra_id: Any = None) -> None:
+        caller_extra_id: Any = None,
+        _caller: Optional[str] = None) -> None:
     try:
-        caller = inspect.stack()[1]
+        caller = None
+        if _caller:
+            frame_id = _caller
+        else:
+            try:
+                caller = inspect.stack()[1]
+                frame_id = caller.filename, caller.lineno, caller_extra_id
+            except:
+                frame_id = '???'
+
         output = negative_level
-        frame_id = caller.filename, caller.lineno, caller_extra_id
         if time.time() - _last_logged[frame_id] > frequency:
             _last_logged[frame_id] = time.time()
             output = level
         if output and logger.isEnabledFor(output):
-            co = caller.frame.f_code
-            fn, lno, func, sinfo = (co.co_filename, caller.frame.f_lineno, co.co_name, None)
-            record = logger.makeRecord(logger.name, output, str(fn), lno, line, {}, None, func, None, sinfo)
+            if caller:
+                co = caller.frame.f_code
+                fn, lno, func, sinfo = (co.co_filename, caller.frame.f_lineno, co.co_name, None)
+                record = logger.makeRecord(logger.name, output, str(fn), lno, line, {}, None, func, None, sinfo)
+            else:
+                record = logger.makeRecord(logger.name, output, '???', 0, line, {}, None)
             logger.handle(record)
     except:
         # noinspection PyProtectedMember
@@ -86,7 +98,9 @@ def config_logger(
         use_stackdriver_error: bool=False,
 
         upload_func: Optional[Callable[[str, str], None]]=None,
-        upload_frequency: Optional[float]=None) -> None:
+        upload_frequency: Optional[float]=None,
+
+        format: str = LOG_FORMAT) -> None:
 
     logger = logging.getLogger()
 
@@ -146,7 +160,7 @@ def config_logger(
         'disable_existing_loggers': False,
         'formatters': {
             'standard': {
-                'format': LOG_FORMAT
+                'format': format
             },
         },
         'handlers': handlers,

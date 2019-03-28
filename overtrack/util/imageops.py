@@ -43,19 +43,19 @@ def connected_components(image: np.ndarray, connectivity: int=4) -> Tuple[np.nda
 def otsu_thresh(vals: np.ndarray, mn: float, mx: float) -> float:
     # adapted from https://github.com/scikit-image/scikit-image/blob/v0.14.0/skimage/filters/thresholding.py#L230: threshold_otsu
 
-    mn = np.clip(mn, 0, 253)
-    mx = np.clip(mx, mn + 2, 255)
-    hist, bin_edges = np.histogram(vals, mx - mn, (mn, mx + 1))
-    hist = hist.astype(float)
+    mnv = np.clip(mn, 0, 253)
+    mxv = np.clip(mx, mn + 2, 255)
+    hist, bin_edges = np.histogram(vals, int(mxv - mnv), (mnv, mxv + 1))
+    histv = hist.astype(float)
     bin_edges = bin_edges[1:]
 
     # class probabilities for all possible thresholds
-    weight1 = np.cumsum(hist)
-    weight2 = np.cumsum(hist[::-1])[::-1]
+    weight1 = np.cumsum(histv)
+    weight2 = np.cumsum(histv[::-1])[::-1]
     # class means for all possible thresholds
     # handle divide-by-zero by outputting 0
-    mean1 = np.divide(np.cumsum(hist * bin_edges), weight1, np.zeros_like(weight1), where=weight1 != 0)
-    mean2 = np.divide(np.cumsum((hist * bin_edges)[::-1]), weight2[::-1], out=np.zeros_like(weight2[::-1]), where=weight2[::-1] != 0)[::-1]
+    mean1 = np.divide(np.cumsum(histv * bin_edges), weight1, np.zeros_like(weight1), where=weight1 != 0)
+    mean2 = np.divide(np.cumsum((histv * bin_edges)[::-1]), weight2[::-1], out=np.zeros_like(weight2[::-1]), where=weight2[::-1] != 0)[::-1]
 
     # Clip ends to align class 1 and class 2 variables:
     # The last value of `weight1`/`mean1` should pair with zero values in
@@ -259,8 +259,8 @@ def otsu_mask(image: np.ndarray, dilate: Optional[int]=3) -> np.ndarray:
 
 
 def unsharp_mask(image: np.ndarray, unsharp: float, weight: float, threshold: Optional[int]=None) -> np.ndarray:
-    unsharp = fast_gaussian(image, unsharp, scale=2)
-    im = cv2.addWeighted(image, weight, unsharp, 1 - weight, 0)
+    unsharped = fast_gaussian(image, unsharp, scale=2)
+    im = cv2.addWeighted(image, weight, unsharped, 1 - weight, 0)
     if threshold:
         if len(image.shape) == 3:
             gray = np.min(im, axis=2)
