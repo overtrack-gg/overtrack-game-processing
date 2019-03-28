@@ -122,7 +122,14 @@ class MapLocations:
         if self.layers is not None:
             return
         self.layers = []
-        with zipfile.ZipFile(os.path.join(os.path.dirname(__file__), 'map_locations.zip')) as z:
+
+        # TODO: workaround for https://github.com/Miserlou/Zappa/issues/1754
+        source = os.path.join(os.path.dirname(__file__), 'map_locations.zip')
+        altsource = os.path.join(os.path.dirname(__file__), 'map_locations._zip')
+        if not os.path.exists(source) and os.path.exists(altsource):
+            source = altsource
+
+        with zipfile.ZipFile(source) as z:
             for f in z.namelist():
                 if not f.startswith('L') or not f.endswith('.png'):
                     # not a layer
