@@ -6,7 +6,7 @@ from collections import Counter
 import Levenshtein as levenshtein
 from typing import Any, Iterable, List, Optional, Sequence, Tuple, TypeVar, Union, no_type_check, overload
 
-import editdistance
+# import editdistance
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def matches(to_match: str, possible_matches: List[str], ignore_spaces: bool=True
             if ignore_case:
                 s1 = s1.upper()
                 s2 = s2.upper()
-            r.append(editdistance.eval(s1, s2))
+            r.append(levenshtein.distance(s1, s2))
         else:
             r.append(float('inf'))
     return r
@@ -45,7 +45,7 @@ def matches_ratio(to_match: str, possible_matches: List[str]) -> Tuple[float, st
 
 def matches_product(seq1: List[str], seq2: List[str]) -> List[List[str]]:
     return [
-        editdistance.eval(s1, s2)
+        levenshtein.distance(s1, s2)
         for (s1, s2)
         in itertools.product(seq1, seq2)
     ]
