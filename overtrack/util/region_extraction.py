@@ -8,6 +8,8 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+Region = Tuple[int, int, int, int]
+
 class ExtractionRegions:
 
     def __init__(self, name: str, image: np.ndarray):
@@ -23,13 +25,13 @@ class ExtractionRegions:
             # use any non-zero pixel
             image = cv2.threshold(image, 1, 255, cv2.THRESH_BINARY)
 
-        self.regions: List[Tuple[int, int, int, int]] = []
+        self.regions: List[Region] = []
 
         r, labels, stats, centroids = cv2.connectedComponentsWithStats(image, connectivity=4)
         for x, y, w, h, a in stats[1:]:
             if w * h != a:
                 logger.warning(f'ExtractionRegions { name } got non-rectangular region {w}*{h}!={a}')
-            self.regions.append((x, y, w, h))
+            self.regions.append((int(x), int(y), int(w), int(h)))
 
         # sort regions by y, x
         self.regions = sorted(self.regions, key=lambda e: (e[1], e[0]))
@@ -121,6 +123,13 @@ class ExtractionRegionsCollection:
     def __str__(self) -> str:
         self._ensure_loaded()
         return f'{ self.__class__.__name__ }(regions={ self.regions } regions)'
+
+    def to_dict(self) -> Dict[str, object]:
+        r = {}
+        self._ensure_loaded()
+        for region in self.regions.values():
+            r[region.name] = region.regions
+        return r
 
     def draw(self, image: Optional[np.ndarray]) -> None:
         if image is None:
