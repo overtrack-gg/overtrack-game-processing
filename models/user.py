@@ -135,6 +135,10 @@ class User(OverTrackModel):
         else:
             return self.battletag.replace('#', '-').replace('!', '')
 
+    @username.setter
+    def username(self, value: str) -> None:
+        self._username = username
+
     @classmethod
     def get(cls, hash_key, **kwargs):
         """ :rtype: User """
