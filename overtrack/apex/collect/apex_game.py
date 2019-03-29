@@ -401,7 +401,7 @@ class Weapons:
         self.first_weapon_timestamp = self._get_firstweapon_pickup_time(have_weapon)
 
         self.weapon_stats: List[WeaponStats] = []
-        self.selected_weapon_at: List[WeaponStats] = [None for _ in self.weapon_timestamp]
+        self.selected_weapon_at: List[Optional[WeaponStats]] = [None for _ in self.weapon_timestamp]
         self._add_weapon_stats(weapon1, weapon1_selected)
         self._add_weapon_stats(weapon2, weapon2_selected)
         self._add_combat_weaponstats(combat)
@@ -534,7 +534,8 @@ class Weapons:
         for ofs in range(-5, 6):
             check = index + ofs
             if 0 <= check < len(self.weapon_timestamp):
-                logger.debug(f'{ofs}: {check} {self.weapon_timestamp[check]} > {self.selected_weapon_at[check]}')
+                weap = self.selected_weapon_at[check]
+                logger.debug(f'ofs={ofs:+d} > ind={check} ts={self.weapon_timestamp[check]:.1f} > weap={weap.weapon if weap else None}')
 
         for fan_out in range(20):
             for sign in -1, 1:
@@ -621,7 +622,7 @@ class Route:
         plt.plot([f.location.match for f in frames if 'location' in f])
 
         import cv2
-        from overtrack.apex.game.map import MapProcessor
+        from overtrack.apex.game.map.map_processor import MapProcessor
         from colorsys import hsv_to_rgb
         image = MapProcessor.MAP.copy()
         for frame in [f for f in frames if 'location' in f]:
@@ -657,7 +658,7 @@ class Route:
 
     def make_image(self, combat: Optional[Combat] = None) -> np.ndarray:
         import cv2
-        from overtrack.apex.game.map import MapProcessor
+        from overtrack.apex.game.map.map_processor import MapProcessor
         image = MapProcessor.MAP.copy()
         last = self.locations[self.landed_location_index][1]
         for ts, l in self.locations[self.landed_location_index + 1:]:
@@ -702,14 +703,14 @@ class Route:
     def _get_location_at(self, timestamp: float, max_distance: float = 120) -> Optional[Tuple[int, int]]:
         ts = [l[0] for l in self.locations]
         xy = [l[1] for l in self.locations]
-        index = bisect.bisect(ts, timestamp) - 1
+        index = min(max(0, bisect.bisect(ts, timestamp) - 1), len(ts) - 1)
         if not (0 <= index < len(ts)):
-            logger.error(f'Got invalid index trying to find location @ {timestamp:.1f}s', exc_info=True)
+            logger.error(f'Got invalid index {index} trying to find location @ {timestamp:.1f}s', exc_info=True)
             return None
 
         logger.debug(
             f'Trying to resolve location at {timestamp:.1f}s - '
-            f'got weapon index={index} -> {ts[index]:.1f}s'
+            f'got location index={index} -> {ts[index]:.1f}s'
         )
         for fan_out in range(100):
             for sign in -1, 1:
