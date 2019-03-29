@@ -19,9 +19,13 @@ def create_pipeline() -> Processor:
             MatchSummaryProcessor(),
             SquadSummaryProcessor(),
 
-            OrderedProcessor(
-                MatchStatusProcessor(),
-                MapProcessor(),
+            EveryN(
+                OrderedProcessor(
+                    MatchStatusProcessor(),
+                    MapProcessor(),
+                ),
+                3,
+                return_last=False
             ),
 
             order_defined=False
@@ -29,9 +33,9 @@ def create_pipeline() -> Processor:
 
         ConditionalProcessor(
             OrderedProcessor(
-                EveryN(SquadProcessor(), 3),
-                EveryN(WeaponProcessor(), 2),
-                CombatProcessor()
+                EveryN(SquadProcessor(), 4),
+                CombatProcessor(),
+                EveryN(WeaponProcessor(), 4, override_condition=lambda f: 'combat_log' in f),
             ),
             condition=lambda f: ('location' in f) or ('match_status' in f),
             lookbehind=15,

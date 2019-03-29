@@ -86,21 +86,22 @@ upload_logs_settings: UploadLogsSettingsType = {
 
 def config_logger(
         name: str,
-        level: int=logging.INFO,
+        level: int = logging.INFO,
 
-        write_to_file: bool=True,
+        write_to_file: bool = True,
 
-        use_datadog: bool=False,
-        use_stackdriver: bool=False,
+        use_datadog: bool = False,
+        use_stackdriver: bool = False,
 
-        stackdriver_level: int=logging.INFO,
+        stackdriver_level: int = logging.INFO,
 
-        use_stackdriver_error: bool=False,
+        use_stackdriver_error: bool = False,
 
-        upload_func: Optional[Callable[[str, str], None]]=None,
-        upload_frequency: Optional[float]=None,
+        upload_func: Optional[Callable[[str, str], None]] = None,
+        upload_frequency: Optional[float] = None,
 
-        format: str = LOG_FORMAT) -> None:
+        format: str = LOG_FORMAT,
+        logdir: str = 'logs') -> None:
 
     logger = logging.getLogger()
 
@@ -112,13 +113,13 @@ def config_logger(
         }
     }
     if write_to_file:
-        os.makedirs('logs', exist_ok=True)
+        os.makedirs(logdir, exist_ok=True)
         handlers.update({
             'file': {
                 'level': 'INFO',
                 'formatter': 'standard',
                 'class': 'logging.handlers.RotatingFileHandler',
-                'filename': f'logs/{name}.log',
+                'filename': f'{logdir}/{name}.log',
                 'maxBytes': 1024 * 1024 * 100,
                 'backupCount': 3,
                 'delay': True
@@ -127,7 +128,7 @@ def config_logger(
                 'level': 'DEBUG',
                 'formatter': 'standard',
                 'class': 'logging.handlers.RotatingFileHandler',
-                'filename': f'logs/{name}.debug.log',
+                'filename': f'{logdir}/{name}.debug.log',
                 'maxBytes': 1024 * 1024 * 100,
                 'backupCount': 3,
                 'delay': True
@@ -136,7 +137,7 @@ def config_logger(
                 'level': 'DEBUG',
                 'formatter': '',
                 'class': 'logging.handlers.RotatingFileHandler',
-                'filename': 'logs/access.log',
+                'filename': f'{logdir}/access.log',
                 'maxBytes': 1024,
                 'backupCount': 0,
                 'delay': True
