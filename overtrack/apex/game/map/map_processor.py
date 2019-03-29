@@ -69,8 +69,8 @@ class MapProcessor(Processor):
     MAP_MASK = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'map_mask.png'), 0) == 255
     TEMPLATE_OFFSET = (0, -3)
 
-    class Location(NamedTuple):
-        location: Tuple[int, int]
+    def eager_load(self):
+        self.REGIONS.eager_load()
 
     @time_processing
     def process(self, frame: Frame):

@@ -49,6 +49,9 @@ class MenuProcessor(Processor):
 
     CROWN = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'crown.png'), 0)
 
+    def eager_load(self):
+        self.REGIONS.eager_load()
+
     @time_processing
     def process(self, frame: Frame):
         y = frame.image_yuv[:, :, 0]

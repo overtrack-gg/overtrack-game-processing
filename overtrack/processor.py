@@ -9,6 +9,9 @@ class Processor:
     def process(self, frame: Frame) -> bool:
         return False
 
+    def eager_load(self):
+        pass
+
 
 class OrderedProcessor(Processor):
     """
@@ -23,6 +26,10 @@ class OrderedProcessor(Processor):
         :return: True if _any_ of the processors returned True
         """
         return any([p.process(frame) for p in self.processors])
+
+    def eager_load(self):
+        for p in self.processors:
+            p.eager_load()
 
 
 class ConditionalProcessor(Processor):
@@ -66,6 +73,8 @@ class ConditionalProcessor(Processor):
         else:
             return False
 
+    def eager_load(self):
+        self.processor.eager_load()
 
 class ShortCircuitProcessor(Processor):
     """
@@ -110,19 +119,32 @@ class ShortCircuitProcessor(Processor):
                 self.last_processor = self.processors[0]
                 return False
 
+    def eager_load(self):
+        for p in self.processors:
+            p.eager_load()
+
 class EveryN(Processor):
 
-    def __init__(self, processor: Processor, n: int):
+    def __init__(self, processor: Processor, n: int, return_last: bool = True, override_condition: Callable[[Frame], bool] = lambda f: False):
         self.processor = processor
+        self.return_last = return_last
+        self.override_condition = override_condition
         self.n = n
         self.i = -1
         self.last = False
 
     def process(self, frame: Frame) -> bool:
         self.i += 1
-        if self.i % self.n == 0:
+        if self.i % self.n == 0 or self.override_condition(frame):
             self.last = self.processor.process(frame)
-        return self.last
+            return self.last
+        if self.return_last:
+            return self.last
+        else:
+            return False
+
+    def eager_load(self):
+        self.processor.eager_load()
 
 # class RepeatProcessor(Processor):
 #

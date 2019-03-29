@@ -51,6 +51,9 @@ class CombatProcessor(Processor):
         'KNOCKED DOWN': imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'knocked_down.png'), 0),
     }
 
+    def eager_load(self):
+        self.REGIONS.eager_load()
+
     @time_processing
     def process(self, frame: Frame) -> bool:
         image_region = self.REGIONS['kill_text']

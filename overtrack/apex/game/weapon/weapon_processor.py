@@ -30,6 +30,9 @@ def _draw_weapons(debug_image: Optional[np.ndarray], weapons: Weapons) -> None:
 class WeaponProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), '..', 'data', 'regions', '16_9.zip'))
 
+    def eager_load(self):
+        self.REGIONS.eager_load()
+
     @time_processing
     def process(self, frame: Frame):
         y = cv2.cvtColor(frame.image, cv2.COLOR_BGR2YUV)[:, :, 0]

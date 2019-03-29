@@ -53,6 +53,9 @@ class SquadSummaryProcessor(Processor):
     CHAMPIONS_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'champions_of_the_arena.png'), 0)
     REQUIRED_MATCH = 0.95
 
+    def eager_load(self):
+        self.REGIONS.eager_load()
+
     @time_processing
     def process(self, frame: Frame) -> bool:
         y = frame.image_yuv[:, :, 0]

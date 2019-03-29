@@ -42,6 +42,9 @@ class MatchStatusProcessor(Processor):
         'B6',
     ]
 
+    def eager_load(self):
+        self.REGIONS.eager_load()
+
     @time_processing
     def process(self, frame: Frame):
         y = cv2.cvtColor(frame.image, cv2.COLOR_BGR2YUV)[:, :, 0]
