@@ -2,14 +2,14 @@ import bisect
 import datetime
 import logging
 import string
-from collections import deque
-from typing import Any, Counter, Dict, List, Optional, Sequence, Tuple, Union
+from collections import deque, Counter
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import Levenshtein as levenshtein
 import numpy as np
 import shortuuid
 import typedload
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 from overtrack.apex import data
 from overtrack.apex.game.match_summary.models import MatchSummary
@@ -27,6 +27,16 @@ class PlayerStats:
     survival_time: Optional[int]
     players_revived: Optional[int]
     players_respawned: Optional[int]
+
+    def merge(self, other: 'PlayerStats'):
+        for f in fields(self):
+            name = f.name
+            own_value = getattr(self, name)
+            other_value = getattr(other, name)
+            if own_value is None and other_value is not None:
+                setattr(self, name, other_value)
+            elif own_value is not None and other_value is not None:
+                logger.warning(f'Got PlayerStats.{name} {own_value} != {other_value}')
 
 
 class Player:
@@ -74,9 +84,12 @@ class Player:
             if stats:
                 if self.stats is None:
                     logger.info(f'Using stats from summary: {stats}')
+                    self.stats = stats
                 elif self.stats != stats:
-                    logger.error(f'Got mismatching stats from match summary: {self.stats} and squad summary: {stats}', exc_info=True)
-            self.stats = stats
+                    logger.warning(f'Merging squad stats {self.stats} with summary stats {stats}')
+                    self.stats.merge(stats)
+                else:
+                    logger.info(f'Squad stats and summary stats agree')
 
         logger.info(f'Resolved to: {self}')
 
@@ -84,7 +97,7 @@ class Player:
         mode = {}
         for name in 'kills', 'damage_dealt', 'survival_time', 'players_revived', 'players_respawned':
             values = [getattr(s, name) for s in stats]
-            counter = Counter(v for v in values if v is not None)
+            counter = Counter([v for v in values if v is not None])
             if len(counter):
                 mode[name] = counter.most_common(1)[0][0]
             else:
