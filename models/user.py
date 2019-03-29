@@ -136,7 +136,7 @@ class User(OverTrackModel):
             return self.battletag.replace('#', '-').replace('!', '')
 
     @username.setter
-    def username(self, value: str) -> None:
+    def username(self, username: str) -> None:
         self._username = username
 
     @classmethod
