@@ -24,6 +24,40 @@ class UserIDIndex(GlobalSecondaryIndex):
             raise User.DoesNotExist('User with user-id=%d does not exist' % (hash_key, ))
 
 
+class TwitchIDIndex(GlobalSecondaryIndex):
+    class Meta:
+        index_name = 'twitch_id-index'
+
+        read_capacity_units = 1
+        write_capacity_units = 1
+        projection = AllProjection()
+
+    twitch_id = UnicodeAttribute(attr_name='twitch_id', hash_key=True)
+
+    def get(self, twitch_id: int) -> 'User':
+        try:
+            return next(self.query(twitch_id))
+        except StopIteration:
+            raise User.DoesNotExist(f'User with twitch_id={twitch_id} does not exist')
+
+
+class UsernameIndex(GlobalSecondaryIndex):
+    class Meta:
+        index_name = 'username-index'
+
+        read_capacity_units = 1
+        write_capacity_units = 1
+        projection = AllProjection()
+
+    twitch_id = UnicodeAttribute(attr_name='username', hash_key=True)
+
+    def get(self, username: str) -> 'User':
+        try:
+            return next(self.query(username))
+        except StopIteration:
+            raise User.DoesNotExist(f'User with username={username} does not exist')
+
+
 # noinspection PyAbstractClass
 class User(OverTrackModel):
 
@@ -31,11 +65,20 @@ class User(OverTrackModel):
         table_name = os.environ.get('USERS_TABLE', 'overtrack_users')
         region = 'us-west-2'
 
+    key = UnicodeAttribute(attr_name='battletag', hash_key=True, null=False)
+
+    user_id = NumberAttribute(attr_name='user-id', default=0)
     user_id_index = UserIDIndex()
 
-    battletag = UnicodeAttribute(attr_name='battletag', hash_key=True, null=False)
-    username = UnicodeAttribute(attr_name='username', null=True)
-    user_id = NumberAttribute(attr_name='user-id', default=0)
+    twitch_id = UnicodeAttribute(null=True)
+    twitch_id_index = TwitchIDIndex()
+    twitch_user = JSONAttribute(null=True)
+
+    battlenet_id = NumberAttribute(null=True)
+
+    _username = UnicodeAttribute(attr_name='username', null=True)
+    username_index = UsernameIndex()
+
     current_sr = NumberAttribute(attr_name='current-sr', null=True)
     twitch_account = UnicodeAttribute(attr_name='twitch-account', null=True)
 
@@ -80,6 +123,17 @@ class User(OverTrackModel):
     twitch_overlay = UnicodeAttribute(attr_name='twitch-overlay', null=True)
 
     discord_id = JSONAttribute(null=True)
+
+    @property
+    def battletag(self) -> str:
+        return self.key
+
+    @property
+    def username(self) -> str:
+        if self._username:
+            return self._username
+        else:
+            return self.battletag.replace('#', '-').replace('!', '')
 
     @classmethod
     def get(cls, hash_key, **kwargs):
