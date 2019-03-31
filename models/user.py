@@ -34,11 +34,28 @@ class TwitchIDIndex(GlobalSecondaryIndex):
 
     twitch_id = UnicodeAttribute(attr_name='twitch_id', hash_key=True)
 
-    def get(self, twitch_id: int) -> 'User':
+    def get(self, twitch_id: str) -> 'User':
         try:
             return next(self.query(twitch_id))
         except StopIteration:
             raise User.DoesNotExist(f'User with twitch_id={twitch_id} does not exist')
+
+
+class BattlenetIDIndex(GlobalSecondaryIndex):
+    class Meta:
+        index_name = 'battlenet_id-index'
+
+        read_capacity_units = 1
+        write_capacity_units = 1
+        projection = AllProjection()
+
+    twitch_id = NumberAttribute(attr_name='battlenet_id', hash_key=True)
+
+    def get(self, battlenet_id: int) -> 'User':
+        try:
+            return next(self.query(battlenet_id))
+        except StopIteration:
+            raise User.DoesNotExist(f'User with battlenet_id={battlenet_id} does not exist')
 
 
 class UsernameIndex(GlobalSecondaryIndex):
@@ -75,6 +92,8 @@ class User(OverTrackModel):
     twitch_user = JSONAttribute(null=True)
 
     battlenet_id = NumberAttribute(null=True)
+    battlenet_id_index = BattlenetIDIndex()
+    battlenet_user = JSONAttribute(null=True)
 
     _username = UnicodeAttribute(attr_name='username', null=True)
     username_index = UsernameIndex()
