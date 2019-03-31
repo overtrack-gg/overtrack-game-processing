@@ -282,32 +282,33 @@ def finish_logging() -> None:
 
 
 def patch_sentry_locals_capture() -> None:
-    import sentry_sdk.utils
+    from sentry_sdk.utils import add_global_repr_processor, object_to_json, safe_repr
     from overtrack.frame import Frame
 
-    @no_type_check
-    def object_to_json(obj: object) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
+    @add_global_repr_processor
+    def processor(value, hint):
+        if isinstance(value, Frame):
+            return {'timestamp': value.timestamp}
+        return NotImplemented
 
-        if (isinstance(obj, bytes) or isinstance(obj, str)) and len(obj) > 128:
-            return repr(obj[:128]) + f'...{len(obj) - 128}'
+    @add_global_repr_processor
+    def processor(value, hint):
+        if isinstance(list, Frame) and len(value) > 2 and isinstance(value[0], Frame) and isinstance(value[-1], Frame):
+            return [object_to_json(value[0]), f'...<{len(value) - 2}>...', object_to_json(value[-1])]
+        return NotImplemented
 
-        def _walk(obji: object, depth: int) -> Union[str, Dict[str, Any], List[Union[str, Dict, List]]]:
-            if depth < 4:
-                if isinstance(obji, Frame):
-                    return {'timestamp': obji.timestamp}
-                if isinstance(obji, list) and len(obji) > 2 and isinstance(obji[0], Frame) and isinstance(obji[-1], Frame):
-                    frames: List[Frame] = obji
-                    return [_walk(frames[0], depth), f'...<{len(frames)-2}>...', _walk(frames[-1], depth)]
-                if isinstance(obji, Sequence) and not isinstance(obji, (bytes, str)):
-                    return [_walk(x, depth + 1) for x in obji]
-                if isinstance(obji, Mapping):
-                    return {sentry_sdk.utils.safe_str(k): _walk(v, depth + 1) for k, v in obji.items()}
-            return sentry_sdk.utils.safe_repr(obji)
+    @add_global_repr_processor
+    def processor(value, hint):
+        if isinstance(value, Sequence) and not isinstance(value, (bytes, str)) and len(value) > 64:
+            return [object_to_json(value[0]), f'...<{len(value) - 2}>...', object_to_json(value[-1])]
+        return NotImplemented
 
-        r = _walk(obj, 0)
-        return r
+    @add_global_repr_processor
+    def processor(value, hint):
+        if isinstance(value, (bytes, str)) and len(value) > 1024:
+            return safe_repr(value[:1024]) + f'..., len={len(value)}'
+        return NotImplemented
 
-    sentry_sdk.utils.object_to_json = object_to_json
 
 
 def main() -> None:
