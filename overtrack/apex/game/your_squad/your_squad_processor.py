@@ -67,7 +67,8 @@ class YourSquadProcessor(Processor):
             return False
 
     def _to_name(self, name_text: str) -> Optional[str]:
-        name_text = name_text.replace('[', '(').replace(']', ')')
+        for s1, s2 in '[(', '{(', '])', '})':
+            name_text = name_text.replace(s1, s2)
         if len(name_text) > 3 and name_text[0] == '(' and name_text[-1] == ')':
             return name_text[1:-1].replace(' ', '')
         else:
