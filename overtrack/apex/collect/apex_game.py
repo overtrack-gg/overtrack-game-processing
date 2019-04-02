@@ -363,7 +363,7 @@ class Combat:
                     self.logger.info(f'Already seen event @ {ts:.1f}s: {event} {ts - matching[-1]:.1f}s ago')
                 seen_events.append((ts, event))
 
-        if placed == 1 and squad.player.stats.kills > len(self.eliminations):
+        if placed == 1 and squad.player.stats and squad.player.stats.kills and squad.player.stats.kills > len(self.eliminations):
             last_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'match_status' in f][-1]
             self.logger.warning(
                 f'Got won game with {squad.player.stats.kills} kills, but only saw {len(self.eliminations)} eliminations from combat - '
