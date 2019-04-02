@@ -40,11 +40,12 @@ class PlayerStats:
 
 
 class Player:
+    logger = logging.getLogger('Player')
 
     def __init__(self, name: Optional[str], champion: str, frames: List[Frame], use_match_summary: bool = False):
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
 
-        logger.info(
+        self.logger.info(
             f'Resolving player with estimated name="{name}", champion={champion} '
             f'from {len(squad_summaries)} squad summary frames'
         )
@@ -60,9 +61,9 @@ class Player:
             matches = [levenshtein.seqratio([name] * len(stats), [s.name for s in stats]) for stats in each_stats]
             best = arrayops.argmax(matches)
             if matches[best] < 0.85:
-                logger.warning(f'Got potentially bad match {name}<->{[Counter(s.name for s in stat) for stat in each_stats]} ~ {best}: {matches[best]:1.2f}')
+                self.logger.warning(f'Got potentially bad match {name}<->{[Counter(s.name for s in stat) for stat in each_stats]} ~ {best}: {matches[best]:1.2f}')
             else:
-                logger.info(f'Got stats for {name} = {Counter(s.name for s in each_stats[best])}')
+                self.logger.info(f'Got stats for {name} = {Counter(s.name for s in each_stats[best])}')
 
             own_stats: List[SquadSummaryStats] = each_stats[best]
 
@@ -70,7 +71,7 @@ class Player:
             names = [s.name for s in own_stats]
             own_stats_name = levenshtein.median(names)
             if len(names) > 3 and own_stats_name != self.name:
-                logger.warning(f'Updating name from game name to stats name: "{self.name}" -> "{own_stats_name}"')
+                self.logger.warning(f'Updating name from game name to stats name: "{self.name}" -> "{own_stats_name}"')
                 self.name = own_stats_name
 
             self.stats = self._get_mode_stats(own_stats)
@@ -79,19 +80,19 @@ class Player:
 
         if use_match_summary:
             summaries = [f.match_summary for f in frames if 'match_summary' in f]
-            logger.info(f'Resolving stat from {len(summaries)} match summary (XP) frames')
+            self.logger.info(f'Resolving stat from {len(summaries)} match summary (XP) frames')
             stats = self._get_mode_summary_stats(summaries)
             if stats:
                 if self.stats is None:
-                    logger.info(f'Using stats from summary: {stats}')
+                    self.logger.info(f'Using stats from summary: {stats}')
                     self.stats = stats
                 elif self.stats != stats:
-                    logger.warning(f'Merging squad stats {self.stats} with summary stats {stats}')
+                    self.logger.warning(f'Merging squad stats {self.stats} with summary stats {stats}')
                     self.stats.merge(stats)
                 else:
-                    logger.info(f'Squad stats and summary stats agree')
+                    self.logger.info(f'Squad stats and summary stats agree')
 
-        logger.info(f'Resolved to: {self}')
+        self.logger.info(f'Resolved to: {self}')
 
     def _get_mode_stats(self, stats: List[SquadSummaryStats]) -> PlayerStats:
         mode = {}
@@ -102,7 +103,7 @@ class Player:
                 mode[name] = counter.most_common(1)[0][0]
             else:
                 mode[name] = None
-            logger.info(f'{self.name} > {name} : {counter} > {mode[name]}')
+            self.logger.info(f'{self.name} > {name} : {counter} > {mode[name]}')
         return PlayerStats(
             **mode
         )
@@ -140,13 +141,14 @@ class Player:
 
 
 class Squad:
+    logger = logging.getLogger('Squad')
 
-    def __init__(self, frames: List[Frame], debug: Union[bool, str]= False):
+    def __init__(self, frames: List[Frame], menu_names: List[str], debug: Union[bool, str]= False):
         self.squad = [f.squad for f in frames if 'squad' in f]
-        logger.info(f'Processing squad from {len(self.squad)} squad frames')
+        self.logger.info(f'Processing squad from {len(self.squad)} squad frames')
 
         self.player = Player(
-            self._get_name(),
+            self._get_name(menu_names),
             self._get_champion(debug),
             frames,
             use_match_summary=True
@@ -181,14 +183,19 @@ class Squad:
 
             plt.show()
 
-    def _get_name(self) -> Optional[str]:
-        return levenshtein.median([s.name for s in self.squad if s.name])
+    def _median_name(self, names: List[str]):
+        name = levenshtein.median(names)
+        self.logger.debug(f'Resolving median name {Counter(names)}/{len(names)} -> {name}')
+        return name
+
+    def _get_name(self, menu_names: List[str]) -> Optional[str]:
+        return self._median_name([s.name for s in self.squad if s.name] + menu_names)
 
     def _get_champion(self, debug: Union[bool, str] = False) -> Optional[str]:
         return self._get_matching_champion([s.champion for s in self.squad], debug)
 
     def _get_squadmate_name(self, index: int) -> Optional[str]:
-        return levenshtein.median([s.squadmate_names[index] for s in self.squad if s.squadmate_names[index]])
+        return self._median_name([s.squadmate_names[index] for s in self.squad if s.squadmate_names[index]])
 
     def _get_squadmate_champion(self, index: int, debug: Union[bool, str] = False) -> Optional[str]:
         return self._get_matching_champion([s.squadmate_champions[index] for s in self.squad], debug)
@@ -205,7 +212,7 @@ class Squad:
         current_champ_where_known = current_champ[~np.isnan(current_champ)].astype(np.int)
 
         if len(current_champ_where_known) <= 3:
-            logger.warning(f'Could not identify champion - average matches={np.nanmedian(arr, axis=0)}')
+            self.logger.warning(f'Could not identify champion - average matches={np.nanmedian(arr, axis=0)}')
             return None
 
         current_champ_where_known = arrayops.modefilt(current_champ_where_known, 9)
@@ -227,13 +234,13 @@ class Squad:
 
             if before != after:
                 if count_before > count_after:
-                    logger.warning(
+                    self.logger.warning(
                         f'Champion changed from {before} -> {after} at {count_before} / {len(current_champ_where_known)} - '
                         f'using first champion'
                     )
                     return before
                 else:
-                    logger.warning(
+                    self.logger.warning(
                         f'Champion changed from {before} -> {after} at {count_before} / {len(current_champ_where_known)} - '
                         f'using second champion'
                     )
@@ -241,21 +248,21 @@ class Squad:
 
         champion, count = Counter(current_champ_where_known).most_common(1)[0]
         champion = champions[champion]
-        logger.info(f'Got champion={champion} ~ {count}')
+        self.logger.info(f'Got champion={champion} ~ {count}')
         return champion
 
     def _get_squad_kills(self, frames: List[Frame]) -> Optional[int]:
         squad_summary = [f.squad_summary for f in frames if 'squad_summary' in f]
-        logger.info(f'Parsing squad kills from {len(squad_summary)} squad summary frames')
+        self.logger.info(f'Parsing squad kills from {len(squad_summary)} squad summary frames')
         squad_kills_counter = Counter([s.squad_kills for s in squad_summary if s.squad_kills is not None])
         if not len(squad_kills_counter):
-            logger.warning(f'No squad kills parsed')
+            self.logger.warning(f'No squad kills parsed')
             return None
         else:
             squad_kills, count = squad_kills_counter.most_common(1)[0]
             if count != len(squad_summary):
-                logger.warning(f'Got disagreeing placed counts: {squad_kills_counter}')
-            logger.info(f'Got squad_kills={squad_kills}')
+                self.logger.warning(f'Got disagreeing placed counts: {squad_kills_counter}')
+            self.logger.info(f'Got squad_kills={squad_kills}')
             return squad_kills
 
     def __str__(self) -> str:
@@ -285,10 +292,12 @@ class CombatEvent:
 
 class Combat:
 
-    def __init__(self, frames: List[Frame], debug: Union[bool, str]= False):
+    logger = logging.getLogger('Combat')
+
+    def __init__(self, frames: List[Frame], placed: int, squad: Squad, debug: Union[bool, str]= False):
         self.combat_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'combat_log' in f]
         self.combat_data = [f.combat_log for f in frames if 'combat_log' in f]
-        logger.info(f'Resolving combat from {len(self.combat_data)} combat frames')
+        self.logger.info(f'Resolving combat from {len(self.combat_data)} combat frames')
 
         if debug is True or debug == self.__class__.__name__:
             import matplotlib.pyplot as plt
@@ -314,7 +323,7 @@ class Combat:
                 ]
                 if not len(matching):
                     # new event
-                    logger.info(f'Got new event @ {ts:.1f}s: {event}')
+                    self.logger.info(f'Got new event @ {ts:.1f}s: {event}')
                     combat_event = None
                     if event.type == 'ELIMINATED':
                         # If we see an ELIMINATED, it means we have also scored a knockdown on that player
@@ -327,7 +336,7 @@ class Combat:
                         if not len(matching_knockdowns):
                             # don't have a matching knockdown for this elim - create one now
                             knockdown = CombatEvent(ts, 'downed', inferred=True)
-                            logger.info(f'Could not find knockdown for {event} - inserting {knockdown}')
+                            self.logger.info(f'Could not find knockdown for {event} - inserting {knockdown}')
                             self.knockdowns.append(knockdown)
                             self.events.append(knockdown)
 
@@ -351,10 +360,29 @@ class Combat:
                     self.events.append(combat_event)
 
                 else:
-                    logger.info(f'Already seen event @ {ts:.1f}s: {event} {ts - matching[-1]:.1f}s ago')
+                    self.logger.info(f'Already seen event @ {ts:.1f}s: {event} {ts - matching[-1]:.1f}s ago')
                 seen_events.append((ts, event))
 
-        logger.info(
+        if placed == 1 and squad.player.stats.kills > len(self.eliminations):
+            last_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'match_status' in f][-1]
+            self.logger.warning(
+                f'Got won game with {squad.player.stats.kills} kills, but only saw {len(self.eliminations)} eliminations from combat - '
+                f'Trying to resolve final fight (ended {s2ts(last_timestamp)})'
+            )
+            # convert all recent kockdowns to elims
+            for knock in self.knockdowns:
+                print(last_timestamp - knock.timestamp)
+                if last_timestamp - knock.timestamp < 60:
+                    self.logger.warning(f'Adding elim for final-fight knockdown @{s2ts(knock.timestamp)}')
+                    self.eliminations.append(CombatEvent(last_timestamp, 'eliminated'))
+
+            if squad.player.stats.kills > len(self.eliminations):
+                # still lacking on elims - this player got the final kill
+                self.logger.warning(f'Still have outstanding kills - Adding down+elim for final kill of the match')
+                self.knockdowns.append(CombatEvent(last_timestamp, 'downed'))
+                self.eliminations.append(CombatEvent(last_timestamp, 'eliminated'))
+
+        self.logger.info(
             f'Got '
             f'eliminations: {self.eliminations}, '
             f'knockdowns: {self.knockdowns}, '
@@ -381,11 +409,12 @@ class WeaponStats:
 
 
 class Weapons:
+    logger = logging.getLogger('Weapons')
 
     def __init__(self, frames: List[Frame], combat: Combat, debug: Union[bool, str]= False):
         self.weapon_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'weapons' in f]
         self.weapon_data = [f.weapons for f in frames if 'weapons' in f]
-        logger.info(f'Resolving weapons from {len(self.weapon_data)} weapon frames')
+        self.logger.info(f'Resolving weapons from {len(self.weapon_data)} weapon frames')
 
         weapon1 = self._get_weapon_map(0)
         weapon1_selected_vals = np.array([w.selected_weapons[0] for w in self.weapon_data])
@@ -407,7 +436,7 @@ class Weapons:
         self._add_combat_weaponstats(combat)
         self.weapon_stats = sorted(self.weapon_stats, key=lambda stat: (stat.knockdowns, stat.time_active), reverse=True)
         self.weapon_stats = [w for w in self.weapon_stats if w.time_held > 15 or w.knockdowns > 0]
-        logger.info(f'Resolved weapon stats: {self.weapon_stats}')
+        self.logger.info(f'Resolved weapon stats: {self.weapon_stats}')
 
         if debug is True or debug == self.__class__.__name__:
             self._debug(combat, have_weapon, weapon1, weapon1_selected, weapon1_selected_vals, weapon2, weapon2_selected, weapon2_selected_vals)
@@ -475,13 +504,13 @@ class Weapons:
             first_weapon_index = have_weapon_inds[0] + 5
             if 0 <= first_weapon_index < len(self.weapon_timestamp):
                 ts = self.weapon_timestamp[first_weapon_index]
-                logger.info(f'Got first weapon pickup at {s2ts(ts)}')
+                self.logger.info(f'Got first weapon pickup at {s2ts(ts)}')
                 return ts
             else:
-                logger.warning(f'Got weapon pickup at invalid index: {first_weapon_index}')
+                self.logger.warning(f'Got weapon pickup at invalid index: {first_weapon_index}')
                 return None
         else:
-            logger.warning(f'Did not see any weapons')
+            self.logger.warning(f'Did not see any weapons')
             return None
 
     def _add_weapon_stats(self, weapon: Sequence[int], weapon_selected: Sequence[bool]) -> None:
@@ -524,10 +553,10 @@ class Weapons:
     def _get_weapon_at(self, timestamp: float, max_distance: float = 10) -> Optional[WeaponStats]:
         index = bisect.bisect(self.weapon_timestamp, timestamp) - 1
         if not (0 <= index < len(self.weapon_timestamp)):
-            logger.error(f'Got invalid index trying to find weapon @ {timestamp:.1f}s', exc_info=True)
+            self.logger.error(f'Got invalid index trying to find weapon @ {timestamp:.1f}s', exc_info=True)
             return None
 
-        logger.debug(
+        self.logger.debug(
             f'Trying to resolve weapon at {timestamp:.1f}s - '
             f'got weapon index={index} -> {self.weapon_timestamp[index]:.1f}s'
         )
@@ -535,7 +564,7 @@ class Weapons:
             check = index + ofs
             if 0 <= check < len(self.weapon_timestamp):
                 weap = self.selected_weapon_at[check]
-                logger.debug(f'ofs={ofs:+d} > ind={check} ts={self.weapon_timestamp[check]:.1f} > weap={weap.weapon if weap else None}')
+                self.logger.debug(f'ofs={ofs:+d} > ind={check} ts={self.weapon_timestamp[check]:.1f} > weap={weap.weapon if weap else None}')
 
         for fan_out in range(20):
             for sign in -1, 1:
@@ -546,10 +575,10 @@ class Weapons:
                     if distance < max_distance:
                         stat = self.selected_weapon_at[check]
                         if stat:
-                            logger.debug(f'Found {stat} at {ts:.1f}s - distance {distance}')
+                            self.logger.debug(f'Found {stat} at {ts:.1f}s - distance {distance}')
                             return stat
 
-        logger.warning(f'Could not find weapon for ts={timestamp:.1f}s')
+        self.logger.warning(f'Could not find weapon for ts={timestamp:.1f}s')
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -558,6 +587,7 @@ class Weapons:
 
 
 class Route:
+    logger = logging.getLogger('Route')
 
     def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, debug: Union[bool, str]= False):
         self.locations = []
@@ -573,14 +603,14 @@ class Route:
                 if dist < 150:
                     self.locations.append((ts - frames[0].timestamp, location.coordinates))
                 else:
-                    logger.warning(
+                    self.logger.warning(
                         f'Ignoring location {i}: {location} {dist:.1f} away from average {np.round(last, 1)}'
                     )
             recent.append(location.coordinates)
 
-        logger.info(f'Processing route from {len(self.locations)} locations')
+        self.logger.info(f'Processing route from {len(self.locations)} locations')
         if not len(self.locations):
-            logger.warning(f'Got no locations')
+            self.logger.warning(f'Got no locations')
             self.time_landed = None
             self.landed_location_index = None
             self.landed_location = None
@@ -590,7 +620,7 @@ class Route:
             if weapons.first_weapon_timestamp is not None:
                 self.time_landed = weapons.first_weapon_timestamp
             else:
-                logger.warning(f'Did not see weapon - assuming drop location = last location seen')
+                self.logger.warning(f'Did not see weapon - assuming drop location = last location seen')
                 self.time_landed = self.locations[-2][0]
             self.landed_location_index = max(0, min(bisect.bisect(self.locations, (self.time_landed, (0, 0))) + 1, len(self.locations) - 1))
 
@@ -653,7 +683,7 @@ class Route:
                 if self.locations_visited[-1] != location_name:
                     self.locations_visited.append(location_name)
             elif location_name != last_location[1]:
-                logger.info(f'Spent {ts - last_location[0]:.1f}s in {last_location[1]}')
+                self.logger.info(f'Spent {ts - last_location[0]:.1f}s in {last_location[1]}')
                 last_location = ts, location_name
 
     def make_image(self, combat: Optional[Combat] = None) -> np.ndarray:
@@ -705,10 +735,10 @@ class Route:
         xy = [l[1] for l in self.locations]
         index = min(max(0, bisect.bisect(ts, timestamp) - 1), len(ts) - 1)
         if not (0 <= index < len(ts)):
-            logger.error(f'Got invalid index {index} trying to find location @ {timestamp:.1f}s', exc_info=True)
+            self.logger.error(f'Got invalid index {index} trying to find location @ {timestamp:.1f}s', exc_info=True)
             return None
 
-        logger.debug(
+        self.logger.debug(
             f'Trying to resolve location at {timestamp:.1f}s - '
             f'got location index={index} -> {ts[index]:.1f}s'
         )
@@ -724,10 +754,10 @@ class Route:
                             level = logging.DEBUG
                         else:
                             level = logging.WARNING
-                        logger.log(level, f'Found {loc} at {ats:.1f}s - distance {distance}s')
+                        self.logger.log(level, f'Found {loc} at {ats:.1f}s - distance {distance}s')
                         return loc
 
-        logger.warning(f'Could not find location for ts={timestamp:.1f}s')
+        self.logger.warning(f'Could not find location for ts={timestamp:.1f}s')
         return None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -743,6 +773,7 @@ class Route:
 
 
 class ApexGame:
+    logger = logging.getLogger('ApexGame')
 
     def __init__(self, frames: List[Frame], key: str = None, debug: Union[bool, str]= False):
         your_squad_index = 0
@@ -751,10 +782,11 @@ class ApexGame:
                 your_squad_index = i
                 break
 
-        logger.info(f'Processing game from {len(frames) - your_squad_index} frames and {your_squad_index} menu frames')
+        self.logger.info(f'Processing game from {len(frames) - your_squad_index} frames and {your_squad_index} menu frames')
 
-        self.player_name = levenshtein.median([f.apex_play_menu.player_name for f in frames if 'apex_play_menu' in f])
-        logger.info(f'Resolved player name={repr(self.player_name)} from menu frames')
+        menu_names = [f.apex_play_menu.player_name for f in frames if 'apex_play_menu' in f]
+        self.player_name = levenshtein.median(menu_names)
+        self.logger.info(f'Resolved player name={repr(self.player_name)} from menu frames')
 
         self.frames = frames[your_squad_index:]
         self.timestamp = round(self.frames[0].timestamp, 2)
@@ -764,16 +796,17 @@ class ApexGame:
             datetimestr = datetime.datetime.utcfromtimestamp(self.timestamp).strftime('%Y-%m-%d-%H-%M')
             self.key = f'{datetimestr}-{shortuuid.uuid()[:6]}'
 
-        self.match_summary = [f.match_summary for f in self.frames if 'match_summary' in f]
-        self.match_status = [f.match_status for f in self.frames if 'match_status' in f]
+        self.match_summary_frames = [f.match_summary for f in self.frames if 'match_summary' in f]
+        self.match_status_frames = [f.match_status for f in self.frames if 'match_status' in f]
 
-        self.squad = Squad(self.frames, debug=debug)
-        self.combat = Combat(self.frames, debug=debug)
+        self.placed = self._get_placed(debug)
+
+        self.squad = Squad(self.frames, menu_names, debug=debug)
+        self.combat = Combat(self.frames, self.placed, self.squad, debug=debug)
         self.weapons = Weapons(self.frames, self.combat, debug=debug)
         self.route: Route = Route(self.frames, self.weapons, self.combat, debug=debug)
         # self.stats = Stats(frames, self.squad)  # TODO: stats using match summary
 
-        self.placed = self._get_placed(debug)
         self.kills = max(
             self._get_kills(debug) or 0,
             self.squad.player.stats.kills or 0 if self.squad.player.stats else 0,
@@ -782,42 +815,44 @@ class ApexGame:
         )
 
     def _get_placed(self, debug: Union[bool, str]= False) -> int:
-        logger.info(f'Getting squad placement from {len(self.match_summary)} summary frames and {len(self.match_status)} match status frames')
+        self.logger.info(f'Getting squad placement from '
+                         f'{len(self.match_summary_frames)} summary frames and '
+                         f'{len(self.match_status_frames)} match status frames')
 
         summary_placed: Optional[int] = None
-        if len(self.match_summary):
-            placed_counter = Counter([s.placed for s in self.match_summary])
+        if len(self.match_summary_frames):
+            placed_counter = Counter([s.placed for s in self.match_summary_frames])
             summary_placed, count = placed_counter.most_common(1)[0]
-            if count != len(self.match_summary):
-                logger.warning(f'Got disagreeing placed counts: {placed_counter}')
+            if count != len(self.match_summary_frames):
+                self.logger.warning(f'Got disagreeing placed counts: {placed_counter}')
 
-            logger.info(f'Got placed={summary_placed} from summary')
+            self.logger.info(f'Got placed={summary_placed} from summary')
         else:
-            logger.info(f'Did not get match summary')
+            self.logger.info(f'Did not get match summary')
 
         # TODO: detect CHAMPIONS OF THE ARENA and override placed as 1 if seen
 
-        if len(self.match_status) > 10:
+        if len(self.match_status_frames) > 10:
             # TODO: record this plot as edges
-            squads_alive = arrayops.modefilt([s.squads_left for s in self.match_status], 5)
+            squads_alive = arrayops.modefilt([s.squads_left for s in self.match_status_frames], 5)
             last_squads_alive = squads_alive[-1]
-            logger.info(f'Got placed={last_squads_alive} from last seen squads_alive')
+            self.logger.info(f'Got placed={last_squads_alive} from last seen squads_alive')
             if summary_placed:
                 if last_squads_alive != summary_placed:
-                    logger.warning(f'Match summary placed={summary_placed} did not agree with last seen squads_alive={last_squads_alive} - using summary')
+                    self.logger.warning(f'Match summary placed={summary_placed} did not agree with last seen squads_alive={last_squads_alive} - using summary')
                 return int(summary_placed)
             else:
                 return int(last_squads_alive)
         else:
-            logger.warning(f'Did not get any match summaries - using placed=20')
+            self.logger.warning(f'Did not get any match summaries - using placed=20')
             return 20
 
     def _get_kills(self, debug: Union[bool, str]= False) -> int:
-        summary_kills_seen = [s.xp_stats.kills for s in self.match_summary if s.xp_stats.kills is not None]
-        kills_seen = [s.kills for s in self.match_status if s.kills]
-        logger.info(
-            f'Getting kills from {len(self.match_summary)} summary frames with {len(summary_kills_seen)} killcounts parsed '
-            f'and {len(self.match_status)} match status frames with {len(kills_seen)} killcounts seen'
+        summary_kills_seen = [s.xp_stats.kills for s in self.match_summary_frames if s.xp_stats.kills is not None]
+        kills_seen = [s.kills for s in self.match_status_frames if s.kills]
+        self.logger.info(
+            f'Getting kills from {len(self.match_summary_frames)} summary frames with {len(summary_kills_seen)} killcounts parsed '
+            f'and {len(self.match_status_frames)} match status frames with {len(kills_seen)} killcounts seen'
         )
 
         summary_kills: Optional[int] = None
@@ -825,7 +860,7 @@ class ApexGame:
             kills_counter = Counter(summary_kills_seen)
             summary_kills, count = kills_counter.most_common(1)[0]
             if count != len(summary_kills_seen):
-                logger.warning(f'Got disagreeing summary kill counts: {kills_counter}')
+                self.logger.warning(f'Got disagreeing summary kill counts: {kills_counter}')
 
         if len(kills_seen) > 10:
             kills_seen = arrayops.modefilt(kills_seen, 5)
@@ -840,20 +875,20 @@ class ApexGame:
                 plt.show()
 
             final_kills = kills_seen[-1]
-            logger.info(f'Got final_kills={final_kills}')
+            self.logger.info(f'Got final_kills={final_kills}')
 
             last_killcount = int(final_kills)
         else:
-            logger.info(f'Only saw {len(kills_seen)} killcounts - using last_killcount=0')
+            self.logger.info(f'Only saw {len(kills_seen)} killcounts - using last_killcount=0')
             last_killcount = 0
 
         if summary_kills is not None:
             if summary_kills != last_killcount:
-                logger.warning(f'Match summary kills={summary_kills} did not agree with last seen kills={last_killcount}')
-            logger.info(f'Using summary_kills={summary_kills}')
+                self.logger.warning(f'Match summary kills={summary_kills} did not agree with last seen kills={last_killcount}')
+            self.logger.info(f'Using summary_kills={summary_kills}')
             return summary_kills
         else:
-            logger.warning(f'Did not get summary kills - using last seen kills={last_killcount}')
+            self.logger.warning(f'Did not get summary kills - using last seen kills={last_killcount}')
             return last_killcount
 
     @property
@@ -873,7 +908,7 @@ class ApexGame:
         for season in data.seasons:
             if season.start < self.timestamp < season.end:
                 return season.index
-        logger.error(f'Could not get season for {self.timestamp} - using {len(data.seasons)}', exc_info=True)
+        self.logger.error(f'Could not get season for {self.timestamp} - using {len(data.seasons)}', exc_info=True)
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(' \
