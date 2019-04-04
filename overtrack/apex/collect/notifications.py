@@ -51,7 +51,6 @@ class DiscordMessage:
         if summary.landed != 'Unknown':
             description += f'\nDropped {summary.landed}'
         description += '\n'
-
         self.game_embed = {
             'author': {
                 'name': 'overtrack.gg',
@@ -60,12 +59,17 @@ class DiscordMessage:
             },
             'color': self.colors.get(game.placed, self.COLOR_BASE),
             'title': f'{name} placed #{game.placed}',
+            'url': url,
             'thumbnail': {
                 'url': f'{self.IMAGE_PREFIX}{game.squad.player.champion}.png'
             },
             'description': description,
-            'url': url,
+            'timestamp': game.time.strftime('%Y-%m-%d %H:%M:%S'),
+            'footer': {
+                'text': f'Duration {game.duration // 60:.0f}:{game.duration % 60:.0f}'
+            }
         }
+
         logger.info(f'Prepared game embed for {self}:\n{pformat(self.game_embed)}')
 
     def send(self, channel_id: str) -> bool:
