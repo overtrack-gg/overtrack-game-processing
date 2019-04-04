@@ -125,7 +125,7 @@ def send_notifications(user_id: int, game: ApexGame, summary: ApexGameSummary, u
 
     for discord_integration in DiscordBotNotification.user_id_index.query(user_id):
         top3_only = discord_integration.notification_data.get('top3_only', False)
-        if (top3_only and summary.placed >= 3) or not top3_only:
+        if (top3_only and summary.placed <= 3) or not top3_only:
             logger.info(f'Sending {summary} to {discord_integration}')
             message.send(discord_integration.channel_id)
         else:
