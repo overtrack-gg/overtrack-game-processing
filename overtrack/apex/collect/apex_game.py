@@ -594,7 +594,7 @@ class Route:
         recent = deque(maxlen=5)
         for i, frame in enumerate([f for f in frames if 'location' in f]):
             ts, location = frame.timestamp, frame.location
-            if location.match > 0.85:
+            if location.match > 0.7:
                 continue
 
             if len(recent) >= recent.maxlen:
@@ -788,7 +788,28 @@ class ApexGame:
         self.player_name = levenshtein.median(menu_names)
         self.logger.info(f'Resolved player name={repr(self.player_name)} from menu frames')
 
-        self.frames = frames[your_squad_index:]
+        end_index = len(frames) - 1
+        for i in range(end_index, 0, -1):
+            if 'squad_summary' in frames[i]:
+                self.logger.info(
+                    f'Found last squad_summary at {i} -> {s2ts(frames[i].timestamp - frames[your_squad_index].timestamp)}: '
+                    f'pulling end back from {end_index} -> {s2ts(frames[-1].timestamp - frames[your_squad_index].timestamp)}. '
+                    f'{end_index - i} frames dropped'
+                )
+                end_index = i
+                break
+            elif 'match_status' in frames[i]:
+                self.logger.info(
+                    f'Found last match_status at {i} -> {s2ts(frames[i].timestamp - frames[your_squad_index].timestamp)}: '
+                    f'pulling end back from {end_index} -> {s2ts(frames[-1].timestamp - frames[your_squad_index].timestamp)}. '
+                    f'{(end_index + 10) - i} frames dropped'
+                )
+                end_index = i + 10
+                break
+        else:
+            logger.warning(f'Did not see squad_summary or match_status - not trimming')
+
+        self.frames = frames[your_squad_index:end_index]
         self.timestamp = round(self.frames[0].timestamp, 2)
         if key:
             self.key = key
