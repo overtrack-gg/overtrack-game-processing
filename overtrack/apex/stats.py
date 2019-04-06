@@ -24,7 +24,10 @@ scoring = np.array([_get_points(i) for i in range(1, 21)])
 
 def placement_score(games: List[ApexGameSummary]) -> Tuple[int, float]:
     placed = [g.placed for g in games]
-    return int(np.mean(scoring[np.array(placed) - 1])), 1.
+    scores = scoring[np.array(placed) - 1]
+    print(scores)
+    print(np.mean(scores))
+    return round(float(np.mean(scores)), 1), 1.
 
 
 def kill_score(games: List[ApexGameSummary]) -> Tuple[int, float]:
@@ -32,7 +35,7 @@ def kill_score(games: List[ApexGameSummary]) -> Tuple[int, float]:
     kills = np.array([g.kills for g in valid_games])
     placed = np.array([g.placed for g in valid_games])
     aggression_scores = kills / ((20 - np.clip(placed, 1, 19)) * 3)
-    return int(np.mean(aggression_scores) * 1000), len(aggression_scores) / len(games)
+    return round(float(np.mean(aggression_scores) * 1000), 1), len(aggression_scores) / len(games)
 
 
 def squad_kills_contribution(games: List[ApexGameSummary]) -> Tuple[float, float]:
