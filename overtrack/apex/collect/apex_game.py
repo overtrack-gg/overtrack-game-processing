@@ -818,6 +818,7 @@ class ApexGame:
             self.key = f'{datetimestr}-{shortuuid.uuid()[:6]}'
 
         self.match_summary_frames = [f.match_summary for f in self.frames if 'match_summary' in f]
+        self.squad_summary_frames = [f.squad_summary for f in self.frames if 'squad_summary' in f]
         self.match_status_frames = [f.match_status for f in self.frames if 'match_status' in f]
 
         self.placed = self._get_placed(debug)
@@ -837,7 +838,8 @@ class ApexGame:
 
     def _get_placed(self, debug: Union[bool, str]= False) -> int:
         self.logger.info(f'Getting squad placement from '
-                         f'{len(self.match_summary_frames)} summary frames and '
+                         f'{len(self.match_summary_frames)} summary frames, '
+                         f'{len(self.squad_summary_frames)} squad summary frames, '
                          f'{len(self.match_status_frames)} match status frames')
 
         summary_placed: Optional[int] = None
@@ -852,6 +854,12 @@ class ApexGame:
             self.logger.info(f'Did not get match summary')
 
         # TODO: detect CHAMPIONS OF THE ARENA and override placed as 1 if seen
+
+        if len(self.squad_summary_frames):
+            champions = np.mean([s.champions for s in self.squad_summary_frames])
+            if champions > 0.75:
+                logger.info(f'Got champions={champions:1.1f} from squad summary - using placed=1')
+                return 1
 
         if len(self.match_status_frames) > 10:
             # TODO: record this plot as edges
