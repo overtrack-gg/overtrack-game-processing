@@ -151,6 +151,12 @@ def tesser_ocr(
         blur: Optional[float] = None,
         engine: tesserocr.PyTessBaseAPI = tesseract_only) -> Optional[T]:
 
+    if image.shape[0] <= 1 or image.shape[1] <= 1:
+        if not expected_type or expected_type is str:
+            return ''
+        else:
+            return None
+
     if whitelist is None:
         if expected_type is int:
             whitelist = string.digits

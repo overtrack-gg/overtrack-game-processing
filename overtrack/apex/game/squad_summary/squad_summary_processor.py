@@ -75,7 +75,8 @@ class SquadSummaryProcessor(Processor):
         if match > self.REQUIRED_MATCH:
             frame.squad_summary = SquadSummary(
                 champions=champions,
-                squad_kills=self._process_squad_kills(frame),
+                placed=self._process_yellowtext(self.REGIONS['placed'].extract_one(frame.image), hash=True),
+                squad_kills=self._process_yellowtext(self.REGIONS['squad_kills'].extract_one(frame.image), hash=False),
                 player_stats=self._process_player_stats(y)
             )
             self.REGIONS.draw(frame.debug_image)
@@ -84,28 +85,42 @@ class SquadSummaryProcessor(Processor):
 
         return False
 
-    def _process_squad_kills(self, frame: Frame) -> Optional[int]:
-        squad_kills_image = self.REGIONS['squad_kills'].extract_one(frame.image).copy()
-
+    def _process_yellowtext(self, image: np.ndarray, hash: bool) -> Optional[int]:
         # mask out only yellow text (digits)
         yellow = cv2.inRange(
-            squad_kills_image,
+            image,
             (0,  40,  150),
             (90, 230, 255)
         )
         yellow = cv2.dilate(yellow, None)
-        squad_kills_image = cv2.bitwise_and(squad_kills_image, cv2.cvtColor(yellow, cv2.COLOR_GRAY2BGR))
+        squad_kills_image = cv2.bitwise_and(image, cv2.cvtColor(yellow, cv2.COLOR_GRAY2BGR))
+        squad_kills_image_g = np.max(squad_kills_image, axis=2)
+        squad_kills_image_g = cv2.erode(squad_kills_image_g, np.ones((2,2)))
 
         # cv2.imshow('yellow', yellow)
         # cv2.imshow('squad_kills_image', squad_kills_image)
+        # cv2.imshow('squad_kills_image_g', squad_kills_image_g)
+        # debugops.test_tesser_engines(squad_kills_image_g, scale=4)
 
-        squad_kills = imageops.tesser_ocr(
-            squad_kills_image,
-            engine=ocr.tesseract_ttlakes,
-            expected_type=int
+        text = imageops.tesser_ocr(
+            squad_kills_image_g,
+            engine=imageops.tesseract_lstm,
+            scale=4,
+            blur=4,
+            invert=True
         )
-        logger.info(f'Got squad_kills={squad_kills}')
-        return squad_kills
+        logger.info(f'Got text={text}')
+
+        # debugops.tesser_ocr(squad_kills_image_g, vscale=5)
+
+        if hash:
+            text = text.replace('#', '')
+
+        try:
+            return int(text)
+        except ValueError:
+            logger.warning(f'Could not parse "{text}" as int')
+            return None
 
     def _process_player_stats(self, y: np.ndarray) -> Tuple[PlayerStats, PlayerStats, PlayerStats]:
         names = []

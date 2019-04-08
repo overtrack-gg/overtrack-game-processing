@@ -17,7 +17,8 @@ class PlayerStats:
 @dataclass
 class SquadSummary:
     champions: bool
-    # placed: Optional[int]
     squad_kills: Optional[int]
     player_stats: Tuple[PlayerStats, PlayerStats, PlayerStats]
+
+    placed: Optional[int] = None
 

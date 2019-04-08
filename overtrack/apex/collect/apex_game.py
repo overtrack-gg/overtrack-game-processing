@@ -842,39 +842,55 @@ class ApexGame:
                          f'{len(self.squad_summary_frames)} squad summary frames, '
                          f'{len(self.match_status_frames)} match status frames')
 
-        summary_placed: Optional[int] = None
+        match_summary_placed: Optional[int] = None
         if len(self.match_summary_frames):
             placed_counter = Counter([s.placed for s in self.match_summary_frames])
-            summary_placed, count = placed_counter.most_common(1)[0]
+            match_summary_placed, count = placed_counter.most_common(1)[0]
             if count != len(self.match_summary_frames):
-                self.logger.warning(f'Got disagreeing placed counts: {placed_counter}')
+                self.logger.warning(f'Got disagreeing match summary placed counts: {placed_counter}')
 
-            self.logger.info(f'Got placed={summary_placed} from summary')
+            self.logger.info(f'Got match summary > placed={match_summary_placed} from summary')
         else:
             self.logger.info(f'Did not get match summary')
 
-        # TODO: detect CHAMPIONS OF THE ARENA and override placed as 1 if seen
-
+        squad_summary_placed: Optional[int] = None
         if len(self.squad_summary_frames):
             champions = np.mean([s.champions for s in self.squad_summary_frames])
             if champions > 0.75:
-                logger.info(f'Got champions={champions:1.1f} from squad summary - using placed=1')
+                logger.info(f'Got champions={champions:1.1f} from squad summary - using placed = 1')
                 return 1
+
+            placed_vals = [s.placed for s in self.squad_summary_frames if s.placed]
+            if len(placed_vals):
+                placed_counter = Counter(placed_vals)
+                squad_summary_placed, count = placed_counter.most_common(1)[0]
+                if count != len(self.squad_summary_frames):
+                    self.logger.warning(f'Got disagreeing squad summary placed counts: {placed_counter}')
+
+                self.logger.info(f'Got squad summary > placed = {squad_summary_placed}')
 
         if len(self.match_status_frames) > 10:
             # TODO: record this plot as edges
             squads_alive = arrayops.modefilt([s.squads_left for s in self.match_status_frames], 5)
-            last_squads_alive = squads_alive[-1]
-            self.logger.info(f'Got placed={last_squads_alive} from last seen squads_alive')
-            if summary_placed:
-                if last_squads_alive != summary_placed:
-                    self.logger.warning(f'Match summary placed={summary_placed} did not agree with last seen squads_alive={last_squads_alive} - using summary')
-                return int(summary_placed)
-            else:
-                return int(last_squads_alive)
+            last_squads_alive = int(squads_alive[-1])
+            self.logger.info(f'Got last seen squads alive = {last_squads_alive}')
         else:
-            self.logger.warning(f'Did not get any match summaries - using placed=20')
-            return 20
+            self.logger.warning(f'Did not get any match summaries - last seen squads alive = 20')
+            last_squads_alive = 20
+
+        if match_summary_placed and squad_summary_placed:
+            if match_summary_placed != squad_summary_placed:
+                logger.error(f'Got match summary > placed: {match_summary_placed} != squad summary > placed: {squad_summary_placed}')
+
+        if match_summary_placed:
+            logger.info(f'Using placed from match summary: {match_summary_placed}')
+            return match_summary_placed
+        elif squad_summary_placed:
+            logger.info(f'Using placed from squad summary: {squad_summary_placed}')
+            return squad_summary_placed
+        else:
+            logger.info(f'Using placed from last squads alive: {last_squads_alive}')
+            return last_squads_alive
 
     def _get_kills(self, debug: Union[bool, str]= False) -> int:
         summary_kills_seen = [s.xp_stats.kills for s in self.match_summary_frames if s.xp_stats.kills is not None]
