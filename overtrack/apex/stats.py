@@ -25,8 +25,6 @@ scoring = np.array([_get_points(i) for i in range(1, 21)])
 def placement_score(games: List[ApexGameSummary]) -> Tuple[int, float]:
     placed = [g.placed for g in games]
     scores = scoring[np.array(placed) - 1]
-    print(scores)
-    print(np.mean(scores))
     return round(float(np.mean(scores)), 1), 1.
 
 
