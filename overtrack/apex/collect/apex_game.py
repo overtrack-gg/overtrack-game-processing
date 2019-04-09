@@ -150,6 +150,7 @@ class Squad:
             self._get_squadmate_champion(0, debug),
             self._get_squadmate_champion(1, debug)
         ]
+        self.logger.info(f'Resolved names and champions: {list(zip(names, champions))}')
 
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
         if len(squad_summaries):
@@ -165,7 +166,10 @@ class Squad:
             for name in names:
                 matches.append([])
                 for player_stats in all_player_stats:
-                    matches[-1].append(levenshtein.seqratio([name] * len(player_stats), [s.name for s in player_stats]))
+                    if name:
+                        matches[-1].append(levenshtein.seqratio([name] * len(player_stats), [s.name for s in player_stats]))
+                    else:
+                        matches[-1].append(0)
 
             table = [[names[i]] + matches[i] for i in range(3)]
             headers = [levenshtein.median([s.name for s in stats]) for stats in all_player_stats]
@@ -244,7 +248,7 @@ class Squad:
 
     def _median_name(self, names: List[str]):
         name = levenshtein.median(names)
-        self.logger.debug(f'Resolving median name {Counter(names)}/{len(names)} -> {name}')
+        self.logger.info(f'Resolving median name {Counter(names)}/{len(names)} -> {name}')
         return name
 
     def _get_name(self, menu_names: List[str]) -> Optional[str]:
