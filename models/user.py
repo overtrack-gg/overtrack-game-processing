@@ -66,7 +66,7 @@ class UsernameIndex(GlobalSecondaryIndex):
         write_capacity_units = 1
         projection = AllProjection()
 
-    twitch_id = UnicodeAttribute(attr_name='username', hash_key=True)
+    username = UnicodeAttribute(attr_name='username', hash_key=True)
 
     def get(self, username: str) -> 'User':
         try:
