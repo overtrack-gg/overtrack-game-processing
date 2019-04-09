@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import Levenshtein as levenshtein
 import numpy as np
 import shortuuid
+import tabulate
 import typedload
 from dataclasses import dataclass, fields
 
@@ -42,7 +43,13 @@ class PlayerStats:
 class Player:
     logger = logging.getLogger('Player')
 
-    def __init__(self, name: Optional[str], champion: str, frames: List[Frame], use_match_summary: bool = False):
+    def __init__(self,
+                 name: Optional[str],
+                 champion: str,
+                 stats: List[SquadSummaryStats],
+                 frames: List[Frame],
+                 use_match_summary: bool = False):
+
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
 
         self.logger.info(
@@ -52,29 +59,15 @@ class Player:
         self.name = name
         self.champion = champion
 
-        if len(squad_summaries) and self.name:
-            each_stats: Tuple[List[SquadSummaryStats], List[SquadSummaryStats], List[SquadSummaryStats]] = ([], [], [])
-            for summary in squad_summaries:
-                for i in range(3):
-                    each_stats[i].append(summary.player_stats[i])
-
-            matches = [levenshtein.seqratio([name] * len(stats), [s.name for s in stats]) for stats in each_stats]
-            best = arrayops.argmax(matches)
-            if matches[best] < 0.85:
-                self.logger.warning(f'Got potentially bad match {name}<->{[Counter(s.name for s in stat) for stat in each_stats]} ~ {best}: {matches[best]:1.2f}')
-            else:
-                self.logger.info(f'Got stats for {name} = {Counter(s.name for s in each_stats[best])}')
-
-            own_stats: List[SquadSummaryStats] = each_stats[best]
-
+        if len(stats):
             # use name from stats screen as this is easier to OCR
-            names = [s.name for s in own_stats]
+            names = [s.name for s in stats]
             own_stats_name = levenshtein.median(names)
-            if len(names) > 3 and own_stats_name != self.name:
+            if len(names) > 3 and own_stats_name != self.name and len(own_stats_name) > 3:
                 self.logger.warning(f'Updating name from game name to stats name: "{self.name}" -> "{own_stats_name}"')
                 self.name = own_stats_name
 
-            self.stats = self._get_mode_stats(own_stats)
+            self.stats = self._get_mode_stats(stats)
         else:
             self.stats = None
 
@@ -147,16 +140,82 @@ class Squad:
         self.squad = [f.squad for f in frames if 'squad' in f]
         self.logger.info(f'Processing squad from {len(self.squad)} squad frames')
 
-        self.player = Player(
+        names = [
             self._get_name(menu_names),
+            self._get_squadmate_name(0),
+            self._get_squadmate_name(1)
+        ]
+        champions = [
             self._get_champion(debug),
-            frames,
-            use_match_summary=True
-        )
-        self.squadmates = (
-            Player(self._get_squadmate_name(0), self._get_squadmate_champion(0, debug), frames),
-            Player(self._get_squadmate_name(1), self._get_squadmate_champion(1, debug), frames),
-        )
+            self._get_squadmate_champion(0, debug),
+            self._get_squadmate_champion(1, debug)
+        ]
+
+        squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
+        if len(squad_summaries):
+            self.logger.info(f'Resolving players from {len(squad_summaries)} squad summary frames')
+            all_player_stats: List[List[SquadSummaryStats]] = [[], [], []]
+            for summary in squad_summaries:
+                for i in range(3):
+                    all_player_stats[i].append(summary.player_stats[i])
+
+            self.player = None
+            self.squadmates = (None, None)
+            matches = []
+            for name in names:
+                matches.append([])
+                for player_stats in all_player_stats:
+                    matches[-1].append(levenshtein.seqratio([name] * len(player_stats), [s.name for s in player_stats]))
+
+            table = [[names[i]] + matches[i] for i in range(3)]
+            headers = [levenshtein.median([s.name for s in stats]) for stats in all_player_stats]
+            self.logger.info(f'Got name/stat matches:\n{tabulate.tabulate(table, headers=headers)}')
+
+            matches = np.array(matches)
+            for i in range(3):
+                names_index, stats_index = np.unravel_index(np.argmax(matches), matches.shape)
+                match = matches[names_index, stats_index]
+                name = names[names_index]
+                champion = champions[names_index]
+                stats = all_player_stats[stats_index]
+                if match > 0.75:
+                    self.logger.info(f'Matched {name} <-> {headers[stats_index]}: {match:1.2f} - champion={champion}')
+                else:
+                    self.logger.warning(
+                        f'Got potentially bad match {name}<->{[Counter(s.name for s in stats)]}: {match:1.2f} - '
+                        f'champion={champion} ({2-i} other options)'
+                    )
+                matches[names_index, :] = -1
+                matches[:, stats_index] = -1
+
+                player = Player(
+                    name,
+                    champion,
+                    stats,
+                    frames,
+                    use_match_summary=names_index == 0
+                )
+                if names_index == 0:
+                    self.player = player
+                elif names_index == 1:
+                    self.squadmates = (player, self.squadmates[1])
+                else:
+                    self.squadmates = (self.squadmates[0], player)
+        else:
+            logger.info(f'Did not get any squad summary frames')
+
+            self.player = Player(
+                names[0],
+                champions[0],
+                [],
+                frames,
+                use_match_summary=True
+            )
+            self.squadmates = (
+                Player(names[1], champions[1], [], frames),
+                Player(names[2], champions[2], [], frames),
+            )
+
         self.squad_kills = self._get_squad_kills(frames)
 
         if debug is True or debug == self.__class__.__name__:
@@ -250,6 +309,24 @@ class Squad:
         champion = champions[champion]
         self.logger.info(f'Got champion={champion} ~ {count}')
         return champion
+
+    def _get_matching_stats(self, name: str, player_summary_stats: List[List[SquadSummaryStats]]) -> List[SquadSummaryStats]:
+        self.logger.info(
+            f'Trying to match player name {name} against {len(player_summary_stats)} sets of stats: '
+            f'{[levenshtein.median([s.name for s in stats]) for stats in player_summary_stats]}'
+        )
+        matches = [levenshtein.seqratio([name] * len(stats), [s.name for s in stats]) for stats in player_summary_stats]
+        best = arrayops.argmax(matches)
+        match = player_summary_stats[best]
+        if matches[best] < 0.85:
+            self.logger.warning(
+                f'Got potentially bad match {name}<->{[Counter(s.name for s in stat) for stat in player_summary_stats]} ~ '
+                f'{best}: {matches[best]:1.2f}'
+            )
+        else:
+            self.logger.info(f'Got stats for {name} = {Counter(s.name for s in player_summary_stats[best])}')
+        player_summary_stats.remove(match)
+        return match
 
     def _get_squad_kills(self, frames: List[Frame]) -> Optional[int]:
         squad_summary = [f.squad_summary for f in frames if 'squad_summary' in f]
