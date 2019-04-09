@@ -191,20 +191,40 @@ def show_ocr_segmentations(names: List[np.ndarray], **kwargs: Any) -> None:
 
 
 def tesser_ocr(im: np.ndarray, vscale: float = 3, **kwargs) -> None:
+    import overtrack.apex.ocr
+
     def update(_: int) -> None:
         scale = max(1, cv2.getTrackbarPos('scale', 'ocr'))
-        blur = max(1, cv2.getTrackbarPos('blur', 'ocr') / 10)
+        blur = max(0, cv2.getTrackbarPos('blur', 'ocr') / 10)
         invert = cv2.getTrackbarPos('invert', 'ocr')
 
-        text = imageops.tesser_ocr(
-            im,
-            scale=scale,
-            blur=blur,
-            invert=bool(invert),
+        print(scale, blur, invert)
+        table = []
+        for name, engine in [
+            ('tesseract_lstm', imageops.tesseract_lstm),
+            ('tesseract_futura', imageops.tesseract_futura),
+            ('tesseract_only', imageops.tesseract_only),
 
-            **kwargs
-        )
-        print(text)
+            ('tesseract_ttlakes_digits', overtrack.apex.ocr.tesseract_ttlakes_digits),
+            ('tesseract_ttlakes', overtrack.apex.ocr.tesseract_ttlakes),
+            ('tesseract_ttlakes_medium', overtrack.apex.ocr.tesseract_ttlakes_medium),
+            ('tesseract_arame', overtrack.apex.ocr.tesseract_arame),
+            ('tesseract_mensura', overtrack.apex.ocr.tesseract_mensura),
+        ]:
+            imageops.tesser_ocr(
+                im,
+                scale=scale,
+                blur=blur,
+                invert=bool(invert),
+
+                engine=engine,
+
+                **kwargs
+            )
+            table.append((name, engine.GetUTF8Text(), engine.AllWordConfidences()))
+        import tabulate
+        print(tabulate.tabulate(table))
+        print()
 
     cv2.namedWindow('ocr')
     cv2.createTrackbar('scale', 'ocr', 4, 10, update)
@@ -224,8 +244,11 @@ def tesser_ocr(im: np.ndarray, vscale: float = 3, **kwargs) -> None:
     cv2.destroyAllWindows()
 
 
-def test_tesser_engines(image: np.ndarray) -> None:
+def test_tesser_engines(image: np.ndarray, scale: float = 1.) -> None:
     import overtrack.apex.ocr
+
+    if scale != 0:
+        image = cv2.resize(image, (0, 0), fx=scale, fy=scale)
 
     table = []
     for name, engine in [
