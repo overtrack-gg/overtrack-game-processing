@@ -84,6 +84,6 @@ class ApexGameSummary(Model):
         return datetime.datetime.utcfromtimestamp(self.timestamp)
 
     def __str__(self) -> str:
-        return f'ApexGameSummary(key={self.key}, time={self.time}, url={self.url})'
+        return f'ApexGameSummary(key={self.key}, time={self.time}, placed={self.placed}, url={self.url})'
 
     __repr__ = __str__
