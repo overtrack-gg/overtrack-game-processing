@@ -69,7 +69,10 @@ class ApexGameSummary(Model):
             timestamp=game.timestamp,
             duration=game.duration,
             champion=game.squad.player.champion,
-            squadmates=(game.squad.squadmates[0].champion, game.squad.squadmates[1].champion),
+            squadmates=(
+                game.squad.squadmates[0].champion if game.squad.squadmates[0] else None,
+                game.squad.squadmates[1].champion if game.squad.squadmates[1] else None
+            ),
             kills=game.kills,
             knockdowns=len(game.combat.knockdowns),
             placed=game.placed,
