@@ -712,19 +712,43 @@ class Weapons:
 class Route:
     logger = logging.getLogger('Route')
 
-    def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, debug: Union[bool, str]= False):
+    def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, debug: Union[bool, str] = False):
+
+        alive = np.array([
+            ('squad' in f or 'match_status' in f) for f in frames
+        ])
+        alive = np.convolve(alive, np.ones(10, ), mode='valid')
+        alive_at = np.zeros(int((frames[-1].timestamp - frames[0].timestamp) / 10) + 5, dtype=np.bool)
+        alive_at[:20] = True
+        alive_at[-20:] = True
+        for f, a in zip(frames, alive):
+            alive_at[int((f.timestamp - frames[0].timestamp) / 10)] |= (a > 0)
+
+        if debug is True or debug == self.__class__.__name__:
+            import matplotlib.pyplot as plt
+
+            plt.figure()
+            plt.plot([f.timestamp for f in frames[:-9]], alive)
+
+            plt.figure()
+            plt.scatter(np.linspace(0, 10 * alive_at.shape[0], alive_at.shape[0]), alive_at)
+            plt.show()
+
         self.locations = []
         recent = deque(maxlen=5)
         for i, frame in enumerate([f for f in frames if 'location' in f]):
             ts, location = frame.timestamp, frame.location
+            rts = ts - frames[0].timestamp
             if location.match > 0.7:
                 continue
 
             if len(recent) >= recent.maxlen:
                 last = np.mean(recent, axis=0)
                 dist = np.sqrt(np.sum((np.array(last) - np.array(location.coordinates)) ** 2))
-                if dist < 150:
-                    self.locations.append((ts - frames[0].timestamp, location.coordinates))
+                if not alive_at[int(rts / 10)]:
+                    pass  # ignore route - not from this player
+                elif dist < 150:
+                    self.locations.append((rts, location.coordinates))
                 else:
                     self.logger.warning(
                         f'Ignoring location {i}: {location} {dist:.1f} away from average {np.round(last, 1)}'
@@ -769,6 +793,7 @@ class Route:
 
     def _debug(self, frames):
         import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d import Axes3D
 
         plt.figure()
         plt.title('Location Match')
@@ -793,6 +818,19 @@ class Route:
 
         plt.figure()
         plt.imshow(cv2.cvtColor(self.make_image(), cv2.COLOR_BGR2RGB), interpolation='none')
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        x = [l[1][0] for l in self.locations]
+        y = [l[1][1] for l in self.locations]
+        t = [l[0] for l in self.locations]
+        ax.scatter(x, y, t, c='green', marker='o')
+
+        ts = np.array([l[0] for l in self.locations])
+        plt.figure()
+        plt.title('time offsets')
+        plt.plot(ts[1:] - ts[:-1])
+
         plt.show()
 
     def _process_locations_visited(self):
