@@ -6,7 +6,7 @@ from pynamodb.attributes import NumberAttribute, UnicodeAttribute
 from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
 from pynamodb.models import Model
 
-from models.common import TupleAttribute
+from models.common import TupleAttribute, OverTrackModel
 
 if TYPE_CHECKING:
     from overtrack.apex.collect.apex_game import ApexGame
@@ -33,7 +33,7 @@ class UserIDTimeIndex(GlobalSecondaryIndex):
 #     name: UnicodeAttribute()
 
 
-class ApexGameSummary(Model):
+class ApexGameSummary(OverTrackModel):
     class Meta:
         table_name = os.environ.get('APEX_GAME_TABLE', 'overtrack_apex_games')
         region = os.environ.get('DYNAMODB_REGION', 'us-west-2')

@@ -184,7 +184,7 @@ class Squad:
             champions.append(self._get_squadmate_champion(1, debug, champions))
         else:
             champions.append(self._get_squadmate_champion(1, debug, champions))
-            champions.insert(1, self._get_squadmate_champion(1, debug, champions))
+            champions.insert(1, self._get_squadmate_champion(0, debug, champions))
 
         self.logger.info(f'Resolved names and champions: {list(zip(names, champions))}')
 
@@ -273,7 +273,9 @@ class Squad:
         arr = np.array([s.squadmate_champions[squadmate_index] for s in self.squad])
         inds = np.argsort(arr).T
         best_match = np.array([arr[i, inds[-1][i]] for i in range(inds.shape[1])])
+        best_match[np.isnan(best_match) | (best_match == 0)] = 0.01
         secondbest_match = np.array([arr[i, inds[-2][i]] for i in range(inds.shape[1])])
+        secondbest_match[np.isnan(secondbest_match)] = 0
         ratio = secondbest_match / best_match
         return int(np.sum((best_match > 0.9) & (ratio < 0.95)))
 
