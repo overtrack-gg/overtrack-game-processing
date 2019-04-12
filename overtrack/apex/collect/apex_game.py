@@ -569,7 +569,7 @@ class Weapons:
     logger = logging.getLogger('Weapons')
 
     def __init__(self, frames: List[Frame], combat: Combat, debug: Union[bool, str]= False):
-        self.weapon_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'weapons' in f]
+        self.weapon_timestamp = [round(f.timestamp - frames[0].timestamp, 2) for f in frames if 'weapons' in f]
         self.weapon_data = [f.weapons for f in frames if 'weapons' in f]
         self.logger.info(f'Resolving weapons from {len(self.weapon_data)} weapon frames')
 
@@ -772,7 +772,7 @@ class Route:
         recent = deque(maxlen=5)
         for i, frame in enumerate([f for f in frames if 'location' in f]):
             ts, location = frame.timestamp, frame.location
-            rts = ts - frames[0].timestamp
+            rts = round(ts - frames[0].timestamp, 2)
             if location.match > 0.7:
                 continue
 
