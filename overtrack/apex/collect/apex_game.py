@@ -170,10 +170,22 @@ class Squad:
             self._get_squadmate_name(1)
         ]
         champions = [
-            self._get_champion(debug),
-            self._get_squadmate_champion(0, debug),
-            self._get_squadmate_champion(1, debug)
+            self._get_champion(debug)
         ]
+        #     self._get_squadmate_champion(0, debug),
+        #     self._get_squadmate_champion(1, debug)
+        # ]
+
+        squadmate_champion_0_valid = self._get_champion_valid_count(0)
+        squadmate_champion_1_valid = self._get_champion_valid_count(1)
+
+        if squadmate_champion_0_valid > squadmate_champion_1_valid:
+            champions.append(self._get_squadmate_champion(0, debug, champions))
+            champions.append(self._get_squadmate_champion(1, debug, champions))
+        else:
+            champions.append(self._get_squadmate_champion(1, debug, champions))
+            champions.insert(1, self._get_squadmate_champion(1, debug, champions))
+
         self.logger.info(f'Resolved names and champions: {list(zip(names, champions))}')
 
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
@@ -257,6 +269,14 @@ class Squad:
 
         self.squad_kills = self._get_squad_kills(frames)
 
+    def _get_champion_valid_count(self, squadmate_index: int) -> int:
+        arr = np.array([s.squadmate_champions[squadmate_index] for s in self.squad])
+        inds = np.argsort(arr).T
+        best_match = np.array([arr[i, inds[-1][i]] for i in range(inds.shape[1])])
+        secondbest_match = np.array([arr[i, inds[-2][i]] for i in range(inds.shape[1])])
+        ratio = secondbest_match / best_match
+        return int(np.sum((best_match > 0.9) & (ratio < 0.95)))
+
     def _debug_champions(self, frames):
         import matplotlib.pyplot as plt
 
@@ -292,24 +312,36 @@ class Squad:
     def _get_squadmate_name(self, index: int) -> Optional[str]:
         return self._median_name([s.squadmate_names[index] for s in self.squad if s.squadmate_names[index]])
 
-    def _get_squadmate_champion(self, index: int, debug: Union[bool, str] = False) -> Optional[str]:
-        return self._get_matching_champion([s.squadmate_champions[index] for s in self.squad], debug)
+    def _get_squadmate_champion(self, index: int, debug: Union[bool, str] = False, other_champions: Optional[List[str]] = None) -> Optional[str]:
+        return self._get_matching_champion([s.squadmate_champions[index] for s in self.squad], debug, other_champions)
 
-    def _get_matching_champion(self, arr: List[List[float]], debug: Union[bool, str] = False) -> Optional[str]:
+    def _get_matching_champion(self, arr: List[List[float]], debug: Union[bool, str] = False, other_champions: Optional[List[str]] = None) -> Optional[str]:
         champions = list(data.champions.keys())
-
-        champion_match = np.nanpercentile(np.nanmax(arr, axis=1), 75)
-        if champion_match < 0.96:
-            self.logger.warning(f'Rejecting champion match={champion_match:1.2f}')
-            return None
+        if other_champions:
+            other_champion_inds = [champions.index(c) for c in other_champions]
         else:
-            self.logger.info(f'Got champion match={champion_match:1.2f}')
+            other_champion_inds = []
+
+        arr = np.array(arr)
+        inds = np.argsort(arr).T
+        best_match = np.nanpercentile(np.array([arr[i, inds[-1][i]] for i in range(inds.shape[1])]), 75)
+        secondbest_match = np.nanpercentile(np.array([arr[i, inds[-2][i]] for i in range(inds.shape[1])]), 75)
+        ratio = secondbest_match / best_match
+        if best_match < 0.9:
+            self.logger.warning(f'Rejecting champion match={best_match:1.2f}')
+            return None
+        # elif ratio > 0.92:
+        #     self.logger.warning(f'Rejecting champion ratio={ratio:1.2f}')
+        #     return None
+        else:
+            self.logger.info(f'Got champion match={best_match:1.2f}, ratio={ratio:1.2f}')
 
         current_champ = np.full((len(arr), ), fill_value=np.nan, dtype=np.float)
         for i, vals in enumerate(arr):
-            am = int(np.argmax(vals))
-            if vals[am] > 0.9:
-                current_champ[i] = am
+            inds = np.argsort(vals)
+            ratio = vals[inds[-2]] / vals[inds[-1]]
+            if vals[inds[-1]] > 0.9 and ratio < 0.95 and inds[-1] not in other_champion_inds:
+                current_champ[i] = inds[-1]
 
         current_champ_where_known = current_champ[~np.isnan(current_champ)].astype(np.int)
 
@@ -776,7 +808,7 @@ class Route:
                 l[1] for l
                 in self.locations[
                    max(0, self.landed_location_index - 2):
-                   min(self.landed_location_index + 3, len(self.locations) - 1)
+                   min(self.landed_location_index + 3, len(self.locations))
                    ]],
                 axis=0
             )
@@ -851,50 +883,52 @@ class Route:
         import cv2
         from overtrack.apex.game.map.map_processor import MapProcessor
         image = MapProcessor.MAP.copy()
-        last = self.locations[self.landed_location_index][1]
-        for ts, l in self.locations[self.landed_location_index + 1:]:
-            dist = np.sqrt(np.sum((np.array(last) - np.array(l)) ** 2))
-            cv2.line(
-                image,
-                last,
-                l,
-                (0, 255, 0) if dist < 60 else (0, 0, 255),
-                1,
-            )
-            last = l
 
-        if self.landed_location:
-            for t, c in (10, (0, 0, 0)), (2, (180, 0, 200)):
-                cv2.putText(
+        if len(self.locations):
+            last = self.locations[self.landed_location_index][1]
+            for ts, l in self.locations[self.landed_location_index + 1:]:
+                dist = np.sqrt(np.sum((np.array(last) - np.array(l)) ** 2))
+                cv2.line(
                     image,
-                    'Landed',
-                    self.landed_location,
-                    cv2.FONT_HERSHEY_COMPLEX_SMALL,
-                    1.2,
-                    c,
-                    t
+                    last,
+                    l,
+                    (0, 255, 0) if dist < 60 else (0, 0, 255),
+                    1,
                 )
+                last = l
 
-        if combat:
-            for event in combat.events:
-                location = self._get_location_at(event.timestamp)
-                if location:
+            if self.landed_location:
+                for t, c in (10, (0, 0, 0)), (2, (180, 0, 200)):
                     cv2.putText(
                         image,
-                        'x',
-                        location,
+                        'Landed',
+                        self.landed_location,
                         cv2.FONT_HERSHEY_COMPLEX_SMALL,
                         1.2,
-                        (0, 0, 255),
-                        1
+                        c,
+                        t
                     )
+
+            if combat:
+                for event in combat.events:
+                    location = self._get_location_at(event.timestamp)
+                    if location:
+                        cv2.putText(
+                            image,
+                            'x',
+                            location,
+                            cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                            1.2,
+                            (0, 0, 255),
+                            1
+                        )
 
         return image
 
     def _get_location_at(self, timestamp: float, max_distance: float = 120) -> Optional[Tuple[int, int]]:
         ts = [l[0] for l in self.locations]
         xy = [l[1] for l in self.locations]
-        index = min(max(0, bisect.bisect(ts, timestamp) - 1), len(ts) - 1)
+        index = min(max(0, bisect.bisect(ts, timestamp) - 1), len(ts))
         if not (0 <= index < len(ts)):
             self.logger.error(f'Got invalid index {index} trying to find location @ {timestamp:.1f}s', exc_info=True)
             return None
@@ -966,7 +1000,7 @@ class ApexGame:
 
         self.frames = frames[your_squad_first_index:game_end_index]
         self.all_frames = frames[your_squad_first_index:]
-        self.timestamp = round(self.frames[your_squad_last_index].timestamp, 2) + 10.  # CHAMPION SQUAD takes 10s after YOUR SQUAD, then dropship launches
+        self.timestamp = round(frames[your_squad_last_index].timestamp, 2) + 10.  # CHAMPION SQUAD takes 10s after YOUR SQUAD, then dropship launches
         self.duration = round(self.frames[-1].timestamp - self.frames[0].timestamp, 2)
         self.logger.info(
             f'Relative start: {s2ts(self.frames[0].timestamp - frames[0].timestamp)}, '
