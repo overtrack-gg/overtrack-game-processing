@@ -36,7 +36,7 @@ class PlayerStats:
             other_value = getattr(other, name)
             if own_value is None and other_value is not None:
                 setattr(self, name, other_value)
-            elif own_value is not None and other_value is not None:
+            elif own_value is not None and other_value is not None and own_value != other_value:
                 logger.warning(f'Got PlayerStats.{name} {own_value} != {other_value}')
 
 
@@ -406,17 +406,31 @@ class Squad:
         return match
 
     def _get_squad_kills(self, frames: List[Frame]) -> Optional[int]:
+        if self.player.stats and self.player.stats.kills is not None \
+                and self.squadmates[0].stats is not None and self.squadmates[0].stats.kills is not None \
+                and self.squadmates[1].stats is not None and self.squadmates[1].stats.kills is not None:
+            derived_squad_kills = self.player.stats.kills + self.squadmates[0].stats.kills + self.squadmates[1].stats.kills
+            logger.info(f'Deriving squad kills from stats: {derived_squad_kills}')
+        else:
+            derived_squad_kills = None
+
         squad_summary = [f.squad_summary for f in frames if 'squad_summary' in f]
         self.logger.info(f'Parsing squad kills from {len(squad_summary)} squad summary frames')
         squad_kills_counter = Counter([s.squad_kills for s in squad_summary if s.squad_kills is not None])
         if not len(squad_kills_counter):
-            self.logger.warning(f'No squad kills parsed')
-            return None
+            if derived_squad_kills:
+                self.logger.warning(f'Using derived squad kills from stats')
+            else:
+                self.logger.warning(f'No squad kills parsed')
+            return derived_squad_kills
         else:
             squad_kills, count = squad_kills_counter.most_common(1)[0]
             if count != len(squad_summary):
                 self.logger.warning(f'Got disagreeing placed counts: {squad_kills_counter}')
-            self.logger.info(f'Got squad_kills={squad_kills}')
+            self.logger.info(f'Got squad_kills from summary: {squad_kills}')
+            if derived_squad_kills and squad_kills != derived_squad_kills:
+                self.logger.warning(f'Got disagreeing squad kills: from stats={derived_squad_kills}, from summary= {squad_kills} - using stats')
+                return derived_squad_kills
             return squad_kills
 
     def __str__(self) -> str:
