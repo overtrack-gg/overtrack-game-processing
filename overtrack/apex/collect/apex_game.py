@@ -407,8 +407,8 @@ class Squad:
 
     def _get_squad_kills(self, frames: List[Frame]) -> Optional[int]:
         if self.player.stats and self.player.stats.kills is not None \
-                and self.squadmates[0].stats is not None and self.squadmates[0].stats.kills is not None \
-                and self.squadmates[1].stats is not None and self.squadmates[1].stats.kills is not None:
+                and self.squadmates[0] and self.squadmates[0].stats is not None and self.squadmates[0].stats.kills is not None \
+                and self.squadmates[1] and self.squadmates[1].stats is not None and self.squadmates[1].stats.kills is not None:
             derived_squad_kills = self.player.stats.kills + self.squadmates[0].stats.kills + self.squadmates[1].stats.kills
             logger.info(f'Deriving squad kills from stats: {derived_squad_kills}')
         else:
@@ -460,6 +460,18 @@ class CombatEvent:
     weapon: Optional[str] = None
     location: Optional[Tuple[int, int]] = None
 
+    def __str__(self):
+        r = f'CombatEvent(ts={s2ts(self.timestamp)}, type={self.type}'
+        if self.inferred:
+            r += f', inferred=True'
+        if self.weapon:
+            r += f', weapon={self.weapon}'
+        if self.location:
+            r += f', location={self.location}'
+        return r + ')'
+
+    __repr__ = __str__
+
 
 class Combat:
 
@@ -486,6 +498,7 @@ class Combat:
         self.knockdown_assists = []
 
         seen_events = []
+        combatevent_to_event = {}
         for ts, combat in zip(self.combat_timestamp, self.combat_data):
             for event in combat.events:
                 matching = [
@@ -501,7 +514,7 @@ class Combat:
                         # Because knocking and eliminating the last player is equivalent, only ELIMINATED will show
                         # Insert the missing knock down if needed
                         matching_knockdowns = [
-                            other_ts for other_ts, other in seen_events if
+                            (ts, other) for other_ts, other in seen_events if
                             ts - other_ts < 30 and other.type == 'KNOCKED DOWN' and abs(event.width - other.width) < 7
                         ]
                         if not len(matching_knockdowns):
@@ -529,9 +542,11 @@ class Combat:
 
                     # add last so inferred events are inserted first
                     self.events.append(combat_event)
+                    combatevent_to_event[id(combat_event)] = event
 
                 else:
                     self.logger.info(f'Already seen event @ {ts:.1f}s: {event} {ts - matching[-1]:.1f}s ago')
+
                 seen_events.append((ts, event))
 
         if placed == 1 and squad.player.stats and squad.player.stats.kills and squad.player.stats.kills > len(self.eliminations):
@@ -540,25 +555,33 @@ class Combat:
                 f'Got won game with {squad.player.stats.kills} kills, but only saw {len(self.eliminations)} eliminations from combat - '
                 f'Trying to resolve final fight (ended {s2ts(last_timestamp)})'
             )
-            # convert all recent kockdowns to elims
+            # detect recent knockdowns that don't have elims after them, and add the elim as it should be a final elim
             for knock in self.knockdowns:
-                print(last_timestamp - knock.timestamp)
                 if last_timestamp - knock.timestamp < 60:
-                    self.logger.warning(f'Adding elim for final-fight knockdown @{s2ts(knock.timestamp)}')
-                    self.eliminations.append(CombatEvent(last_timestamp, 'eliminated'))
+                    elims_following = [e for e in self.eliminations if e.timestamp > knock.timestamp]
+                    if not len(elims_following):
+                        final_elim = CombatEvent(last_timestamp, 'eliminated', inferred=True)
+                        self.eliminations.append(final_elim)
+                        self.logger.warning(f'Adding elim for final fight knockdown @{s2ts(knock.timestamp)}: {final_elim}')
 
-            if squad.player.stats.kills > len(self.eliminations):
+            while squad.player.stats.kills > len(self.eliminations):
                 # still lacking on elims - this player got the final kill
-                self.logger.warning(f'Still have outstanding kills - Adding down+elim for final kill of the match')
                 self.knockdowns.append(CombatEvent(last_timestamp, 'downed'))
                 self.eliminations.append(CombatEvent(last_timestamp, 'eliminated'))
+                self.logger.warning(f'Adding down+elim for final kill(s) of the match: {self.knockdowns[-1]}, {self.eliminations[-1]}')
+
+            # if len(self.eliminations) > len(self.knockdowns):
+            #     self.logger.warning(
+            #         f'Still have outstanding knockdowns: elims={len(self.eliminations)}, knockdowns={len(self.knockdowns)} - '
+            #         f'Adding down for final kill of the match'
+            #     )
 
         self.logger.info(
-            f'Got '
-            f'eliminations: {self.eliminations}, '
-            f'knockdowns: {self.knockdowns}, '
-            f'elimination_assists: {self.elimination_assists}, '
-            f'knockdown_assists: {self.knockdown_assists}'
+            f'Resolved combat:\n'
+            f'Eliminations: {self.eliminations}\n'
+            f'Knockdowns: {self.knockdowns}\n'
+            f'Elimination_assists: {self.elimination_assists}\n'
+            f'Knockdown_assists: {self.knockdown_assists}\n'
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -720,6 +743,7 @@ class Weapons:
             if weapon_stats:
                 weapon_stats.knockdowns += 1
                 event.weapon = weapon_stats.weapon
+                logger.info(f'Found weapon={weapon_stats.weapon} for {event}')
 
     def _get_weapon_at(self, timestamp: float, max_distance: float = 10) -> Optional[WeaponStats]:
         index = bisect.bisect(self.weapon_timestamp, timestamp) - 1
@@ -835,6 +859,7 @@ class Route:
 
         for event in combat.events:
             event.location = self._get_location_at(event.timestamp)
+            logger.info(f'Found location={data.map_locations[event.location]} for {event}')
 
         if debug is True or debug == self.__class__.__name__:
             self._debug(frames)
