@@ -320,7 +320,7 @@ class Squad:
     def _get_matching_champion(self, arr: List[List[float]], debug: Union[bool, str] = False, other_champions: Optional[List[str]] = None) -> Optional[str]:
         champions = list(data.champions.keys())
         if other_champions:
-            other_champion_inds = [champions.index(c) for c in other_champions]
+            other_champion_inds = [champions.index(c) for c in other_champions if c]
         else:
             other_champion_inds = []
 
@@ -840,7 +840,7 @@ class Route:
                 self.time_landed = weapons.first_weapon_timestamp
             else:
                 self.logger.warning(f'Did not see weapon - assuming drop location = last location seen')
-                self.time_landed = self.locations[-2][0]
+                self.time_landed = self.locations[-1][0]
             self.landed_location_index = max(0, min(bisect.bisect(self.locations, (self.time_landed, (0, 0))) + 1, len(self.locations) - 1))
 
             # average location of first 5 locations
@@ -859,7 +859,7 @@ class Route:
 
         for event in combat.events:
             event.location = self._get_location_at(event.timestamp)
-            logger.info(f'Found location={data.map_locations[event.location]} for {event}')
+            logger.info(f'Found location={data.map_locations[event.location] if event.location else "???"} for {event}')
 
         if debug is True or debug == self.__class__.__name__:
             self._debug(frames)
