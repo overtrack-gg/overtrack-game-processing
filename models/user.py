@@ -1,7 +1,7 @@
 import os
 
 from pynamodb.attributes import BooleanAttribute, JSONAttribute, NumberAttribute, UnicodeAttribute
-from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
+from pynamodb.indexes import AllProjection, GlobalSecondaryIndex, KeysOnlyProjection
 
 from models.common import OverTrackModel
 
@@ -75,6 +75,18 @@ class UsernameIndex(GlobalSecondaryIndex):
             raise User.DoesNotExist(f'User with username={username} does not exist')
 
 
+class ApexGamesIndex(GlobalSecondaryIndex):
+    class Meta:
+        index_name = 'user-id-apex-games-index'
+
+        read_capacity_units = 1
+        write_capacity_units = 1
+        projection = KeysOnlyProjection()
+
+    user_id = NumberAttribute(attr_name='user_id', hash_key=True)
+    apex_games = NumberAttribute(range_key=True)
+
+
 # noinspection PyAbstractClass
 class User(OverTrackModel):
 
@@ -104,7 +116,7 @@ class User(OverTrackModel):
     nonce = UnicodeAttribute(attr_name='nonce', null=True)
     games_parsed = NumberAttribute(attr_name='games-parsed', null=True)
     apex_games = NumberAttribute(null=True)
-    have_apex_games = BooleanAttribute(default=False)
+    apex_games_index = ApexGamesIndex()
 
     daily_upload_limit = NumberAttribute(attr_name='daily-upload-limit', null=True)
     game_uploads_today = NumberAttribute(attr_name='game-uploads-today', null=True, default=0)
