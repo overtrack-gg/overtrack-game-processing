@@ -1,6 +1,7 @@
 import logging
 import os
 from collections import deque
+from typing import Optional, Tuple
 
 import cv2
 import numpy as np
