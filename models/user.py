@@ -58,6 +58,23 @@ class BattlenetIDIndex(GlobalSecondaryIndex):
             raise User.DoesNotExist(f'User with battlenet_id={battlenet_id} does not exist')
 
 
+class DiscordIDIndex(GlobalSecondaryIndex):
+    class Meta:
+        index_name = 'discord_id-index'
+
+        read_capacity_units = 1
+        write_capacity_units = 1
+        projection = AllProjection()
+
+    discord_id = NumberAttribute(attr_name='discord_id', hash_key=True)
+
+    def get(self, discord_id: int) -> 'User':
+        try:
+            return next(self.query(discord_id))
+        except StopIteration:
+            raise User.DoesNotExist(f'User with discord_id={discord_id} does not exist')
+
+
 class UsernameIndex(GlobalSecondaryIndex):
     class Meta:
         index_name = 'username-index'
@@ -110,6 +127,10 @@ class User(OverTrackModel):
     _username = UnicodeAttribute(attr_name='username', null=True)
     username_index = UsernameIndex()
 
+    discord_id = UnicodeAttribute(null=True)
+    discord_user = JSONAttribute(null=True)
+    discord_id_index = DiscordIDIndex()
+
     current_sr = NumberAttribute(attr_name='current-sr', null=True)
     twitch_account = UnicodeAttribute(attr_name='twitch-account', null=True)
 
@@ -154,8 +175,6 @@ class User(OverTrackModel):
 
     stream_key = UnicodeAttribute(attr_name='stream-key', null=True)
     twitch_overlay = UnicodeAttribute(attr_name='twitch-overlay', null=True)
-
-    discord_id = JSONAttribute(null=True)
 
     @property
     def battletag(self) -> str:
