@@ -26,8 +26,8 @@ import overtrack.apex.game.match_status.models
 import overtrack.apex.game.match_summary.models
 import overtrack.apex.game.menu.models
 import overtrack.apex.game.squad.models
-import overtrack.apex.game.weapon.models
 import overtrack.apex.game.your_squad.models
+import overtrack.apex.game.weapon.models
 import overtrack.apex.game.squad_summary.models
 import overtrack.apex.game.map.models
 import overtrack.apex.game.combat.models
@@ -99,6 +99,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> Frame:
         'squad': overtrack.apex.game.squad.models.Squad,
         'weapons': overtrack.apex.game.weapon.models.Weapons,
         'your_squad': overtrack.apex.game.your_squad.models.YourSquad,
+        'champion_squad': overtrack.apex.game.your_squad.models.ChampionSquad,
         'squad_summary': overtrack.apex.game.squad_summary.models.SquadSummary,
         'location': overtrack.apex.game.map.models.Location,
         'combat_log': overtrack.apex.game.combat.models.CombatLog
