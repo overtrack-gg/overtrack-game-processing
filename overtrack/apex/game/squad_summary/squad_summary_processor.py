@@ -11,11 +11,10 @@ from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.util.textops import mmss_to_seconds
-from .models import *
+from overtrack.apex.game.squad_summary.models import *
+from overtrack.util.uploadable_image import lazy_upload
 
 logger = logging.getLogger(__name__)
-
-
 
 def _draw_squad_summary(debug_image: Optional[np.ndarray], squad_summary: SquadSummary) -> None:
     if debug_image is None:
@@ -51,7 +50,7 @@ class SquadSummaryProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
     ELIMINATED_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'squad_eliminated.png'), 0)
     CHAMPIONS_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'champions_of_the_arena.png'), 0)
-    REQUIRED_MATCH = 0.95
+    REQUIRED_MATCH = 0.75
 
     def eager_load(self):
         self.REGIONS.eager_load()
@@ -77,7 +76,9 @@ class SquadSummaryProcessor(Processor):
                 champions=champions,
                 placed=self._process_yellowtext(self.REGIONS['placed'].extract_one(frame.image), hash=True),
                 squad_kills=self._process_yellowtext(self.REGIONS['squad_kills'].extract_one(frame.image), hash=False),
-                player_stats=self._process_player_stats(y)
+                player_stats=self._process_player_stats(y),
+
+                image=lazy_upload('squad_summary', self.REGIONS.blank_out(frame.image), frame.timestamp)
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_squad_summary(frame.debug_image, frame.squad_summary)
@@ -97,6 +98,7 @@ class SquadSummaryProcessor(Processor):
         squad_kills_image_g = np.max(squad_kills_image, axis=2)
         squad_kills_image_g = cv2.erode(squad_kills_image_g, np.ones((2,2)))
 
+        # from overtrack.util import debugops
         # cv2.imshow('yellow', yellow)
         # cv2.imshow('squad_kills_image', squad_kills_image)
         # cv2.imshow('squad_kills_image_g', squad_kills_image_g)
@@ -109,9 +111,13 @@ class SquadSummaryProcessor(Processor):
             blur=4,
             invert=True
         )
-        logger.info(f'Got text={text}')
+        otext = text
+        text = text.upper()
+        for s1, s2 in '|1', 'I1', 'L1', 'O0', 'S5':
+            text = text.replace(s1, s2)
+        logger.info(f'Got text={otext} -> {text}')
 
-        # debugops.tesser_ocr(squad_kills_image_g, vscale=5)
+        # debugops.tesser_ocr(squad_kills_image_g, vscale=4)
 
         if hash:
             text = text.replace('#', '')
@@ -182,8 +188,8 @@ def main() -> None:
 
     import glob
 
-    ps = "C:/Users/simon/workspace/overtrack_2/dev/apex_images/squad_summary/mpv-shot0193.png"
-    for p in [ps] + glob.glob('../../../../dev/apex_images/squad_summary/*.png') + glob.glob('../../../../dev/apex_images/**/*.png'):
+    ps = "C:/Users/simon/mpv-screenshots/mpv-shot0244.png"
+    for p in ([ps] + glob.glob('../../../../dev/apex_images/squad_summary/*.png') + glob.glob('../../../../dev/apex_images/**/*.png')):
         frame = Frame.create(
             cv2.resize(cv2.imread(p), (1920, 1080)),
             0,

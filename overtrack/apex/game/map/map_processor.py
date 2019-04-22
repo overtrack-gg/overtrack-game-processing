@@ -12,7 +12,7 @@ from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-from .models import *
+from overtrack.apex.game.map.models import Location
 
 logger = logging.getLogger('MapProcessor')
 

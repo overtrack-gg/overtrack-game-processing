@@ -176,6 +176,8 @@ class User(OverTrackModel):
     stream_key = UnicodeAttribute(attr_name='stream-key', null=True)
     twitch_overlay = UnicodeAttribute(attr_name='twitch-overlay', null=True)
 
+    apex_one_time_webhook = JSONAttribute(null=True)
+
     @property
     def battletag(self) -> str:
         return self.key

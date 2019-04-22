@@ -93,6 +93,16 @@ class ExtractionRegions:
 
     __repr__ = __str__
 
+    def fill(self, image: np.ndarray) -> None:
+        for i, (x, y, w, h) in enumerate(self.regions):
+            cv2.rectangle(
+                image,
+                (x, y),
+                (x + w, y + h),
+                (255, 255, 255),
+                -1
+            )
+
 
 class ExtractionRegionsCollection:
 
@@ -160,6 +170,12 @@ class ExtractionRegionsCollection:
         for region in self.regions.values():
             region.draw(image)
 
+    def blank_out(self, image: np.ndarray) -> np.ndarray:
+        mask = np.zeros_like(image)
+        self._ensure_loaded()
+        for region in self.regions.values():
+            region.fill(mask)
+        return np.bitwise_and(image, mask)
 
 if __name__ == '__main__':
     print(ExtractionRegionsCollection('../game/tab/data/regions/16_9.zip'))

@@ -2,6 +2,8 @@ from typing import Optional, Tuple
 
 from dataclasses import dataclass
 
+from overtrack.util.uploadable_image import UploadableImage
+
 
 @dataclass
 class PlayerStats:
@@ -21,4 +23,6 @@ class SquadSummary:
     player_stats: Tuple[PlayerStats, PlayerStats, PlayerStats]
 
     placed: Optional[int] = None
+
+    image: Optional[UploadableImage] = None
 

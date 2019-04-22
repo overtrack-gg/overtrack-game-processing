@@ -150,7 +150,7 @@ class Player:
         return {
             'name': self.name,
             'champion': self.champion,
-            'stats': stats
+            'stats': stats,
         }
 
 
@@ -1074,6 +1074,17 @@ class ApexGame:
             # self.stats.kills
         )
 
+        self.images = {}
+        for f in frames:
+            if 'your_squad' in f:
+                self.images['your_squad'] = f.your_squad.images.url
+            if 'champion_squad' in f:
+                self.images['champion_squad'] = f.champion_squad.images.url
+            if 'match_summary' in f:
+                self.images['match_summary'] = f.match_summary.image.url
+            if 'squad_summary' in f:
+                self.images['squad_summary'] = f.squad_summary.image.url
+
     def _get_placed(self, debug: Union[bool, str]= False) -> int:
         self.logger.info(f'Getting squad placement from '
                          f'{len(self.match_summary_frames)} summary frames, '
@@ -1218,7 +1229,9 @@ class ApexGame:
             'squad': self.squad.to_dict(),
             'combat': self.combat.to_dict(),
             'route': self.route.to_dict(),
-            'weapons': self.weapons.to_dict()
+            'weapons': self.weapons.to_dict(),
+
+            'images': self.images
         }
 
 

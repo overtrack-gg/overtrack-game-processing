@@ -8,14 +8,12 @@ import numpy as np
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
+from overtrack.util.uploadable_image import lazy_upload
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-from .models import *
+from overtrack.apex.game.your_squad.models import *
 
 logger = logging.getLogger(__name__)
-
-
-
 
 
 def _draw_squad(debug_image: Optional[np.ndarray], squad: Union[YourSquad, ChampionSquad]) -> None:
@@ -60,13 +58,13 @@ class YourSquadProcessor(Processor):
                 invert=True
             )
             frame.your_squad = YourSquad(
-                (self._to_name(names[0]), self._to_name(names[1]), self._to_name(names[2]))
+                (self._to_name(names[0]), self._to_name(names[1]), self._to_name(names[2])),
+                images=lazy_upload(f'your_squad', np.hstack(self.REGIONS['names'].extract(frame.image)), frame.timestamp)
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_squad(frame.debug_image, frame.your_squad)
             return True
         else:
-
             champion_squad_match = np.max(cv2.matchTemplate(
                 thresh, self.CHAMPION_SQUAD_TEMPLATE, cv2.TM_CCORR_NORMED
             ))
@@ -78,7 +76,8 @@ class YourSquadProcessor(Processor):
                     invert=True
                 )
                 frame.champion_squad = ChampionSquad(
-                    (self._to_name(names[0]), self._to_name(names[1]), self._to_name(names[2]))
+                    (self._to_name(names[0]), self._to_name(names[1]), self._to_name(names[2])),
+                    images=lazy_upload(f'champion_squad', np.hstack(self.REGIONS['names'].extract(frame.image)), frame.timestamp)
                 )
                 self.REGIONS.draw(frame.debug_image)
                 _draw_squad(frame.debug_image, frame.champion_squad)

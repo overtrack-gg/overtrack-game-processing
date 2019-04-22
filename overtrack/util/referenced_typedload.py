@@ -31,6 +31,7 @@ import overtrack.apex.game.weapon.models
 import overtrack.apex.game.squad_summary.models
 import overtrack.apex.game.map.models
 import overtrack.apex.game.combat.models
+from overtrack.util.uploadable_image import UploadableImage, UploadedImage
 
 
 class Loader(typedload.dataloader.Loader):
@@ -64,6 +65,8 @@ class Loader(typedload.dataloader.Loader):
     T = TypeVar('T')
 
     def load(self, value: Any, type_: Type[T], *, annotation: Optional[Annotation] = None) -> T:
+        if type_ is UploadableImage:
+            type_ = UploadedImage
         if isinstance(value, dict):
             if '_id' in value:
                 _id = value['_id']
@@ -102,7 +105,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> Frame:
         'champion_squad': overtrack.apex.game.your_squad.models.ChampionSquad,
         'squad_summary': overtrack.apex.game.squad_summary.models.SquadSummary,
         'location': overtrack.apex.game.map.models.Location,
-        'combat_log': overtrack.apex.game.combat.models.CombatLog
+        'combat_log': overtrack.apex.game.combat.models.CombatLog,
     }
 
     f = Frame.__new__(Frame)
@@ -181,7 +184,11 @@ class ReferencedDumper(Dumper):
                 return {'_ref': self.visited[id(equal)]}
 
             self.visited[id(value)] = next(self.idgen)
-            result = super().dump(value)
+
+            if hasattr(value, '_typeddump') and callable(value._typeddump):
+                result = value._typeddump()
+            else:
+                result = super().dump(value)
             self.dumped[id(value)] = result
             return result
 

@@ -13,7 +13,8 @@ from overtrack.util import imageops, textops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.util.textops import mmss_to_seconds
-from .models import *
+from overtrack.util.uploadable_image import lazy_upload
+from overtrack.apex.game.match_summary.models import *
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ def _draw_match_summary(debug_image: Optional[np.ndarray], summary: MatchSummary
 class MatchSummaryProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
     MATCH_SUMMARY_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'match_summary.png'), 0)
-    REQUIRED_MATCH = 0.98
+    REQUIRED_MATCH = 0.75
 
     PLACED_COLOUR = (32, 61, 238)
 
@@ -85,7 +86,9 @@ class MatchSummaryProcessor(Processor):
             if placed is not None:
                 frame.match_summary = MatchSummary(
                     placed=placed,
-                    xp_stats=self._parse_xp_breakdown(y)
+                    xp_stats=self._parse_xp_breakdown(y),
+
+                    image=lazy_upload('xp_breakdown', self.REGIONS.blank_out(frame.image), frame.timestamp)
                 )
                 _draw_match_summary(frame.debug_image, frame.match_summary)
                 return True
@@ -209,7 +212,8 @@ def main() -> None:
 
     import glob
 
-    for p in glob.glob('../../../../dev/apex_images/match_summary/*.png') + glob.glob('../../../../dev/apex_images/**/*.png'):
+    ps = "C:/Users/simon/mpv-screenshots/mpv-shot0250.png"
+    for p in [ps] + glob.glob('../../../../dev/apex_images/match_summary/*.png') + glob.glob('../../../../dev/apex_images/**/*.png'):
         frame = Frame.create(
             cv2.resize(cv2.imread(p), (1920, 1080)),
             0,

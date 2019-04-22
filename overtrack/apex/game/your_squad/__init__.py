@@ -1,1 +1,1 @@
-from .models import YourSquad
+from .models import YourSquad, ChampionSquad
