@@ -1076,13 +1076,13 @@ class ApexGame:
 
         self.images = {}
         for f in frames:
-            if 'your_squad' in f:
+            if 'your_squad' in f and f.your_squad.images:
                 self.images['your_squad'] = f.your_squad.images.url
-            if 'champion_squad' in f:
+            if 'champion_squad' in f and f.champion_squad.images:
                 self.images['champion_squad'] = f.champion_squad.images.url
-            if 'match_summary' in f:
+            if 'match_summary' in f and f.match_summary.image:
                 self.images['match_summary'] = f.match_summary.image.url
-            if 'squad_summary' in f:
+            if 'squad_summary' in f and f.squad_summary.image:
                 self.images['squad_summary'] = f.squad_summary.image.url
 
     def _get_placed(self, debug: Union[bool, str]= False) -> int:
