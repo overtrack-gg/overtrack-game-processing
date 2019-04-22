@@ -1,6 +1,6 @@
 import datetime
 import os
-from typing import Any, Iterable, TYPE_CHECKING, no_type_check
+from typing import Any, Iterable, TYPE_CHECKING, no_type_check, Optional
 
 from pynamodb.attributes import NumberAttribute, UnicodeAttribute, BooleanAttribute
 from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
@@ -42,7 +42,7 @@ class ApexGameSummary(OverTrackModel):
 
     key = UnicodeAttribute(hash_key=True)
     user_id = NumberAttribute()
-    ingest = BooleanAttribute(default=False)
+    source = UnicodeAttribute(null=True)
 
     season = NumberAttribute(default=0)
 
@@ -60,11 +60,11 @@ class ApexGameSummary(OverTrackModel):
     url = UnicodeAttribute(null=True)
 
     @classmethod
-    def create(cls, game: 'ApexGame', user_id: int, url: str = None, ingest: bool = False) -> 'ApexGameSummary':
+    def create(cls, game: 'ApexGame', user_id: int, url: str = None, source: Optional[str] = None) -> 'ApexGameSummary':
         return cls(
             key=game.key,
             user_id=user_id,
-            ingest=ingest,
+            source=source,
 
             season=game.season,
 
