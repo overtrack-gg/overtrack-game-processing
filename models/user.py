@@ -66,9 +66,9 @@ class DiscordIDIndex(GlobalSecondaryIndex):
         write_capacity_units = 1
         projection = AllProjection()
 
-    discord_id = NumberAttribute(attr_name='discord_id', hash_key=True)
+    discord_id = UnicodeAttribute(attr_name='discord_id', hash_key=True)
 
-    def get(self, discord_id: int) -> 'User':
+    def get(self, discord_id: str) -> 'User':
         try:
             return next(self.query(discord_id))
         except StopIteration:
