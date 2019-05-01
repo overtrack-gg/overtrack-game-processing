@@ -60,7 +60,8 @@ class UploadableImage:
 
     def _typeddump(self) -> Dict:
         if self.url is None:
-            raise ValueError(f'Cannot dump {self} - not uploaded')
+            logger.warning(f'Dumping image {self} before it is uploaded')
+            logger.error('Dumping image before it has an upload URL')
         return {
             'key': self.key,
             'url': self.url,

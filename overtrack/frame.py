@@ -188,7 +188,7 @@ class Frame(Dict[str, Any]):
         f.timestamp_str = datetime.utcfromtimestamp(timestamp).strftime('%Y/%m/%d %H:%M:%S.') + f'{timestamp % 1 :.2f}'[2:]
 
         relative_timestamp = data.get('relative_timestamp', timestamp)
-        if relative_timestamp:
+        if relative_timestamp is not None:
             f.relative_timestamp_str = f'{s2ts(relative_timestamp)}.' + f'{relative_timestamp % 1 :.2f}'[2:]
 
         f.timings = Timings(**timings if timings else {})
@@ -199,6 +199,8 @@ class Frame(Dict[str, Any]):
 
                 if 'relative_timestamp_str' in f:
                     s += f' | {f.relative_timestamp_str}'
+                    if 'image_no' in data:
+                        s += f' ({data["image_no"]})'
 
                 if data.get('offset_from_now') is not None:
                     s += f' | offset: {s2ts(data["offset_from_now"])}'

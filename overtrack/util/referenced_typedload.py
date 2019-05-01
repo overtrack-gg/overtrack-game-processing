@@ -31,7 +31,8 @@ import overtrack.apex.game.weapon.models
 import overtrack.apex.game.squad_summary.models
 import overtrack.apex.game.map.models
 import overtrack.apex.game.combat.models
-from overtrack.util.uploadable_image import UploadableImage, UploadedImage
+import overtrack.apex.apex_metadata
+import overtrack.util.uploadable_image
 
 
 class Loader(typedload.dataloader.Loader):
@@ -65,8 +66,8 @@ class Loader(typedload.dataloader.Loader):
     T = TypeVar('T')
 
     def load(self, value: Any, type_: Type[T], *, annotation: Optional[Annotation] = None) -> T:
-        if type_ is UploadableImage:
-            type_ = UploadedImage
+        if type_ is overtrack.util.uploadable_image.UploadableImage:
+            type_ = overtrack.util.uploadable_image.UploadedImage
         if isinstance(value, dict):
             if '_id' in value:
                 _id = value['_id']
@@ -106,6 +107,8 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> Frame:
         'squad_summary': overtrack.apex.game.squad_summary.models.SquadSummary,
         'location': overtrack.apex.game.map.models.Location,
         'combat_log': overtrack.apex.game.combat.models.CombatLog,
+
+        'apex_metadata': overtrack.apex.apex_metadata.ApexClientMetadata
     }
 
     f = Frame.__new__(Frame)
