@@ -31,7 +31,7 @@ import overtrack.apex.game.weapon.models
 import overtrack.apex.game.squad_summary.models
 import overtrack.apex.game.map.models
 import overtrack.apex.game.combat.models
-import overtrack.apex.apex_metadata
+import overtrack.apex.game.apex_metadata
 import overtrack.util.uploadable_image
 
 
@@ -108,7 +108,7 @@ def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> Frame:
         'location': overtrack.apex.game.map.models.Location,
         'combat_log': overtrack.apex.game.combat.models.CombatLog,
 
-        'apex_metadata': overtrack.apex.apex_metadata.ApexClientMetadata
+        'apex_metadata': overtrack.apex.game.apex_metadata.ApexClientMetadata
     }
 
     f = Frame.__new__(Frame)
