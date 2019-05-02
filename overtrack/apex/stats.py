@@ -36,6 +36,12 @@ def kill_score(games: List[ApexGameSummary]) -> Tuple[int, float]:
     return round(float(np.mean(aggression_scores) * 1000), 1), len(aggression_scores) / len(games)
 
 
+def kills_10min(games: List[ApexGameSummary]) -> Tuple[float, float]:
+    valid_games = [g for g in games if g.placed]
+    kills = np.array([g.kills for g in valid_games])
+    durations = np.array([g.duration for g in valid_games])
+    return round(float(np.sum(kills) / np.sum(durations / (10 * 60))), 2), len(valid_games) / len(games)
+
 def squad_kills_contribution(games: List[ApexGameSummary]) -> Tuple[float, float]:
     # TODO: if using this count % valid data and warn if low
     valid_games = [g for g in games if g.squad_kills is not None]
