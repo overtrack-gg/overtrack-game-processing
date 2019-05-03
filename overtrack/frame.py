@@ -152,6 +152,7 @@ class Frame(Dict[str, Any]):
         import overtrack.apex.game.your_squad.models
         import overtrack.apex.game.map.models
         import overtrack.apex.game.combat.models
+        import overtrack.apex.game.apex_metadata
         match_status: overtrack.apex.game.match_status.models.MatchStatus
         match_summary_match: float
         match_summary: overtrack.apex.game.match_summary.models.MatchSummary
@@ -166,6 +167,7 @@ class Frame(Dict[str, Any]):
         your_squad: overtrack.apex.game.your_squad.models.YourSquad
         location: overtrack.apex.game.map.models.Location
         combat_log: overtrack.apex.game.combat.models.CombatLog
+        apex_metadata: overtrack.apex.game.apex_metadata.ApexClientMetadata
 
     @classmethod
     def create(

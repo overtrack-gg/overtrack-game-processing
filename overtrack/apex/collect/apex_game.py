@@ -48,7 +48,8 @@ class Player:
                  champion: str,
                  stats: List[SquadSummaryStats],
                  frames: List[Frame],
-                 use_match_summary: bool = False):
+                 use_match_summary: bool = False,
+                 name_from_config: bool = False):
 
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
 
@@ -63,7 +64,7 @@ class Player:
             # use name from stats screen as this is easier to OCR
             names = [s.name for s in stats]
             own_stats_name = levenshtein.median(names)
-            if len(names) > 3 and own_stats_name != self.name and len(own_stats_name) > 3:
+            if not name_from_config and len(names) > 3 and own_stats_name != self.name and len(own_stats_name) > 3:
                 self.logger.warning(f'Updating name from game name to stats name: "{self.name}" -> "{own_stats_name}"')
                 self.name = own_stats_name
 
@@ -87,6 +88,8 @@ class Player:
 
         if self.stats:
             self.stats = self._sanity_clip(self.stats)
+
+        self.name_from_config = name_from_config
 
         self.logger.info(f'Resolved to: {self}')
 
@@ -151,13 +154,14 @@ class Player:
             'name': self.name,
             'champion': self.champion,
             'stats': stats,
+            'name_from_config': self.name_from_config
         }
 
 
 class Squad:
     logger = logging.getLogger('Squad')
 
-    def __init__(self, frames: List[Frame], menu_names: List[str], debug: Union[bool, str] = False):
+    def __init__(self, frames: List[Frame], menu_names: List[str], config_name: Optional[str], debug: Union[bool, str] = False):
         self.squad = [f.squad for f in frames if 'squad' in f]
         self.logger.info(f'Processing squad from {len(self.squad)} squad frames')
 
@@ -165,7 +169,7 @@ class Squad:
             self._debug_champions(frames)
 
         names = [
-            self._get_name(menu_names),
+            self._get_name(menu_names) if not config_name else config_name,
             self._get_squadmate_name(0),
             self._get_squadmate_name(1)
         ]
@@ -260,7 +264,8 @@ class Squad:
                 champions[0],
                 [],
                 frames,
-                use_match_summary=True
+                use_match_summary=True,
+                name_from_config=config_name is not None
             )
             self.squadmates = (
                 Player(names[1], champions[1], [], frames) if champions[1] else None,
@@ -1061,7 +1066,12 @@ class ApexGame:
 
         self.placed = self._get_placed(debug)
 
-        self.squad = Squad(self.all_frames, menu_names, debug=debug)
+        config_name: Optional[str] = None
+        for frame in self.frames:
+            if 'apex_metadata' in frame:
+                config_name = frame.apex_metadata.player_config_name
+
+        self.squad = Squad(self.all_frames, menu_names, config_name, debug=debug)
         self.combat = Combat(self.frames, self.placed, self.squad, debug=debug)
         self.weapons = Weapons(self.frames, self.combat, debug=debug)
         self.route: Route = Route(self.frames, self.weapons, self.combat, debug=debug)
