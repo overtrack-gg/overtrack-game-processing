@@ -123,7 +123,7 @@ def manual_thresh_otsu(
     cv2.destroyAllWindows()
 
 
-def manual_unsharp_mask(image: np.ndarray, scale: float=2, callback: Optional[Callable[[np.ndarray], None]]=None) -> Tuple[float, float, float]:
+def manual_unsharp_mask(image: np.ndarray, scale: float=2, inv=False, callback: Optional[Callable[[np.ndarray], None]]=None) -> Tuple[float, float, float]:
     if len(image.shape) == 2:
         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
@@ -145,6 +145,10 @@ def manual_unsharp_mask(image: np.ndarray, scale: float=2, callback: Optional[Ca
         im = cv2.addWeighted(image, weight, unsharp, 1 - weight, 0)
         gray = np.min(im, axis=2)
         _, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+        if threshold == 0:
+            thresh = gray
+        if inv:
+            thresh = 255 - thresh
 
         cv2.imshow('unsharp', cv2.resize(
             np.vstack((
@@ -195,6 +199,10 @@ def tesser_ocr(im: np.ndarray, vscale: float = 3, **kwargs) -> None:
 
     def update(_: int) -> None:
         scale = max(1, cv2.getTrackbarPos('scale', 'ocr'))
+        if scale < 5:
+            scale = 1 / (5 - scale)
+        else:
+            scale = scale - 3
         blur = max(0, cv2.getTrackbarPos('blur', 'ocr') / 10)
         invert = cv2.getTrackbarPos('invert', 'ocr')
 
@@ -227,10 +235,27 @@ def tesser_ocr(im: np.ndarray, vscale: float = 3, **kwargs) -> None:
         print()
 
     cv2.namedWindow('ocr')
-    cv2.createTrackbar('scale', 'ocr', 4, 10, update)
+    cv2.createTrackbar('scale', 'ocr', 5, 10, update)
     cv2.createTrackbar('blur', 'ocr', 10, 100, update)
     cv2.createTrackbar('invert', 'ocr', 0, 1, update)
     while True:
+        image = im.copy()
+        scale = max(1, cv2.getTrackbarPos('scale', 'ocr'))
+        if scale < 5:
+            scale = 1 / (5 - scale)
+        else:
+            scale = scale - 3
+        blur = max(0, cv2.getTrackbarPos('blur', 'ocr') / 10)
+        invert = cv2.getTrackbarPos('invert', 'ocr')
+        if invert:
+            image = 255 - image
+        if scale != 1:
+            image = cv2.resize(image, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+
+        if blur:
+            image = cv2.GaussianBlur(image, (0, 0), blur)
+
+        cv2.imshow('image', image)
         cv2.imshow('ocr', cv2.resize(
             im,
             (0, 0),
@@ -259,6 +284,7 @@ def test_tesser_engines(image: np.ndarray, scale: float = 1.) -> None:
         ('tesseract_ttlakes_digits', overtrack.apex.ocr.tesseract_ttlakes_digits),
         ('tesseract_ttlakes', overtrack.apex.ocr.tesseract_ttlakes),
         ('tesseract_ttlakes_medium', overtrack.apex.ocr.tesseract_ttlakes_medium),
+        ('tesseract_ttlakes_medium_word', overtrack.apex.ocr.tesseract_ttlakes_medium_word),
         ('tesseract_arame', overtrack.apex.ocr.tesseract_arame),
         ('tesseract_mensura', overtrack.apex.ocr.tesseract_mensura),
     ]:

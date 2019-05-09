@@ -10,7 +10,7 @@ from overtrack.apex.game.your_squad.your_squad_processor import YourSquadProcess
 from overtrack.processor import OrderedProcessor, ShortCircuitProcessor, ConditionalProcessor, EveryN, Processor
 
 
-def create_pipeline() -> Processor:
+def create_pipeline(interleave_processors: bool = True) -> Processor:
     pipeline = OrderedProcessor(
         ShortCircuitProcessor(
             MenuProcessor(),
@@ -24,7 +24,7 @@ def create_pipeline() -> Processor:
                     MatchStatusProcessor(),
                     MapProcessor(),
                 ),
-                3,
+                3 if interleave_processors else 1,
                 return_last=False
             ),
 
@@ -33,9 +33,16 @@ def create_pipeline() -> Processor:
 
         ConditionalProcessor(
             OrderedProcessor(
-                EveryN(SquadProcessor(), 4),
+                EveryN(
+                    SquadProcessor(),
+                    4 if interleave_processors else 1
+                ),
                 CombatProcessor(),
-                EveryN(WeaponProcessor(), 4, override_condition=lambda f: 'combat_log' in f),
+                EveryN(
+                    WeaponProcessor(),
+                    4 if interleave_processors else 1,
+                    override_condition=lambda f: 'combat_log' in f
+                ),
             ),
             condition=lambda f: ('location' in f) or ('match_status' in f),
             lookbehind=15,

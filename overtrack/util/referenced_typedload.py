@@ -82,35 +82,36 @@ class Loader(typedload.dataloader.Loader):
         return super().load(value, type_)
 
 
+_TYPES = {
+    'objective': overtrack.overwatch.game.objective.models.Objective,
+    'loading_map': overtrack.overwatch.game.loading_map.models.LoadingMap,
+    'tab_screen': overtrack.overwatch.game.tab.models.TabScreen,
+    'main_menu': overtrack.overwatch.game.menu.models.MainMenu,
+    'play_menu': overtrack.overwatch.game.menu.models.PlayMenu,
+    'killfeed': overtrack.overwatch.game.killfeed.models.Killfeed,
+    'spectator_bar': overtrack.overwatch.game.spectator.models.SpectatorBar,
+    'score_screen': overtrack.overwatch.game.score.models.ScoreScreen,
+    'final_score': overtrack.overwatch.game.score.models.FinalScore,
+    'endgame': overtrack.overwatch.game.endgame.models.Endgame,
+    'hero': overtrack.overwatch.game.hero.models.Hero,
+    'endgame_sr': overtrack.overwatch.game.endgame_sr.models.EndgameSR,
+
+    'match_status': overtrack.apex.game.match_status.models.MatchStatus,
+    'match_summary': overtrack.apex.game.match_summary.models.MatchSummary,
+    'apex_play_menu': overtrack.apex.game.menu.models.PlayMenu,
+    'squad': overtrack.apex.game.squad.models.Squad,
+    'weapons': overtrack.apex.game.weapon.models.Weapons,
+    'your_squad': overtrack.apex.game.your_squad.models.YourSquad,
+    'champion_squad': overtrack.apex.game.your_squad.models.ChampionSquad,
+    'squad_summary': overtrack.apex.game.squad_summary.models.SquadSummary,
+    'location': overtrack.apex.game.map.models.Location,
+    'combat_log': overtrack.apex.game.combat.models.CombatLog,
+
+    'apex_metadata': overtrack.apex.game.apex_metadata.ApexClientMetadata
+}
+
+
 def _frameload(loader: Loader, value: Dict[str, object], type_: type) -> Frame:
-    _TYPES = {
-        'objective': overtrack.overwatch.game.objective.models.Objective,
-        'loading_map': overtrack.overwatch.game.loading_map.models.LoadingMap,
-        'tab_screen': overtrack.overwatch.game.tab.models.TabScreen,
-        'main_menu': overtrack.overwatch.game.menu.models.MainMenu,
-        'play_menu': overtrack.overwatch.game.menu.models.PlayMenu,
-        'killfeed': overtrack.overwatch.game.killfeed.models.Killfeed,
-        'spectator_bar': overtrack.overwatch.game.spectator.models.SpectatorBar,
-        'score_screen': overtrack.overwatch.game.score.models.ScoreScreen,
-        'final_score': overtrack.overwatch.game.score.models.FinalScore,
-        'endgame': overtrack.overwatch.game.endgame.models.Endgame,
-        'hero': overtrack.overwatch.game.hero.models.Hero,
-        'endgame_sr': overtrack.overwatch.game.endgame_sr.models.EndgameSR,
-
-        'match_status': overtrack.apex.game.match_status.models.MatchStatus,
-        'match_summary': overtrack.apex.game.match_summary.models.MatchSummary,
-        'apex_play_menu': overtrack.apex.game.menu.models.PlayMenu,
-        'squad': overtrack.apex.game.squad.models.Squad,
-        'weapons': overtrack.apex.game.weapon.models.Weapons,
-        'your_squad': overtrack.apex.game.your_squad.models.YourSquad,
-        'champion_squad': overtrack.apex.game.your_squad.models.ChampionSquad,
-        'squad_summary': overtrack.apex.game.squad_summary.models.SquadSummary,
-        'location': overtrack.apex.game.map.models.Location,
-        'combat_log': overtrack.apex.game.combat.models.CombatLog,
-
-        'apex_metadata': overtrack.apex.game.apex_metadata.ApexClientMetadata
-    }
-
     f = Frame.__new__(Frame)
     f.image = f.debug_image = None
     for k, v in value.items():

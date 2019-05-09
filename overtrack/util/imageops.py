@@ -327,6 +327,11 @@ def matchTemplate(image: np.ndarray, template: np.ndarray, method: int, mask: Op
             raise TemplateMatchException(f'matchTemplate requires template {template.shape} matches mask {mask.shape}')
         return cv2.matchTemplate(image, template, method, mask=mask)
 
+
+def bgr_2hsv(colour):
+    return cv2.cvtColor(np.array(colour, np.uint8)[np.newaxis, np.newaxis, :], cv2.COLOR_BGR2HSV_FULL)[0, 0]
+
+
 # if __name__ == '__main__':
 #     print(os.environ['PATH'])
 #     print(tesserocr.tesseract_version())
