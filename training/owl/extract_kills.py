@@ -738,7 +738,7 @@ class OverGGGame:
         logger.info(f'Downloading over.gg game details from {url}')
         page = BeautifulSoup(requests.get(url).content, 'html.parser')
 
-        self.title = page.title.text.strip().split(' - ')[0]
+        self.title = page.window_title.text.strip().split(' - ')[0]
         logger.info(f'Match title: {self.title}')
 
         self.teams = [e.text.strip() for e in page.find_all(class_='wf-title-med')]
