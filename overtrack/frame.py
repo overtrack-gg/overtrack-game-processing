@@ -92,7 +92,8 @@ class Frame(Dict[str, Any]):
             self.image: np.ndarray = None
         if 'debug_image' not in kwargs:
             self.debug_image: Optional[np.ndarray] = None
-        self._image_yuv: Optional[np.ndarray] = None
+        if '_image_yuv' not in kwargs:
+            self._image_yuv: Optional[np.ndarray] = None
 
     # typing hints - access to fields is through object-level dict or __getattr__
     if TYPE_CHECKING:
@@ -174,6 +175,7 @@ class Frame(Dict[str, Any]):
             cls,
             image: np.ndarray,
             timestamp: float,
+            relative_timestamp: float,
             debug: bool=False,
             timings: Optional[Dict[str, float]]=None,
             **data: Any) -> 'Frame':
@@ -189,9 +191,8 @@ class Frame(Dict[str, Any]):
         f.timestamp = timestamp
         f.timestamp_str = datetime.utcfromtimestamp(timestamp).strftime('%Y/%m/%d %H:%M:%S.') + f'{timestamp % 1 :.2f}'[2:]
 
-        relative_timestamp = data.get('relative_timestamp', timestamp)
-        if relative_timestamp is not None:
-            f.relative_timestamp_str = f'{s2ts(relative_timestamp)}.' + f'{relative_timestamp % 1 :.2f}'[2:]
+        f.relative_timestamp = relative_timestamp
+        f.relative_timestamp_str = f'{s2ts(relative_timestamp)}.' + f'{relative_timestamp % 1 :.2f}'[2:]
 
         f.timings = Timings(**timings if timings else {})
         if debug:

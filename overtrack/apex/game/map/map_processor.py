@@ -62,13 +62,13 @@ class MapProcessor(Processor):
             cv2.GaussianBlur(
                 MAP,
                 (0, 0),
-                0.5
+                1.0
             ),
-            30,
-            100
+            70,
+            150
         ),
         (0, 0),
-        1.5
+        2.0
     )
     MAP_MASK = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'map_mask.png'), 0) == 255
     TEMPLATE_OFFSET = (0, -3)
@@ -84,8 +84,8 @@ class MapProcessor(Processor):
         map_image = self.REGIONS['map'].extract_one(frame.image)
 
         map_image = cv2.GaussianBlur(map_image, (0, 0), 0.5)
-        map_image = cv2.Canny(map_image, 30, 100)
-        map_image = cv2.GaussianBlur(map_image, (0, 0), 1.5)
+        map_image = cv2.Canny(map_image, 50, 100)
+        map_image = cv2.GaussianBlur(map_image, (0, 0), 2.0)
 
         map_fragment = cv2.resize(
             map_image,
@@ -137,6 +137,9 @@ class MapProcessor(Processor):
     def _get_location_rotated(self, frame, map_fragment):
         bearing_image = self.REGIONS['bearing'].extract_one(frame.image_yuv[:, :, 0])
         bearing = imageops.tesser_ocr(bearing_image, expected_type=int, engine=ocr.tesseract_ttlakes_digits)
+        if not bearing or not 0 <= bearing <= 360:
+            logger.warning(f'Got invalid bearing: {bearing}')
+            return None, None, None, 1
         if bearing:
             rot = cv2.getRotationMatrix2D(
                 (self.MAP_TEMPLATE.shape[1] // 2, self.MAP_TEMPLATE.shape[0] // 2),
@@ -177,6 +180,7 @@ class MapProcessor(Processor):
         #     -1
         # )
         # cv2.imshow('template_rot', d)
+        # cv2.imshow('fragment', region)
 
         coords = min_loc[0] + region.shape[1] // 2 + self.TEMPLATE_OFFSET[0], min_loc[1] + region.shape[0] // 2 + self.TEMPLATE_OFFSET[1]
         if rotation is not None:
@@ -203,31 +207,19 @@ class MapProcessor(Processor):
 def main() -> None:
     import glob
 
-    config_logger('map_processor', logging.INFO, write_to_file=False)
+    config_logger('map_processor', logging.DEBUG, write_to_file=False)
 
     pipeline = MapProcessor()
-    print(os.path.abspath('../../../../dev/images/map/'))
-    for p in glob.glob('../../../../dev/images/map/*.png'):
-        print(p)
-        try:
-            frame = Frame.create(
-                cv2.resize(cv2.imread(p), (1920, 1080)),
-                0,
-                True
-            )
-        except:
-            continue
+
+
+    from overtrack.source.video import VideoFrameExtractor
+
+    for frame in VideoFrameExtractor("M:/test.mkv", extract_fps=1, debug_frames=True, seek=12*60).tqdm():
         pipeline.process(frame)
         print(frame)
         pipeline.REGIONS.draw(frame.debug_image)
         cv2.imshow('debug', frame.debug_image)
-
-
-
-        if 'match_status' in frame and frame.match_status.kills:
-            cv2.waitKey(0)
-        else:
-            cv2.waitKey(0)
+        cv2.waitKey(0)
 
 
 if __name__ == '__main__':
