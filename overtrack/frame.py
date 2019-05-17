@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
@@ -6,6 +7,8 @@ import dataclasses
 import numpy as np
 
 from overtrack.util import s2ts
+
+_init_time = time.time()
 
 
 def dictify(dic: Any) -> Any:
@@ -175,7 +178,6 @@ class Frame(Dict[str, Any]):
             cls,
             image: np.ndarray,
             timestamp: float,
-            relative_timestamp: float,
             debug: bool=False,
             timings: Optional[Dict[str, float]]=None,
             **data: Any) -> 'Frame':
@@ -191,6 +193,10 @@ class Frame(Dict[str, Any]):
         f.timestamp = timestamp
         f.timestamp_str = datetime.utcfromtimestamp(timestamp).strftime('%Y/%m/%d %H:%M:%S.') + f'{timestamp % 1 :.2f}'[2:]
 
+        if 'relative_timestamp' in data:
+            relative_timestamp = data['relative_timestamp']
+        else:
+            relative_timestamp = f.timestamp - _init_time
         f.relative_timestamp = relative_timestamp
         f.relative_timestamp_str = f'{s2ts(relative_timestamp)}.' + f'{relative_timestamp % 1 :.2f}'[2:]
 
