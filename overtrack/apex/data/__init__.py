@@ -136,7 +136,7 @@ class MapLocations:
                     continue
                 layer_props = f.rsplit('.', 1)[0].split(',')
                 layer_name = unquote(re.sub(r'%00(\d\d)', r'%\1', layer_props[3]))
-                if layer_name.lower() != 'background':
+                if layer_name.lower() != 'background' and not layer_name.startswith('.'):
                     with z.open(f, 'r') as fobj:
                         logger.debug(f'Loading location {layer_name}')
                         layer = cv2.imdecode(np.frombuffer(fobj.read(), dtype=np.uint8), -1)
