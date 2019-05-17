@@ -1,6 +1,7 @@
+import time
 import logging
 from collections import deque
-from typing import Dict, TYPE_CHECKING, List
+from typing import Dict, List, TYPE_CHECKING
 
 from dataclasses import dataclass
 
@@ -19,6 +20,15 @@ def lazy_upload(key: str, image: 'np.ndarray', timestamp: float, maxlen: int = M
 
     active_images[key].append(image, timestamp)
     return active_images[key]
+
+
+def lazy_upload_unique(key: str, image: 'np.ndarray') -> 'UploadableImage':
+    now = time.time()
+    ukey = f'{key}_{now:.2f}'
+    active_images[ukey] = UploadableImage(key, 1)
+
+    active_images[ukey].append(image, now)
+    return active_images[ukey]
 
 
 class UploadableImage:
