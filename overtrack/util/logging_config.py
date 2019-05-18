@@ -282,8 +282,11 @@ def finish_logging() -> None:
 
 
 def patch_sentry_locals_capture() -> None:
-    from sentry_sdk.utils import add_global_repr_processor, object_to_json, safe_repr
+    from sentry_sdk.serializer import add_global_repr_processor, Serializer
+    from sentry_sdk.utils import safe_repr
     from overtrack.frame import Frame
+
+    ser = Serializer()
 
     @add_global_repr_processor
     def processor(value, hint):
@@ -294,13 +297,13 @@ def patch_sentry_locals_capture() -> None:
     @add_global_repr_processor
     def processor(value, hint):
         if isinstance(list, Frame) and len(value) > 2 and isinstance(value[0], Frame) and isinstance(value[-1], Frame):
-            return [object_to_json(value[0]), f'...<{len(value) - 2}>...', object_to_json(value[-1])]
+                return [ser._serialize_node_impl(value[0]), f'...<{len(value) - 2}>...', ser._serialize_node_impl(value[-1])]
         return NotImplemented
 
     @add_global_repr_processor
     def processor(value, hint):
         if isinstance(value, Sequence) and not isinstance(value, (bytes, str)) and len(value) > 64:
-            return [object_to_json(value[0]), f'...<{len(value) - 2}>...', object_to_json(value[-1])]
+            return [ser._serialize_node_impl(value[0]), f'...<{len(value) - 2}>...', ser._serialize_node_impl(value[-1])]
         return NotImplemented
 
     @add_global_repr_processor

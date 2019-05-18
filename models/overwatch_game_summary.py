@@ -67,6 +67,7 @@ class OverwatchGameSummary(OverTrackModel):
     exception = TupleAttribute(attr_name='exception', null=True, hash_key=True)
 
     frames_uri = UnicodeAttribute(null=True)
+    sr_frame_uri = UnicodeAttribute(null=True)
 
     source = UnicodeAttribute(attr_name='source', null=True)
     stream_key = UnicodeAttribute(attr_name='stream-key', null=True)

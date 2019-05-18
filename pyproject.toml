@@ -43,7 +43,7 @@ pynamodb = "^3"
 boto3 = "^1"
 
 # log+error reporting
-sentry-sdk = "^0"
+sentry-sdk = "^0.8"
 google-cloud-logging = "^1"
 
 # twitch overlay

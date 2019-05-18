@@ -284,7 +284,6 @@ def test_tesser_engines(image: np.ndarray, scale: float = 1.) -> None:
         ('tesseract_ttlakes_digits', overtrack.apex.ocr.tesseract_ttlakes_digits),
         ('tesseract_ttlakes', overtrack.apex.ocr.tesseract_ttlakes),
         ('tesseract_ttlakes_medium', overtrack.apex.ocr.tesseract_ttlakes_medium),
-        ('tesseract_ttlakes_medium_word', overtrack.apex.ocr.tesseract_ttlakes_medium_word),
         ('tesseract_arame', overtrack.apex.ocr.tesseract_arame),
         ('tesseract_mensura', overtrack.apex.ocr.tesseract_mensura),
     ]:
