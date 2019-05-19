@@ -53,6 +53,66 @@ def _draw_map_location(
     debug_image[100:100 + out.shape[0], 400:400 + out.shape[1]] = out
 
 
+def _debug_map_canny(map_image: np.ndarray) -> None:
+    cv2.namedWindow('canny')
+    cv2.createTrackbar('b1', 'canny', 50, 200, lambda x: None)
+    cv2.createTrackbar('c1', 'canny', 30, 200, lambda x: None)
+    cv2.createTrackbar('c2', 'canny', 100, 200, lambda x: None)
+    cv2.createTrackbar('b2', 'canny', 150, 300, lambda x: None)
+    last = None
+    while True:
+        b1 = (cv2.getTrackbarPos('b1', 'canny') + 1) / 100
+        b2 = (cv2.getTrackbarPos('b2', 'canny') + 1) / 100
+
+        c1 = cv2.getTrackbarPos('c1', 'canny')
+        c2 = cv2.getTrackbarPos('c2', 'canny')
+
+        cv2.imshow('canny', cv2.GaussianBlur(
+            cv2.Canny(
+                cv2.GaussianBlur(
+                    map_image,
+                    (0, 0),
+                    b1
+                ),
+                c1,
+                c2
+            ),
+            (0, 0),
+            b2
+        ))
+        k = cv2.waitKey(10) & 0xFF
+        if k == 27:
+            break
+        current = b1, b2, c1, c2
+        if current != last:
+            print(current)
+            last = current
+    cv2.destroyAllWindows()
+
+
+def _debug_map_match(coords, template_offset, raw_map_template, map_template, min_loc, region):
+    d = cv2.cvtColor(map_template, cv2.COLOR_GRAY2BGR)
+    cv2.rectangle(d, min_loc, (min_loc[0] + region.shape[1], min_loc[1] + region.shape[0]), (0, 255, 0))
+    cv2.circle(
+        d,
+        (min_loc[0] + region.shape[1] // 2 + template_offset[0], min_loc[1] + region.shape[0] // 2 + template_offset[1]),
+        3,
+        (0, 0, 255),
+        -1
+    )
+    cv2.imshow('template_rot', d)
+    cv2.imshow('fragment', region)
+    d2 = cv2.cvtColor(raw_map_template, cv2.COLOR_GRAY2BGR)
+    cv2.circle(
+        d2,
+        coords,
+        3,
+        (0, 0, 255),
+        -1
+    )
+    cv2.imshow('template', d2)
+
+
 class MapProcessor(Processor):
 
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), '..', 'data', 'regions', '16_9.zip'))
@@ -72,6 +132,8 @@ class MapProcessor(Processor):
     )
     MAP_MASK = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'map_mask.png'), 0) == 255
     TEMPLATE_OFFSET = (0, -3)
+
+    # _debug_map_canny(MAP)
 
     def __init__(self):
         self.map_rotated = deque(maxlen=10)
@@ -170,32 +232,12 @@ class MapProcessor(Processor):
         )
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
 
-        # d = cv2.cvtColor(map_template, cv2.COLOR_GRAY2BGR)
-        # cv2.rectangle(d, min_loc, (min_loc[0] + region.shape[1], min_loc[1] + region.shape[0]), (0, 255, 0))
-        # cv2.circle(
-        #     d,
-        #     (min_loc[0] + region.shape[1] // 2 + self.TEMPLATE_OFFSET[0], min_loc[1] + region.shape[0] // 2 + self.TEMPLATE_OFFSET[1]),
-        #     3,
-        #     (0, 0, 255),
-        #     -1
-        # )
-        # cv2.imshow('template_rot', d)
-        # cv2.imshow('fragment', region)
-
         coords = min_loc[0] + region.shape[1] // 2 + self.TEMPLATE_OFFSET[0], min_loc[1] + region.shape[0] // 2 + self.TEMPLATE_OFFSET[1]
         if rotation is not None:
             inv = cv2.invertAffineTransform(rotation)
             coords = tuple(cv2.transform(np.array([[coords]]), inv)[0][0])
 
-        # d2 = cv2.cvtColor(self.MAP_TEMPLATE, cv2.COLOR_GRAY2BGR)
-        # cv2.circle(
-        #     d2,
-        #     coords,
-        #     3,
-        #     (0, 0, 255),
-        #     -1
-        # )
-        # cv2.imshow('template', d2)
+        # _debug_map_match(coords, self.TEMPLATE_OFFSET, self.MAP_TEMPLATE, map_template, min_loc, region)
 
         location = Location(
             coords,
