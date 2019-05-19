@@ -253,6 +253,26 @@ def main() -> None:
 
     pipeline = MapProcessor()
 
+    print(os.path.abspath('../../../../dev/images/map/'))
+    for p in glob.glob('../../../../dev/images/map/*.png'):
+        print(p)
+        try:
+            frame = Frame.create(
+                cv2.resize(cv2.imread(p), (1920, 1080)),
+                0,
+                True
+            )
+        except:
+            continue
+        pipeline.process(frame)
+        print(frame)
+        pipeline.REGIONS.draw(frame.debug_image)
+        cv2.imshow('debug', frame.debug_image)
+
+        if 'match_status' in frame and frame.match_status.kills:
+            cv2.waitKey(0)
+        else:
+            cv2.waitKey(0)
 
     from overtrack.source.video import VideoFrameExtractor
 
