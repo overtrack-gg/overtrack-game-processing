@@ -34,7 +34,8 @@ class DiscordMessage:
 
     discord_bot = requests.Session()
     discord_bot.headers.update({
-        'Authorization': f'Bot {DISCORD_BOT_TOKEN}'
+        'Authorization': f'Bot {DISCORD_BOT_TOKEN}',
+        'User-Agent': 'OverTrack.gg API'
     })
 
     def __init__(self, game: ApexGame, summary: ApexGameSummary, url: str, username: Optional[str] = None):
