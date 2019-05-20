@@ -134,8 +134,7 @@ class User(OverTrackModel):
     current_sr = NumberAttribute(attr_name='current-sr', null=True)
     twitch_account = UnicodeAttribute(attr_name='twitch-account', null=True)
 
-    nonce = UnicodeAttribute(attr_name='nonce', null=True)
-    games_parsed = NumberAttribute(attr_name='games-parsed', null=True)
+    overwatch_games = NumberAttribute(attr_name='games-parsed', null=True)
     apex_games = NumberAttribute(null=True)
     apex_games_index = ApexGamesIndex()
 
@@ -147,9 +146,7 @@ class User(OverTrackModel):
     current_upload_requested = NumberAttribute(attr_name='current-upload-requested', null=True)
 
     type = UnicodeAttribute(attr_name='type', null=True)
-    demo = BooleanAttribute(attr_name='demo', null=True)
     superuser = BooleanAttribute(attr_name='superuser', null=True)
-    record_states = BooleanAttribute(attr_name='record-states', null=True)
 
     account_created = NumberAttribute(attr_name='account-created', null=True)
     free = BooleanAttribute(attr_name='free', default=False, null=True)
@@ -177,6 +174,11 @@ class User(OverTrackModel):
     twitch_overlay = UnicodeAttribute(attr_name='twitch-overlay', null=True)
 
     apex_one_time_webhook = JSONAttribute(null=True)
+    apex_current_game = JSONAttribute(null=True)
+
+    __nonce = UnicodeAttribute(attr_name='nonce', null=True)
+    __record_states = BooleanAttribute(attr_name='record-states', null=True)
+    __demo = BooleanAttribute(attr_name='demo', null=True)
 
     @property
     def battletag(self) -> str:
