@@ -21,6 +21,16 @@ from overtrack.util import arrayops, s2ts, textops
 logger = logging.getLogger(__name__)
 
 
+def norm_name(s: str) -> str:
+    rs = s
+    for c1, c2 in '0O', 'lI', '1I':
+        rs = rs.replace(c1, c2)
+    for dc in '_-':
+        while dc * 2 in rs:
+            rs = rs.replace(dc * 2, dc)
+    return rs
+
+
 @dataclass
 class PlayerStats:
     kills: Optional[int]
@@ -55,7 +65,8 @@ class Player:
 
         self.logger.info( 
             f'Resolving player with estimated name="{name}", champion={champion} '
-            f'from {len(squad_summaries)} squad summary frames'
+            f'from {len(squad_summaries)} squad summary frames | '
+            f'use_match_summary={use_match_summary}, name_from_config={name_from_config}'
         )
         self.name = name
         self.champion = champion
@@ -207,7 +218,7 @@ class Squad:
                 matches.append([])
                 for player_stats in all_player_stats:
                     if name:
-                        matches[-1].append(levenshtein.seqratio([name] * len(player_stats), [s.name for s in player_stats]))
+                        matches[-1].append(levenshtein.setratio([norm_name(name)] * len(player_stats), [norm_name(s.name) for s in player_stats]))
                     else:
                         matches[-1].append(0)
 
@@ -246,7 +257,8 @@ class Squad:
                         champion,
                         stats,
                         frames,
-                        use_match_summary=names_index == 0
+                        use_match_summary=bool(names_index == 0),
+                        name_from_config=bool(names_index == 0 and config_name is not None)
                     )
                 else:
                     player = None
@@ -276,6 +288,8 @@ class Squad:
 
     def _get_champion_valid_count(self, squadmate_index: int) -> int:
         arr = np.array([s.squadmate_champions[squadmate_index] for s in self.squad])
+        if not len(arr):
+            return 0
         inds = np.argsort(arr).T
         best_match = np.array([arr[i, inds[-1][i]] for i in range(inds.shape[1])])
         best_match[np.isnan(best_match) | (best_match == 0)] = 0.01
@@ -328,6 +342,10 @@ class Squad:
             other_champion_inds = [champions.index(c) for c in other_champions if c]
         else:
             other_champion_inds = []
+
+        if not len(arr):
+            self.logger.warning(f'Could not identify champion - no data')
+            return None
 
         arr = np.array(arr)
         inds = np.argsort(arr).T
@@ -397,7 +415,8 @@ class Squad:
             f'Trying to match player name {name} against {len(player_summary_stats)} sets of stats: '
             f'{[levenshtein.median([s.name for s in stats]) for stats in player_summary_stats]}'
         )
-        matches = [levenshtein.seqratio([name] * len(stats), [s.name for s in stats]) for stats in player_summary_stats]
+
+        matches = [levenshtein.setratio([norm_name(name)] * len(stats), [norm_name(s.name) for s in stats]) for stats in player_summary_stats]
         best = arrayops.argmax(matches)
         match = player_summary_stats[best]
         if matches[best] < 0.85:
@@ -617,16 +636,26 @@ class Weapons:
 
         weapon1 = self._get_weapon_map(0)
         weapon1_selected_vals = np.array([w.selected_weapons[0] for w in self.weapon_data])
-        weapon1_selected = (arrayops.medfilt(weapon1_selected_vals, 3) < 200) & np.not_equal(weapon1, -1)
+        if len(weapon1_selected_vals):
+            weapon1_selected = (arrayops.medfilt(weapon1_selected_vals, 3) < 200) & np.not_equal(weapon1, -1)
+        else:
+            weapon1_selected = np.array((0, ), dtype=np.bool)
         # ammo1 = [wep.clip if sel else np.nan for sel, wep in zip(weapon1_selected, self.weapon_data)]
 
         weapon2 = self._get_weapon_map(1)
         weapon2_selected_vals = np.array([w.selected_weapons[1] for w in self.weapon_data])
-        weapon2_selected = (arrayops.medfilt(weapon2_selected_vals, 3) < 200) & np.not_equal(weapon2, -1)
+        if len(weapon2_selected_vals):
+            weapon2_selected = (arrayops.medfilt(weapon2_selected_vals, 3) < 200) & np.not_equal(weapon2, -1)
+        else:
+            weapon2_selected = np.array((0,), dtype=np.bool)
         # ammo2 = [wep.clip if sel else np.nan for sel, wep in zip(weapon2_selected, self.weapon_data)]
 
-        have_weapon = np.convolve(np.not_equal(weapon1, -1) + np.not_equal(weapon2,  -1), np.ones((10,)), mode='valid')
-        self.first_weapon_timestamp = self._get_firstweapon_pickup_time(have_weapon)
+        if len(weapon1) and len(weapon2):
+            have_weapon = np.convolve(np.not_equal(weapon1, -1) + np.not_equal(weapon2,  -1), np.ones((10,)), mode='valid')
+            self.first_weapon_timestamp = self._get_firstweapon_pickup_time(have_weapon)
+        else:
+            have_weapon = np.array((0,), dtype=np.bool)
+            self.first_weapon_timestamp = frames[-1].timestamp
 
         self.weapon_stats: List[WeaponStats] = []
         self.selected_weapon_at: List[Optional[WeaponStats]] = [None for _ in self.weapon_timestamp]
@@ -683,14 +712,15 @@ class Weapons:
         plt.show()
 
     def _get_weapon_map(self, index: int) -> np.ndarray:
-        normname = lambda n: textops.strip_string(n, string.ascii_uppercase + string.digits + '- ')
+        def stripname(s: str) -> str:
+            return textops.strip_string(s, string.ascii_uppercase + string.digits + '- ')
 
         weapon = np.full((len(self.weapon_data, )), fill_value=-1, dtype=np.int)
-        name2index = {normname(n): i for i, n in enumerate(data.weapon_names)}
+        name2index = {stripname(n): i for i, n in enumerate(data.weapon_names)}
         for i, weapons in enumerate(self.weapon_data):
             name = weapons.weapon_names[index]
             ratio, match = textops.matches_ratio(
-                normname(name),
+                stripname(name),
                 data.weapon_names
             )
             if ratio > 0.75:
@@ -805,9 +835,11 @@ class Route:
             import matplotlib.pyplot as plt
 
             plt.figure()
+            plt.title('alive')
             plt.plot([f.timestamp for f in frames[:-9]], alive)
 
             plt.figure()
+            plt.title('alive at')
             plt.scatter(np.linspace(0, 10 * alive_at.shape[0], alive_at.shape[0]), alive_at)
             plt.show()
 
@@ -1070,6 +1102,8 @@ class ApexGame:
         for frame in self.frames:
             if 'apex_metadata' in frame:
                 config_name = frame.apex_metadata.player_config_name
+                self.player_name = config_name
+                logger.info(f'Got player name from config: "{config_name}"')
 
         self.squad = Squad(self.all_frames, menu_names, config_name, debug=debug)
         self.combat = Combat(self.frames, self.placed, self.squad, debug=debug)

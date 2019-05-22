@@ -90,6 +90,8 @@ class GameProcessed(OverTrackModel):
     event_type = UnicodeAttribute(attr_name='event-type', null=False)
     event_data = JSONAttribute(attr_name='event-data', null=False)
 
+    last_used = NumberAttribute(null=True)
+
     @classmethod
     def create(cls, **kwargs):
         if 'id' not in kwargs:
