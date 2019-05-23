@@ -2,6 +2,7 @@ import inspect
 import logging
 import os
 import string
+from threading import Lock
 from typing import Callable, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, no_type_check, overload
 
 import cv2
@@ -119,6 +120,7 @@ tesseract_futura = tesserocr.PyTessBaseAPI(
     psm=tesserocr.PSM.SINGLE_LINE
 )
 
+lock = Lock()
 
 T = TypeVar('T', int, float, str)
 # T = int
@@ -151,69 +153,71 @@ def tesser_ocr(
         blur: Optional[float] = None,
         engine: tesserocr.PyTessBaseAPI = tesseract_only) -> Optional[T]:
 
-    if image.shape[0] <= 1 or image.shape[1] <= 1:
-        if not expected_type or expected_type is str:
-            return ''
-        else:
-            return None
+    with lock:
 
-    if whitelist is None:
-        if expected_type is int:
-            whitelist = string.digits
-        elif expected_type is float:
-            whitelist = string.digits + '.'
+        if image.shape[0] <= 1 or image.shape[1] <= 1:
+            if not expected_type or expected_type is str:
+                return ''
+            else:
+                return None
+
+        if whitelist is None:
+            if expected_type is int:
+                whitelist = string.digits
+            elif expected_type is float:
+                whitelist = string.digits + '.'
+            else:
+                whitelist = string.digits + string.ascii_letters + string.punctuation + ' '
+
+        # print('>', whitelist)
+
+        engine.SetVariable('tessedit_char_whitelist', whitelist)
+        if invert:
+            image = 255 - image
+        if scale != 1:
+            image = cv2.resize(image, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+
+        if blur:
+            image = cv2.GaussianBlur(image, (0, 0), blur)
+
+        # if debug:
+        #     cv2.imshow('tesser_ocr', image)
+        #     cv2.waitKey(0)
+
+        if len(image.shape) == 2:
+            height, width = image.shape
+            channels = 1
         else:
-            whitelist = string.digits + string.ascii_letters + string.punctuation + ' '
+            height, width, channels = image.shape
+        engine.SetImageBytes(image.tobytes(), width, height, channels, width * channels)
+        text: str = engine.GetUTF8Text()
+        if ' ' not in whitelist:
+            text = text.replace(' ', '')
+        if '\n' not in whitelist:
+            text = text.replace('\n', '')
 
     # print('>', whitelist)
+        if not any(c in whitelist for c in string.ascii_lowercase):
+            text = text.upper()
 
-    engine.SetVariable('tessedit_char_whitelist', whitelist)
-    if invert:
-        image = 255 - image
-    if scale != 1:
-        image = cv2.resize(image, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
 
-    if blur:
-        image = cv2.GaussianBlur(image, (0, 0), blur)
-
-    # if debug:
-    #     cv2.imshow('tesser_ocr', image)
-    #     cv2.waitKey(0)
-
-    if len(image.shape) == 2:
-        height, width = image.shape
-        channels = 1
-    else:
-        height, width, channels = image.shape
-    engine.SetImageBytes(image.tobytes(), width, height, channels, width * channels)
-    text: str = engine.GetUTF8Text()
-    if ' ' not in whitelist:
-        text = text.replace(' ', '')
-    if '\n' not in whitelist:
-        text = text.replace('\n', '')
-
-    if not any(c in whitelist for c in string.ascii_lowercase):
-        text = text.upper()
-
-    # print('>', text)
-
-    if expected_type:
-        try:
-            return expected_type(text)
-        except Exception as e:
+        if expected_type:
             try:
-                caller = inspect.stack()[1]
-                logger.warning(
-                    f'{os.path.basename(caller.filename)}:{caller.lineno} {caller.function} | '
-                    f'Got exception interpreting "{text}" as {expected_type.__name__}'
-                )
-            except:
-                logger.warning(
-                    f'Got exception interpreting "{text}" as {expected_type.__name__}'
-                )
-            return None
-    else:
-        return text
+                return expected_type(text)
+            except Exception as e:
+                try:
+                    caller = inspect.stack()[1]
+                    logger.warning(
+                        f'{os.path.basename(caller.filename)}:{caller.lineno} {caller.function} | '
+                        f'Got exception interpreting "{text}" as {expected_type.__name__}'
+                    )
+                except:
+                    logger.warning(
+                        f'Got exception interpreting "{text}" as {expected_type.__name__}'
+                    )
+                return None
+        else:
+            return text
 
 
 @overload

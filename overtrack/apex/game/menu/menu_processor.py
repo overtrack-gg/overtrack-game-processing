@@ -54,6 +54,9 @@ class MenuProcessor(Processor):
 
     @time_processing
     def process(self, frame: Frame):
+        if 'apex_play_menu_match' in frame:
+            return frame.apex_play_menu_match >= self.REQUIRED_MATCH
+
         y = frame.image_yuv[:, :, 0]
 
         ready_button = self.REGIONS['ready_button'].extract_one(y)

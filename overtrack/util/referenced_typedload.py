@@ -11,6 +11,10 @@ import numpy as np
 from typedload.exceptions import Annotation
 
 from overtrack.frame import Frame, Timings
+from overtrack.source.display_duplication import DisplayDuplicationSource
+from overtrack.source.http.http_capture import HTTPSource
+from overtrack.source.stream import TSSource
+
 import overtrack.overwatch.game.objective.models
 import overtrack.overwatch.game.killfeed.models
 import overtrack.overwatch.game.tab.models
@@ -35,13 +39,14 @@ import overtrack.apex.game.apex_metadata
 import overtrack.util.uploadable_image
 
 
+Source = Union[TSSource, DisplayDuplicationSource, HTTPSource]
+
 class Loader(typedload.dataloader.Loader):
     # noinspection PyUnresolvedReferences
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         if 'source_type' not in kwargs:
-            from overtrack.source.stream.ts_stream import TSSource
-            self.source_type = TSSource
+            self.source_type = Source
 
         self.referenced: Dict[object, Any] = {}
 
