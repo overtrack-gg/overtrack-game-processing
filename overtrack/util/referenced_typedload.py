@@ -13,6 +13,7 @@ from typedload.exceptions import Annotation
 from overtrack.frame import Frame, Timings
 from overtrack.source.display_duplication import DisplayDuplicationSource
 from overtrack.source.http.http_capture import HTTPSource
+from overtrack.source.shmem import SharedMemorySource
 from overtrack.source.stream import TSSource
 
 import overtrack.overwatch.game.objective.models
@@ -39,7 +40,7 @@ import overtrack.apex.game.apex_metadata
 import overtrack.util.uploadable_image
 
 
-Source = Union[TSSource, DisplayDuplicationSource, HTTPSource]
+Source = Union[TSSource, DisplayDuplicationSource, HTTPSource, SharedMemorySource]
 
 class Loader(typedload.dataloader.Loader):
     # noinspection PyUnresolvedReferences

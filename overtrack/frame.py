@@ -183,8 +183,10 @@ class Frame(Dict[str, Any]):
             **data: Any) -> 'Frame':
         if image.dtype != np.uint8:
             raise TypeError(f'image must have type uint8 but had type { image.dtype }')
-        if image.shape != (1080, 1920, 3):
-            raise TypeError(f'image must have shape (1080, 1920, 3) but had { image.shape }')
+
+        if image.shape[0] != 1080 or image.shape[2] != 3:
+        # if image.shape != (1080, 1920, 3):
+            raise TypeError(f'image must have shape (1080, *, 3) but had { image.shape }')
 
         f = cls.__new__(cls)
         f.image = image
@@ -239,7 +241,7 @@ class Frame(Dict[str, Any]):
         """
         Remove all top-level numpy arrays
         """
-        for k in 'image', 'debug_image':
+        for k in 'image', 'debug_image', '_image_yuv':
             if k in self:
                 del self[k]
         for k in list(self.keys()):
