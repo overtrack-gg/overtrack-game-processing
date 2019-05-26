@@ -90,27 +90,34 @@ def _debug_map_canny(map_image: np.ndarray) -> None:
     cv2.destroyAllWindows()
 
 
-def _debug_map_match(coords, template_offset, raw_map_template, map_template, min_loc, region):
+def _debug_map_match(map_template, min_loc, min_val, region, rotation):
     d = cv2.cvtColor(map_template, cv2.COLOR_GRAY2BGR)
-    cv2.rectangle(d, min_loc, (min_loc[0] + region.shape[1], min_loc[1] + region.shape[0]), (0, 255, 0))
-    cv2.circle(
-        d,
-        (min_loc[0] + region.shape[1] // 2 + template_offset[0], min_loc[1] + region.shape[0] // 2 + template_offset[1]),
-        3,
-        (0, 0, 255),
-        -1
-    )
-    cv2.imshow('template_rot', d)
+    if min_val < 1.0:
+        cv2.rectangle(d, min_loc, (min_loc[0] + region.shape[1], min_loc[1] + region.shape[0]), (0, 255, 0))
+        cv2.circle(
+            d,
+            (min_loc[0] + region.shape[1] // 2, min_loc[1] + region.shape[0] // 2),
+            3,
+            (0, 0, 255),
+            -1
+        )
+        cv2.putText(
+            d,
+            f'{min_val:.3f}',
+            (min_loc[0] + region.shape[1] // 2 + 15, min_loc[1] + region.shape[0] // 2),
+            cv2.FONT_HERSHEY_COMPLEX,
+            1.0,
+            (0, 255, 0),
+            1
+        )
     cv2.imshow('fragment', region)
-    d2 = cv2.cvtColor(raw_map_template, cv2.COLOR_GRAY2BGR)
-    cv2.circle(
-        d2,
-        coords,
-        3,
-        (0, 0, 255),
-        -1
-    )
-    cv2.imshow('template', d2)
+    cv2.imshow('template' + ('_rot' if rotation is not None else ''), d)
+
+
+template_blur_pre = 1.0
+template_canny_t1 = 30
+template_canny_t2 = 100
+template_blur_post = 2.0
 
 
 class MapProcessor(Processor):
@@ -120,15 +127,15 @@ class MapProcessor(Processor):
     MAP_TEMPLATE = cv2.GaussianBlur(
         cv2.Canny(
             cv2.GaussianBlur(
-                MAP,
+                cv2.cvtColor(MAP, cv2.COLOR_BGR2YUV)[:, :, 0],
                 (0, 0),
-                1.0
+                template_blur_pre
             ),
-            70,
-            150
+            template_canny_t1,
+            template_canny_t2
         ),
         (0, 0),
-        2.0
+        template_blur_post
     )
     MAP_MASK = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'map_mask.png'), 0) == 255
     TEMPLATE_OFFSET = (0, -3)
@@ -143,14 +150,14 @@ class MapProcessor(Processor):
 
     @time_processing
     def process(self, frame: Frame):
-        map_image = self.REGIONS['map'].extract_one(frame.image)
+        map_image = self.REGIONS['map'].extract_one(frame.image_yuv)[:, :, 0]
 
-        map_image = cv2.GaussianBlur(map_image, (0, 0), 0.5)
-        map_image = cv2.Canny(map_image, 50, 100)
-        map_image = cv2.GaussianBlur(map_image, (0, 0), 2.0)
+        map_image_canny = cv2.GaussianBlur(map_image, (0, 0), template_blur_pre)
+        map_image_canny = cv2.Canny(map_image_canny, template_canny_t1, template_canny_t2)
+        map_image_canny = cv2.GaussianBlur(map_image_canny, (0, 0), template_blur_post)
 
         map_fragment = cv2.resize(
-            map_image,
+            map_image_canny,
             (0, 0),
             fx=0.987,
             fy=0.987
@@ -160,22 +167,33 @@ class MapProcessor(Processor):
             # try rotated map first
             rotated_map = True
             bearing, location, min_loc, min_val = self._get_location_rotated(frame, map_fragment)
-            if not bearing or min_val > 0.9:
+            if not bearing or min_val > 0.5:
                 location2, min_loc2, min_val2 = self._get_location(map_fragment)
+                logger.debug(
+                    f'Got rotated: bearing={bearing}, loc={location.coordinates if location else None}, match={min_val:.3f} | '
+                    f'unrotated: loc={location2.coordinates if location2 else None}, match={min_val2:.3f}'
+                )
                 if not bearing or min_val2 < min_val:
                     rotated_map = False
                     location, min_loc, min_val = location2, min_loc2, min_val2
+            else:
+                logger.debug(f'Got rotated: bearing={bearing}, loc={location.coordinates if location else None}, match={min_loc} | unrotated: <skipped>')
         else:
             # by default try without rotating map
             rotated_map = False
             location, min_loc, min_val = self._get_location(map_fragment)
-            if min_val > 0.9:
+            if min_val > 0.5:
                 bearing, location2, min_loc2, min_val2 = self._get_location_rotated(frame, map_fragment)
+                logger.debug(
+                    f'Got urotated: loc={location.coordinates if location else None}, match={min_val:.3f} | '
+                    f'rotated: bearing={bearing}, loc={location2.coordinates if location2 else None}, match={min_val2:.3f}'
+                )
                 if bearing and min_val2 < min_val:
                     rotated_map = True
                     location, min_loc, min_val = location2, min_loc2, min_val2
             else:
                 bearing = None
+                logger.debug(f'Got urotated: loc={location.coordinates if location else None}, match={min_val} | rotated: <skipped>')
 
         _draw_map_location(
             frame.debug_image,
@@ -184,6 +202,8 @@ class MapProcessor(Processor):
             min_loc if not rotated_map else None,
             map_fragment.shape
         )
+
+        # _debug_map_canny(map_image)
 
         if min_val < 0.85 and self.MAP_MASK[location.coordinates[1], location.coordinates[0]]:
             self.REGIONS.draw(frame.debug_image)
@@ -200,7 +220,7 @@ class MapProcessor(Processor):
         bearing_image = self.REGIONS['bearing'].extract_one(frame.image_yuv[:, :, 0])
         bearing = imageops.tesser_ocr(bearing_image, expected_type=int, engine=ocr.tesseract_ttlakes_digits)
         if not bearing or not 0 <= bearing <= 360:
-            logger.warning(f'Got invalid bearing: {bearing}')
+            logger.debug(f'Got invalid bearing: {bearing}')
             return None, None, None, 1
         if bearing:
             rot = cv2.getRotationMatrix2D(
@@ -232,12 +252,19 @@ class MapProcessor(Processor):
         )
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
 
+        # match2 = cv2.matchTemplate(
+        #     map_template,
+        #     region,
+        #     cv2.TM_CCORR_NORMED
+        # )
+        # print(min_val, np.max(match2))
+
         coords = min_loc[0] + region.shape[1] // 2 + self.TEMPLATE_OFFSET[0], min_loc[1] + region.shape[0] // 2 + self.TEMPLATE_OFFSET[1]
         if rotation is not None:
             inv = cv2.invertAffineTransform(rotation)
             coords = tuple(cv2.transform(np.array([[coords]]), inv)[0][0])
 
-        # _debug_map_match(coords, self.TEMPLATE_OFFSET, self.MAP_TEMPLATE, map_template, min_loc, region)
+        # _debug_map_match(map_template, min_loc, min_val, region, rotation)
 
         location = Location(
             coords,
@@ -246,15 +273,95 @@ class MapProcessor(Processor):
         return location, min_loc, min_val
 
 
+def find_best_match():
+    im = cv2.imread("C:/tmp/frames/1558234981.88_image.png")
+    frame = Frame.create(
+        im,
+        0,
+        True
+    )
+    pipeline = MapProcessor()
+
+    map_image_o = pipeline.REGIONS['map'].extract_one(frame.image)
+
+    template_blur_pre = 0.8
+    template_canny_t1 = 70
+    template_canny_t2 = 150
+    template_blur_post = 2.0
+
+    fragment_blur_pre = 0.5
+    fragment_canny_t1 = 50
+    fragment_canny_t2 = 100
+    fragment_blur_post = 2.0
+
+    fragment_blur_pre = template_blur_pre
+    fragment_canny_t1 = template_canny_t1
+    fragment_canny_t2 = template_canny_t2
+    fragment_blur_post = template_blur_post
+
+    min_val = check_params(
+        fragment_blur_post,
+        fragment_blur_pre,
+        fragment_canny_t1,
+        fragment_canny_t2,
+        frame,
+        map_image_o,
+        pipeline,
+        template_blur_post,
+        template_blur_pre,
+        template_canny_t1,
+        template_canny_t2
+    )
+    print(min_val)
+    cv2.waitKey(0)
+
+
+def check_params(fragment_blur_post, fragment_blur_pre, fragment_canny_t1, fragment_canny_t2, frame, map_image_o, pipeline, template_blur_post,
+                 template_blur_pre, template_canny_t1, template_canny_t2):
+    pipeline.MAP_TEMPLATE = cv2.GaussianBlur(
+        cv2.Canny(
+            cv2.GaussianBlur(
+                pipeline.MAP,
+                (0, 0),
+                template_blur_pre
+            ),
+            template_canny_t1,
+            template_canny_t2
+        ),
+        (0, 0),
+        template_blur_post
+    )
+    map_image = cv2.GaussianBlur(map_image_o, (0, 0), fragment_blur_pre)
+    map_image = cv2.Canny(map_image, fragment_canny_t1, fragment_canny_t2)
+    map_image = cv2.GaussianBlur(map_image, (0, 0), fragment_blur_post)
+    map_fragment = cv2.resize(
+        map_image,
+        (0, 0),
+        fx=0.987,
+        fy=0.987
+    )
+
+    rot = cv2.getRotationMatrix2D(
+        (pipeline.MAP_TEMPLATE.shape[1] // 2, pipeline.MAP_TEMPLATE.shape[0] // 2),
+        63 - 360,
+        1
+    )
+
+    location, min_loc, min_val = pipeline._get_location(map_fragment, rotation=rot)
+    return min_val
+
+
 def main() -> None:
     import glob
 
     config_logger('map_processor', logging.DEBUG, write_to_file=False)
 
-    pipeline = MapProcessor()
+    find_best_match()
+    # exit(0)
 
+    pipeline = MapProcessor()
     print(os.path.abspath('../../../../dev/images/map/'))
-    for p in glob.glob('../../../../dev/images/map/*.png'):
+    for p in ["C:/tmp/frames/1558234981.88_image.png"] + glob.glob('../../../../dev/images/map/*.png'):
         print(p)
         try:
             frame = Frame.create(
@@ -273,15 +380,6 @@ def main() -> None:
             cv2.waitKey(0)
         else:
             cv2.waitKey(0)
-
-    from overtrack.source.video import VideoFrameExtractor
-
-    for frame in VideoFrameExtractor("M:/test.mkv", extract_fps=1, debug_frames=True, seek=12*60).tqdm():
-        pipeline.process(frame)
-        print(frame)
-        pipeline.REGIONS.draw(frame.debug_image)
-        cv2.imshow('debug', frame.debug_image)
-        cv2.waitKey(0)
 
 
 if __name__ == '__main__':
