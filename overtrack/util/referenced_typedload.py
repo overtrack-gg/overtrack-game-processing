@@ -26,6 +26,7 @@ import overtrack.overwatch.game.score.models
 import overtrack.overwatch.game.endgame.models
 import overtrack.overwatch.game.hero.models
 import overtrack.overwatch.game.endgame_sr.models
+import overtrack.overwatch.game.overwatch_metadata
 
 import overtrack.apex.game.match_status.models
 import overtrack.apex.game.match_summary.models
@@ -37,6 +38,7 @@ import overtrack.apex.game.squad_summary.models
 import overtrack.apex.game.map.models
 import overtrack.apex.game.combat.models
 import overtrack.apex.game.apex_metadata
+
 import overtrack.util.uploadable_image
 
 
@@ -113,6 +115,7 @@ _TYPES = {
     'location': overtrack.apex.game.map.models.Location,
     'combat_log': overtrack.apex.game.combat.models.CombatLog,
 
+    'overwatch_metadata': overtrack.overwatch.game.overwatch_metadata.OverwatchClientMetadata,
     'apex_metadata': overtrack.apex.game.apex_metadata.ApexClientMetadata
 }
 
