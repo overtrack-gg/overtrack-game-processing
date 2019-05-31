@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import Sequence, Union, Tuple
+from typing import Sequence, Union, Tuple, TypeVar, Iterable
 
 import numpy as np
 
@@ -22,8 +22,9 @@ def monotonic(seq: Union[Sequence[Num], np.ndarray], increasing: bool = True):
     else:
         return np.all(diff < 0)
 
+T = TypeVar('T')
 
-def most_common(vals):
+def most_common(vals: Iterable[T]) -> T:
     return Counter(vals).most_common(1)[0][0]
 
 
