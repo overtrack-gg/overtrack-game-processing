@@ -110,8 +110,8 @@ def best_match(
         options: Iterable[str],
         choose_from: Optional[Sequence[T]]=None,
         default: Union[str, T, None]=None,
-        threshold: int=2,
-        level: Optional[int]=logging.INFO,
+        threshold: int = 2,
+        level: Optional[int] = logging.INFO,
         **kwargs: Any) -> Optional[Union[T, str]]:
     options = list(options)
     m = matches(text, options, **kwargs)
@@ -124,5 +124,5 @@ def best_match(
         else:
             return options[index]
     else:
-        logger.warning(f'Failed to find match for "{text}" in {options} - closest="{options[index]} with match={m[index]} - using default="{default}"')
+        logger.warning(f'Failed to find match for "{text}" in {options} - closest="{options[index]}" with match={m[index]} - using default="{default}"')
         return default

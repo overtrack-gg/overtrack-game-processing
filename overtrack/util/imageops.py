@@ -336,6 +336,10 @@ def bgr_2hsv(colour):
     return cv2.cvtColor(np.array(colour, np.uint8)[np.newaxis, np.newaxis, :], cv2.COLOR_BGR2HSV_FULL)[0, 0]
 
 
+def hsv2bgr(colour):
+    return cv2.cvtColor(np.array(colour, np.uint8)[np.newaxis, np.newaxis, :], cv2.COLOR_HSV2BGR_FULL)[0, 0]
+
+
 # if __name__ == '__main__':
 #     print(os.environ['PATH'])
 #     print(tesserocr.tesseract_version())

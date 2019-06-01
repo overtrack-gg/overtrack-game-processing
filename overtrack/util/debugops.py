@@ -182,6 +182,50 @@ def manual_unsharp_mask(image: np.ndarray, scale: float=2, inv=False, callback: 
     return size, weight, threshold
 
 
+def inrange(image: np.ndarray, scale: float = 2, callback: Optional[Callable[[np.ndarray], None]] = None):
+    updated = True
+    def update(_: int) -> None:
+        nonlocal updated
+        updated = True
+
+    cv2.namedWindow('inrange')
+    cv2.createTrackbar('c1_l', 'inrange', 0, 255, update)
+    cv2.createTrackbar('c1_h', 'inrange', 255, 255, update)
+
+    cv2.createTrackbar('c2_l', 'inrange', 0, 255, update)
+    cv2.createTrackbar('c2_h', 'inrange', 255, 255, update)
+
+    cv2.createTrackbar('c3_l', 'inrange', 0, 255, update)
+    cv2.createTrackbar('c3_h', 'inrange', 255, 255, update)
+
+    while True:
+        c1_l, c2_l, c3_l = [cv2.getTrackbarPos(f'c{i + 1}_l', 'inrange') for i in range(3)]
+        c1_h, c2_h, c3_h = [cv2.getTrackbarPos(f'c{i + 1}_h', 'inrange') for i in range(3)]
+
+        result = cv2.inRange(image, (c1_l, c2_l, c3_l), (c1_h, c2_h, c3_h))
+
+        cv2.imshow('inrange', cv2.resize(
+            np.vstack((
+                image,
+                cv2.cvtColor(result, cv2.COLOR_GRAY2BGR),
+            )),
+            (0, 0),
+            fx=scale,
+            fy=scale
+        ))
+        k = cv2.waitKey(1) & 0xFF
+        if k == 27:
+            break
+
+        if updated:
+            updated = False
+            if callback:
+                print(callback(result))
+
+    print((c1_l, c2_l, c3_l), (c1_h, c2_h, c3_h))
+
+    return (c1_l, c2_l, c3_l), (c1_h, c2_h, c3_h)
+
 def show_ocr_segmentations(names: List[np.ndarray], **kwargs: Any) -> None:
     cv2.imshow('names', np.vstack(names))
     segmented_names = []
