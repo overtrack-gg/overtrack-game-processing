@@ -1,5 +1,7 @@
+import logging
+
 import itertools
-from typing import Any, Dict, Optional, Type, TypeVar, List, Union, cast
+from typing import Any, Dict, Optional, Type, TypeVar, List, Union, cast, Tuple, NamedTuple
 
 # noinspection PyUnresolvedReferences
 import dataclasses
@@ -41,6 +43,8 @@ import overtrack.apex.game.combat.models
 import overtrack.apex.game.apex_metadata
 
 import overtrack.util.uploadable_image
+
+logger = logging.getLogger('referenced_typedload')
 
 
 Source = Union[TSSource, DisplayDuplicationSource, HTTPSource, SharedMemorySource]
@@ -86,7 +90,12 @@ class Loader(typedload.dataloader.Loader):
                 self.referenced[_id] = r
                 return r
             elif '_ref' in value:
-                return self.referenced[value['_ref']]
+                r = self.referenced[value['_ref']]
+
+                if type_ in [overtrack.overwatch.game.score.models.ScoreScreen, overtrack.overwatch.game.score.models.FinalScore] and not isinstance(r, type_):
+                    logger.warning(f'Got {type(r)}, but expected {type_} - attempting conversion')
+                    r = type_(*[getattr(r, f.name) for f in dataclasses.fields(r)])
+                return r
 
         return super().load(value, type_)
 

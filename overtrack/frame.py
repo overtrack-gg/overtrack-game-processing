@@ -120,6 +120,7 @@ class Frame(Dict[str, Any]):
         import overtrack.overwatch.game.hero.models
         import overtrack.overwatch.game.endgame_sr.models
         import overtrack.overwatch.game.hero_select.models
+        import overtrack.overwatch.game.overwatch_metadata
         objective: overtrack.overwatch.game.objective.Objective
         loading_map: overtrack.overwatch.game.loading_map.models.LoadingMap
         loading_match: float
@@ -143,6 +144,7 @@ class Frame(Dict[str, Any]):
         endgame_sr: overtrack.overwatch.game.endgame_sr.models.EndgameSR
         assemble_your_team_match: float
         assemble_your_team: overtrack.overwatch.game.hero_select.models.AssembleYourTeam
+        overwatch_metadata: overtrack.overwatch.game.overwatch_metadata.OverwatchClientMetadata
 
         timings: Timings
 
