@@ -1,18 +1,26 @@
-import itertools
 import logging
 import string
 import typing
 from collections import Counter
-import Levenshtein as levenshtein
 from typing import Any, Iterable, List, Optional, Sequence, Tuple, TypeVar, Union, no_type_check, overload
 
+import Levenshtein as levenshtein
+import itertools
 # import editdistance
 import numpy as np
+
+from overtrack.util import arrayops
 
 logger = logging.getLogger(__name__)
 
 
-def matches(to_match: str, possible_matches: List[str], ignore_spaces: bool=True, ignore_case: bool=True, ignore_symbols: bool=True) -> List[float]:
+def matches(
+        to_match: str,
+        possible_matches: List[str],
+        ignore_spaces: bool = True,
+        ignore_case: bool = True,
+        ignore_symbols: bool = True,
+        use_ratio: bool = False) -> List[float]:
     r = []
     for s in possible_matches:
         if s:
@@ -28,10 +36,17 @@ def matches(to_match: str, possible_matches: List[str], ignore_spaces: bool=True
             if ignore_case:
                 s1 = s1.upper()
                 s2 = s2.upper()
-            r.append(levenshtein.distance(s1, s2))
+            if use_ratio:
+                r.append(levenshtein.ratio(s1, s2))
+            else:
+                r.append(levenshtein.distance(s1, s2))
         else:
-            r.append(float('inf'))
+            if use_ratio:
+                r.append(0)
+            else:
+                r.append(float('inf'))
     return r
+
 
 def matches_ratio(to_match: str, possible_matches: List[str]) -> Tuple[float, str]:
     best = 0, possible_matches[0]
@@ -67,62 +82,83 @@ def mmss_to_seconds(mmss: int) -> int:
     return mm * 60 + ss
 
 
-def strip_string(s: str, alphabet: str=string.digits + string.ascii_letters + '_') -> str:
+def strip_string(s: str, alphabet: str = string.digits + string.ascii_letters + '_') -> str:
     return ''.join(c for c in s if c in alphabet)
 
 
 T = TypeVar('T')
+
+
 @overload
 def best_match(
         text: str,
         options: Iterable[str],
         default: str,
-        threshold: int = 0,
-        level: Optional[int] = 0) -> str:
+        threshold: Union[int, float] = 0,
+        level: Optional[int] = 0,
+        disable_log: bool = False) -> str:
     ...
+
+
 @overload
 def best_match(
         text: str,
         options: Iterable[str],
-        threshold: int = 0,
-        level: Optional[int] = 0) -> Optional[str]:
+        threshold: Union[int, float] = 0,
+        level: Optional[int] = 0,
+        disable_log: bool = False) -> Optional[str]:
     ...
+
+
 @overload
 def best_match(
         text: str,
         options: Iterable[str],
         choose_from: Sequence[T],
         default: T,
-        threshold: int = 0,
-        level: Optional[int] = 0) -> T:
+        threshold: Union[int, float] = 0,
+        level: Optional[int] = 0,
+        disable_log: bool = False) -> T:
     ...
+
+
 @overload
 def best_match(
         text: str,
         options: Iterable[str],
         choose_from: Sequence[T],
-        threshold: int = 0,
-        level: Optional[int] = 0) -> Optional[T]:
+        threshold: Union[int, float] = 0,
+        level: Optional[int] = 0,
+        disable_log: bool = False) -> Optional[T]:
     ...
+
+
 @no_type_check
 def best_match(
         text: str,
         options: Iterable[str],
-        choose_from: Optional[Sequence[T]]=None,
-        default: Union[str, T, None]=None,
-        threshold: int = 2,
+        choose_from: Optional[Sequence[T]] = None,
+        default: Union[str, T, None] = None,
+        threshold: Union[int, float] = 2,
         level: Optional[int] = logging.INFO,
+        disable_log: bool = False,
         **kwargs: Any) -> Optional[Union[T, str]]:
     options = list(options)
-    m = matches(text, options, **kwargs)
-    index: int = np.argmin(m)
-    if m[index] <= threshold:
-        if level:
+    use_ratio = 0 < threshold < 1
+    if use_ratio:
+        m = matches(text, options, **kwargs, use_ratio=True)
+        index: int = arrayops.argmax(m)
+    else:
+        m = matches(text, options, **kwargs)
+        index: int = arrayops.argmin(m)
+    if (not use_ratio and m[index] <= threshold) or (use_ratio and m[index] > threshold):
+        if level and not disable_log:
             logging.log(level, f'Matched "{text}" to "{options[index]}"->{repr((choose_from or options)[index])} - match={m[index]}')
         if choose_from is not None:
             return choose_from[index]
         else:
             return options[index]
     else:
-        logger.warning(f'Failed to find match for "{text}" in {options} - closest="{options[index]}" with match={m[index]} - using default="{default}"')
+        if not disable_log:
+            logger.warning(f'Failed to find match for "{text}" in {options} - closest="{options[index]}" with match={m[index]} - using default="{default}"')
         return default
