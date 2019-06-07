@@ -160,8 +160,8 @@ class SquadSummaryProcessor(Processor):
         for image in stat_images[6:9]:
             comp_image, comps = imageops.connected_components(cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1])
             for component in comps:
-                # MS chars are 16 px high
-                if 14 < component.h < 17:
+                # MS chars are 17 px high
+                if 14 < component.h < 19:
                     # mask out those components
                     mask = (comp_image == component.label).astype(np.uint8) * 255
                     mask = cv2.dilate(mask, None)
@@ -174,7 +174,9 @@ class SquadSummaryProcessor(Processor):
         )
         for i in 6, 7, 8:
             if stats[i] is not None:
-                stats[i] = mmss_to_seconds(stats[i])
+                seconds = mmss_to_seconds(stats[i])
+                logger.info(f'MM:SS {stats[i]} -> {seconds}')
+                stats[i] = seconds
 
         # typing: ignore
         # noinspection PyTypeChecker
@@ -188,7 +190,7 @@ def main() -> None:
 
     import glob
 
-    ps = "C:/Users/simon/mpv-screenshots/mpv-shot0244.png"
+    ps = "C:/tmp/05-04-22.png"
     for p in ([ps] + glob.glob('../../../../dev/apex_images/squad_summary/*.png') + glob.glob('../../../../dev/apex_images/**/*.png')):
         frame = Frame.create(
             cv2.resize(cv2.imread(p), (1920, 1080)),

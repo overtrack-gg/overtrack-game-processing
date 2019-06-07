@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from overtrack.util import arrayops
 
 
-@dataclass
+@dataclass(frozen=True)
 class Weapons:
     weapon_names: List[str]
     selected_weapons: Tuple[int, int]
