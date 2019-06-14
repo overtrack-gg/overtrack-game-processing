@@ -1,18 +1,19 @@
 import logging
 import os
 import string
+from typing import Optional
 
 import Levenshtein as levenshtein
 import cv2
 import numpy as np
 
 from overtrack.apex import ocr
+from overtrack.apex.game.match_status import MatchStatus
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-from .models import *
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def _draw_status(debug_image: Optional[np.ndarray], status: MatchStatus) -> None
     cv2.putText(
         debug_image,
         f'{status}',
-        (1150, 110),
+        (1050, 110),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.75,
         (255, 0, 255),
@@ -33,6 +34,7 @@ def _draw_status(debug_image: Optional[np.ndarray], status: MatchStatus) -> None
 
 class MatchStatusProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), '..', 'data', 'regions', '16_9.zip'))
+    HEAD_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'head.png'), 0)
     SKULL_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'skull.png'), 0)
     SUBS = [
         '?2',
@@ -49,12 +51,35 @@ class MatchStatusProcessor(Processor):
     def process(self, frame: Frame):
         y = cv2.cvtColor(frame.image, cv2.COLOR_BGR2YUV)[:, :, 0]
 
-        squads_left = self._get_squads_left(y)
+        # The text moves depending on normal or elite queue
+        # Look for the "head" template showing players alive
+        head_region = self.REGIONS['head_region'].extract_one(y)
+        _, head_thresh = cv2.threshold(head_region, 200, 255, cv2.THRESH_BINARY)
+        head_match = cv2.matchTemplate(head_thresh, self.HEAD_TEMPLATE, cv2.TM_CCORR_NORMED)
+        mnv, mxv, mnl, mxl = cv2.minMaxLoc(head_match)
+        logger.debug(f'match={mxv:1.2f}')
+        if mxv < 0.9:
+            return False
+
+        # once we know the head position, derive the 'players alive' position
+        # from this derive the positions of other elements using the distances from the extraction regions
+        left = mxl[0] + self.REGIONS['head_region'].regions[0][0]
+        players_left_x = left + 20
+        squads_left_x = players_left_x - (self.REGIONS['alive'].regions[0][0] - self.REGIONS['squads_left'].regions[0][0])
+        kills_left = players_left_x - (self.REGIONS['alive'].regions[0][0] - self.REGIONS['kills'].regions[0][0])
+
+        squads_left = self._get_squads_left(y, squads_left_x)
         if squads_left is not None:
+            if left < 1750:
+                streak = self._get_streak(y, left + 115)
+            else:
+                streak = None
+
             frame.match_status = MatchStatus(
                 squads_left=squads_left,
-                players_alive=self._get_players_alive(y) if squads_left > 4 else None,
-                kills=self._get_kills(y)
+                players_alive=self._get_players_alive(y, players_left_x) if squads_left > 4 else None,
+                kills=self._get_kills(y, kills_left),
+                streak=streak
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_status(frame.debug_image, frame.match_status)
@@ -62,9 +87,14 @@ class MatchStatusProcessor(Processor):
         else:
             return False
 
-    def _get_squads_left(self, y: np.ndarray) -> Optional[int]:
+    def _get_squads_left(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
+        x, y, w, h = self.REGIONS['squads_left'].regions[0]
+        region = luma[
+            y: y + h,
+            left_coord: left_coord + w
+        ]
         squads_left_text = imageops.tesser_ocr(
-            self.REGIONS['squads_left'].extract_one(y),
+            region,
             engine=imageops.tesseract_lstm,
             scale=2,
             invert=True
@@ -94,9 +124,13 @@ class MatchStatusProcessor(Processor):
         else:
             return None
 
-    def _get_players_alive(self, y: np.ndarray) -> Optional[int]:
+    def _get_players_alive(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
+        x, y, w, h = self.REGIONS['alive'].regions[0]
         players_alive = imageops.tesser_ocr(
-            self.REGIONS['alive'].extract_one(y),
+            luma[
+                y: y + h,
+                left_coord: left_coord + w
+            ],
             engine=ocr.tesseract_ttlakes_digits,
             scale=4,
             expected_type=int
@@ -108,8 +142,12 @@ class MatchStatusProcessor(Processor):
             logger.warning(f'Rejecting players_alive={players_alive}')
             return None
 
-    def _get_kills(self, y: np.ndarray) -> Optional[int]:
-        kills_image = self.REGIONS['kills'].extract_one(y)
+    def _get_kills(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
+        x, y, w, h = self.REGIONS['kills'].regions[0]
+        kills_image = luma[
+            y: y + h,
+            left_coord: left_coord + w
+        ]
         _, kills_thresh = cv2.threshold(kills_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         match = cv2.matchTemplate(
             kills_thresh,
@@ -142,16 +180,40 @@ class MatchStatusProcessor(Processor):
         else:
             return None
 
+    def _get_streak(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
+        x, y, w, h = self.REGIONS['kills'].regions[0]
+        streak_image = luma[
+            y:y + h,
+            left_coord:left_coord + 37
+        ]
+        streak_text = imageops.tesser_ocr(
+            streak_image,
+            engine=imageops.tesseract_lstm,
+            scale=2,
+            invert=True
+        ).upper().strip()
+        for s1, s2 in self.SUBS:
+            streak_text = streak_text.replace(s1, s2)
+        try:
+            streak = int(streak_text)
+            if 0 < streak <= 50:
+                return streak
+            else:
+                logger.warning(f'Rejecting streak={streak}')
+                return None
+        except ValueError:
+            logger.warning(f'Cannot parse "{streak_text}" as int')
+            return None
 
 def main() -> None:
 
     print(levenshtein.ratio(' SAUADS LEFT'.replace(' ', ''), 'SQUADSLEFT'))
 
     import glob
-    config_logger('map_processor', logging.INFO, write_to_file=False)
+    config_logger('map_processor', logging.DEBUG, write_to_file=False)
 
     pipeline = MatchStatusProcessor()
-    ps = ["M:/Videos/apex/2_103.png", "C:/Users/simon/workspace/overtrack_2/dev/apex_images/mpv-shot0171.png"]
+    ps = ["C:/Users/simon/mpv-screenshots/mpv-shot0290.png", "M:/Videos/apex/2_103.png", "C:/Users/simon/workspace/overtrack_2/dev/apex_images/mpv-shot0171.png"]
     ps += glob.glob('M:/Videos/apex/2_7*.png')
     for p in ps:
         print(p)

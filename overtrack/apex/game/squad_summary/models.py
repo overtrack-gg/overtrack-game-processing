@@ -26,3 +26,5 @@ class SquadSummary:
 
     image: Optional[UploadableImage] = None
 
+    elite: Optional[bool] = False
+
