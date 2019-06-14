@@ -91,7 +91,7 @@ T = TypeVar('T')
 
 @overload
 def best_match(
-        text: str,
+        text: Union[str, List[str]],
         options: Iterable[str],
         default: str,
         threshold: Union[int, float] = 0,
@@ -102,7 +102,7 @@ def best_match(
 
 @overload
 def best_match(
-        text: str,
+        text: Union[str, List[str]],
         options: Iterable[str],
         threshold: Union[int, float] = 0,
         level: Optional[int] = 0,
@@ -112,7 +112,7 @@ def best_match(
 
 @overload
 def best_match(
-        text: str,
+        text: Union[str, List[str]],
         options: Iterable[str],
         choose_from: Sequence[T],
         default: T,
@@ -124,7 +124,7 @@ def best_match(
 
 @overload
 def best_match(
-        text: str,
+        text: Union[str, List[str]],
         options: Iterable[str],
         choose_from: Sequence[T],
         threshold: Union[int, float] = 0,
@@ -135,7 +135,7 @@ def best_match(
 
 @no_type_check
 def best_match(
-        text: str,
+        text: Union[str, List[str]],
         options: Iterable[str],
         choose_from: Optional[Sequence[T]] = None,
         default: Union[str, T, None] = None,
@@ -145,20 +145,41 @@ def best_match(
         **kwargs: Any) -> Optional[Union[T, str]]:
     options = list(options)
     use_ratio = 0 < threshold < 1
-    if use_ratio:
-        m = matches(text, options, **kwargs, use_ratio=True)
-        index: int = arrayops.argmax(m)
+
+    if not isinstance(text, list):
+        texts = [text]
     else:
-        m = matches(text, options, **kwargs)
-        index: int = arrayops.argmin(m)
-    if (not use_ratio and m[index] <= threshold) or (use_ratio and m[index] > threshold):
+        texts = text
+
+    best = None, None
+    for tomatch in texts:
+        if use_ratio:
+            m = matches(tomatch, options, **kwargs, use_ratio=True)
+            index: int = arrayops.argmax(m)
+            if best[0] is None or m[index] > best[0]:
+                best = m[index], index
+        else:
+            m = matches(tomatch, options, **kwargs)
+            index: int = arrayops.argmin(m)
+            if best[0] is None or m[index] < best[0]:
+                best = m[index], index
+
+    match, index = best
+    if (not use_ratio and match <= threshold) or (use_ratio and match > threshold):
         if level and not disable_log:
-            logging.log(level, f'Matched "{text}" to "{options[index]}"->{repr((choose_from or options)[index])} - match={m[index]}')
+            logging.log(
+                level,
+                f'Matched "{text if isinstance(text, str) else Counter(text)}" to "{options[index]}" -> '
+                f'{repr((choose_from or options)[index])} - match={match}'
+            )
         if choose_from is not None:
             return choose_from[index]
         else:
             return options[index]
     else:
         if not disable_log:
-            logger.warning(f'Failed to find match for "{text}" in {options} - closest="{options[index]}" with match={m[index]} - using default="{default}"')
+            logger.warning(
+                f'Failed to find match for "{text if isinstance(text, str) else Counter(text)}" in {options} - '
+                f'closest="{options[index]}" with match={match} - using default="{default}"'
+            )
         return default
