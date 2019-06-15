@@ -1,9 +1,10 @@
 import inspect
 import logging
+import operator
 import os
 import string
 from threading import Lock
-from typing import Callable, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, no_type_check, overload
+from typing import Callable, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, no_type_check, overload, Dict
 
 import cv2
 import numpy as np
@@ -196,7 +197,6 @@ def tesser_ocr(
         if '\n' not in whitelist:
             text = text.replace('\n', '')
 
-    # print('>', whitelist)
         if not any(c in whitelist for c in string.ascii_lowercase):
             text = text.upper()
 
@@ -332,12 +332,39 @@ def matchTemplate(image: np.ndarray, template: np.ndarray, method: int, mask: Op
         return cv2.matchTemplate(image, template, method, mask=mask)
 
 
+def match_templates(image: np.ndarray, templates: Dict[str, np.ndarray], method: int, required_match: Optional[float] = None) -> Tuple[float, str]:
+    """
+    Find the template that best matches `image` OR the first template that meets `required_match`
+
+    :param image: The image to test templates against
+    :param templates: A dictionary of templates and their names
+    :param method: The CV2 method to match templates
+    :param required_match: The required match to return early when a template meets this
+    :return: A tuple of the match value and key of the best match OR the first match meeting required_match (if provided)
+    """
+    if not templates:
+        raise ValueError('No templates provided (templates was empty dict)')
+
+    if method in [cv2.TM_SQDIFF_NORMED, cv2.TM_SQDIFF]:
+        arrop = np.min
+        valop = operator.lt
+    else:
+        arrop = np.max
+        valop = operator.gt
+
+    best: Optional[Tuple[float, str]] = None
+    for key, template in templates.items():
+        match = arrop(matchTemplate(image, template, method))
+        if required_match is not None and valop(match, required_match):
+            return match, key
+        if not best or valop(match, best[0]):
+            best = match, key
+
+    return best
+
+
 def bgr_2hsv(colour):
     return cv2.cvtColor(np.array(colour, np.uint8)[np.newaxis, np.newaxis, :], cv2.COLOR_BGR2HSV_FULL)[0, 0]
-
-
-def hsv2bgr(colour):
-    return cv2.cvtColor(np.array(colour, np.uint8)[np.newaxis, np.newaxis, :], cv2.COLOR_HSV2BGR_FULL)[0, 0]
 
 
 # if __name__ == '__main__':
@@ -360,3 +387,18 @@ def hsv2bgr(colour):
 #     print('--')
 #     print(tesser_ocr(gray, whitelist=string.ascii_uppercase))
 #     print(tesser_ocr(gray, invert=True, whitelist=string.ascii_uppercase))
+
+
+
+
+def hsv2bgr(colour):
+    return cv2.cvtColor(np.array(colour, np.uint8)[np.newaxis, np.newaxis, :], cv2.COLOR_HSV2BGR_FULL)[0, 0]
+
+
+def main() -> None:
+    im = cv2.imread('C:/tmp/tesser_ocr.png')
+    print(tesser_ocr(im, whitelist=string.digits + '.-', invert=True, scale=4, blur=2))
+
+
+if __name__ == '__main__':
+    main()
