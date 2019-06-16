@@ -114,6 +114,7 @@ class Frame(Dict[str, Any]):
         import overtrack.overwatch.game.tab.models
         import overtrack.overwatch.game.menu.models
         import overtrack.overwatch.game.killfeed.models
+        import overtrack.overwatch.game.killfeed_2.models
         import overtrack.overwatch.game.spectator.models
         import overtrack.overwatch.game.score.models
         import overtrack.overwatch.game.endgame.models
@@ -131,6 +132,7 @@ class Frame(Dict[str, Any]):
         play_menu: overtrack.overwatch.game.menu.models.PlayMenu
         play_menu_match: float
         killfeed: overtrack.overwatch.game.killfeed.models.Killfeed
+        killfeed_2: overtrack.overwatch.game.killfeed_2.models.Killfeed2
         killcam_match: float
         spectator_bar: overtrack.overwatch.game.spectator.models.SpectatorBar
         score_screen: overtrack.overwatch.game.score.models.ScoreScreen
