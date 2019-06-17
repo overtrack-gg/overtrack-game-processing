@@ -164,6 +164,26 @@ class Pad(Layer):
         return tf.pad(inputs, paddings=self.paddings)
 
 
+class NormaliseByte(Layer):
+
+    def __init__(self, **kwargs):
+        super(NormaliseByte, self).__init__(**kwargs)
+
+    def compute_output_shape(self, input_shape):
+        input_shape = tensor_shape.TensorShape(input_shape).as_list()
+        return tensor_shape.TensorShape(input_shape)
+
+    def get_config(self) -> Dict[str, any]:
+        config = {
+        }
+        base_config = super(NormaliseByte, self).get_config()
+        # noinspection PyTypeChecker
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def call(self, inputs, training=None):
+        return tf.cast(inputs, tf.float32) / 255. - 0.5
+
+
 class CTCDecoder(Layer):
 
     def __init__(self, **kwargs):
@@ -250,5 +270,6 @@ custom_objects = {
     'MaxAlongDims': MaxAlongDims,
     'ExpandDims': ExpandDims,
     'Squeeze': Squeeze,
-    'Pad': Pad
+    'Pad': Pad,
+    'NormaliseByte': NormaliseByte
 }
