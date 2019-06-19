@@ -20,6 +20,7 @@ from overtrack.source.stream import TSSource
 
 import overtrack.overwatch.game.objective.models
 import overtrack.overwatch.game.killfeed.models
+import overtrack.overwatch.game.killfeed_2.models
 import overtrack.overwatch.game.tab.models
 import overtrack.overwatch.game.loading_map.models
 import overtrack.overwatch.game.spectator.models
@@ -44,10 +45,19 @@ import overtrack.apex.game.apex_metadata
 
 import overtrack.util.uploadable_image
 
+
 logger = logging.getLogger('referenced_typedload')
 
 
 Source = Union[TSSource, DisplayDuplicationSource, HTTPSource, SharedMemorySource]
+
+try:
+    from overtrack.source.video import VideoFrameExtractor
+except:
+    pass
+else:
+    Source = Union[Source, VideoFrameExtractor.VideoFrameMetadata]
+
 
 class Loader(typedload.dataloader.Loader):
     # noinspection PyUnresolvedReferences
@@ -107,6 +117,7 @@ _TYPES = {
     'main_menu': overtrack.overwatch.game.menu.models.MainMenu,
     'play_menu': overtrack.overwatch.game.menu.models.PlayMenu,
     'killfeed': overtrack.overwatch.game.killfeed.models.Killfeed,
+    'killfeed_2': overtrack.overwatch.game.killfeed_2.models.Killfeed2,
     'spectator_bar': overtrack.overwatch.game.spectator.models.SpectatorBar,
     'score_screen': overtrack.overwatch.game.score.models.ScoreScreen,
     'final_score': overtrack.overwatch.game.score.models.FinalScore,

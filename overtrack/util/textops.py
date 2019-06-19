@@ -146,6 +146,9 @@ def best_match(
     options = list(options)
     use_ratio = 0 < threshold < 1
 
+    if not len(text):
+        return default
+
     if not isinstance(text, list):
         texts = [text]
     else:
