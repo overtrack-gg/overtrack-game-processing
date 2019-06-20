@@ -90,7 +90,9 @@ def time_processing(process: Callable[[T, 'Frame'], bool]) -> Callable[[T, 'Fram
 
 
 def html2bgr(code: str) -> Tuple[int, int, int]:
-    r1, r2, g1, g2, b1, b2 = code[1:]
+    if code[0] == '#':
+        code = code[1:]
+    r1, r2, g1, g2, b1, b2 = code
     return int(b1 + b2, 16), int(g1 + g2, 16), int(r1 + r2, 16)
 
 
