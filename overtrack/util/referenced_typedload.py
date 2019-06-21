@@ -106,6 +106,8 @@ class Loader(typedload.dataloader.Loader):
                     logger.warning(f'Got {type(r)}, but expected {type_} - attempting conversion')
                     r = type_(*[getattr(r, f.name) for f in dataclasses.fields(r)])
                 return r
+        if isinstance(value, dict) and type_ is Dict:
+            return value
 
         return super().load(value, type_)
 
