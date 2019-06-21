@@ -84,17 +84,19 @@ def time_processing(process: Callable[[T, 'Frame'], bool]) -> Callable[[T, 'Fram
         t0 = time.time()
         result = process(self, frame)
         t1 = time.time()
-        frame.timings[self.__class__.__name__] = (t1 - t0) * 1000
+        name = self.__class__.__name__
+        if name in frame.timings:
+            name = name + '.2'
+        frame.timings[name] = (t1 - t0) * 1000
         return result
     return timed_process
 
 
-def html2bgr(code: str) -> Tuple[int, int, int]:
-    if code[0] == '#':
-        code = code[1:]
-    r1, r2, g1, g2, b1, b2 = code
-    return int(b1 + b2, 16), int(g1 + g2, 16), int(r1 + r2, 16)
-
-
 def bgr2html(color: Tuple[int, int, int]) -> str:
     return '#' + ''.join(f'{c:02x}' for c in color[::-1])
+
+
+def html2bgr(hex_str: str) -> Tuple[int, int, int]:
+    if hex_str[0] == '#':
+        hex_str = hex_str[1:]
+    return int(hex_str[4:6], 16), int(hex_str[2:4], 16), int(hex_str[0:2], 16)
