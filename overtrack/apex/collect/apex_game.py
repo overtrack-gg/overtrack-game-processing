@@ -306,7 +306,7 @@ class Squad:
                     player.name,
                     [s[0] for s in stats if s],
                     stats,
-                    threshold=0.9
+                    threshold=0.75
                 )
                 if best:
                     stats.remove(best)
@@ -334,8 +334,7 @@ class Squad:
                                     self.logger.info(f'{stat_field} for {player.name} not provided by OCR, API={api_value} - using API')
                                     setattr(player.stats, stat_field, api_value)
                                 elif ocr_value != api_value:
-                                    self.logger.info(f'{stat_field} for {player.name} from OCR does not match API: OCR={ocr_value} > API={api_value} - using API')
-                                    setattr(player.stats, stat_field, api_value)
+                                    self.logger.info(f'{stat_field} for {player.name} from OCR does not match API: OCR={ocr_value} > API={api_value} - using OCR')
                                 else:
                                     self.logger.info(f'{stat_field} for {player.name} from OCR matches stats API: {stat_field}={api_value}')
 
