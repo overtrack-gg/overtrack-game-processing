@@ -298,7 +298,7 @@ class Squad:
             self,
             stats_before: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
             stats_after: Optional[List[Tuple[str, Dict[str, Any]]]] = None):
-        stats = [(sb[0], sb[1], sa[1]) if sb and sa else None for sb, sa in zip(stats_before, stats_after)]
+        stats = [(sb[0], sb[1], sa[1]) if sb and sb[1] and sa and sa[1] else None for sb, sa in zip(stats_before, stats_after)]
         self.logger.info(f'Resolving player stats using API stats')
         for player in list(self.squadmates) + [self.player]:
             if player:
