@@ -31,11 +31,11 @@ def norm_name(s: str) -> str:
 
 @dataclass
 class PlayerStats:
-    kills: Optional[int]
-    damage_dealt: Optional[int]
-    survival_time: Optional[int]
-    players_revived: Optional[int]
-    players_respawned: Optional[int]
+    kills: Optional[int] = None
+    damage_dealt: Optional[int] = None
+    survival_time: Optional[int] = None
+    players_revived: Optional[int] = None
+    players_respawned: Optional[int] = None
 
     def merge(self, other: 'PlayerStats'):
         for f in fields(self):
@@ -297,7 +297,7 @@ class Squad:
     def _update_stats_from_api(
             self,
             stats_before: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
-            stats_after: Optional[List[Tuple[str, Dict[str, Any]]]] = None,):
+            stats_after: Optional[List[Tuple[str, Dict[str, Any]]]] = None):
         stats = [(sb[0], sb[1], sa[1]) if sb and sa else None for sb, sa in zip(stats_before, stats_after)]
         self.logger.info(f'Resolving player stats using API stats')
         for player in list(self.squadmates) + [self.player]:
@@ -319,7 +319,7 @@ class Squad:
                         self.logger.warning(f'Name for {player.name} does not match stats API - updating to {name}')
                         player.name = name
 
-                    if player.champion != before['champion'].lower():
+                    if before['champion'] and player.champion != before['champion'].lower():
                         self.logger.warning(f'Champion for {player.name} does not match stats API - {player.champion} > {before["champion"]}')
                         player.champion = before['champion'].lower()
 
@@ -328,6 +328,8 @@ class Squad:
                             if stat_key in stat_name and stat_name in after['banners']:
                                 ocr_value = getattr(player.stats, stat_field)
                                 api_value = after['banners'][stat_name] - before['banners'][stat_name]
+                                if player.stats is None:
+                                    player.stats = PlayerStats()
                                 if ocr_value is None:
                                     self.logger.info(f'{stat_field} for {player.name} not provided by OCR, API={api_value} - using API')
                                     setattr(player.stats, stat_field, api_value)
