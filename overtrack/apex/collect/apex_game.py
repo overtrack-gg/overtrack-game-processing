@@ -326,10 +326,10 @@ class Squad:
                     for stat_name, stat_value in before['banners'].items():
                         for stat_key, stat_field in ('_KILL', 'kills'), ('_DAMAGE', 'damage_dealt'):
                             if stat_key in stat_name and stat_name in after['banners']:
-                                ocr_value = getattr(player.stats, stat_field)
-                                api_value = after['banners'][stat_name] - before['banners'][stat_name]
                                 if player.stats is None:
                                     player.stats = PlayerStats()
+                                ocr_value = getattr(player.stats, stat_field)
+                                api_value = after['banners'][stat_name] - before['banners'][stat_name]
                                 if ocr_value is None:
                                     self.logger.info(f'{stat_field} for {player.name} not provided by OCR, API={api_value} - using API')
                                     setattr(player.stats, stat_field, api_value)
