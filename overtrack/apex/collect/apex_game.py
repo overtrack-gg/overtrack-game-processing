@@ -301,11 +301,11 @@ class Squad:
         stats = [(sb[0], sb[1], sa[1]) if sb and sb[1] and sa and sa[1] else None for sb, sa in zip(stats_before, stats_after)]
         self.logger.info(f'Resolving player stats using API stats')
         for player in list(self.squadmates) + [self.player]:
-            if player:
+            if player and player.name and any(s for s in stats):
                 best = textops.best_match(
                     player.name,
                     [s[0] for s in stats if s],
-                    stats,
+                    [s for s in stats if s],
                     threshold=0.75
                 )
                 if best:
