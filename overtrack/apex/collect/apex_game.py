@@ -1304,6 +1304,7 @@ class ApexGame:
             if season.start < self.timestamp < season.end:
                 return season.index
         self.logger.error(f'Could not get season for {self.timestamp} - using {len(data.seasons)}', exc_info=True)
+        return len(data.seasons)
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(' \
