@@ -252,17 +252,31 @@ def tesser_ocr(im: np.ndarray, vscale: float = 3, **kwargs) -> None:
 
         print(scale, blur, invert)
         table = []
-        for name, engine in [
-            ('tesseract_lstm', imageops.tesseract_lstm),
-            ('tesseract_futura', imageops.tesseract_futura),
-            ('tesseract_only', imageops.tesseract_only),
+        if 'engine' not in kwargs:
+            for name, engine in [
+                ('tesseract_lstm', imageops.tesseract_lstm),
+                ('tesseract_futura', imageops.tesseract_futura),
+                ('tesseract_only', imageops.tesseract_only),
 
-            ('tesseract_ttlakes_digits', overtrack.apex.ocr.tesseract_ttlakes_digits),
-            ('tesseract_ttlakes', overtrack.apex.ocr.tesseract_ttlakes),
-            ('tesseract_ttlakes_medium', overtrack.apex.ocr.tesseract_ttlakes_medium),
-            ('tesseract_arame', overtrack.apex.ocr.tesseract_arame),
-            ('tesseract_mensura', overtrack.apex.ocr.tesseract_mensura),
-        ]:
+                ('tesseract_ttlakes_digits', overtrack.apex.ocr.tesseract_ttlakes_digits),
+                ('tesseract_ttlakes', overtrack.apex.ocr.tesseract_ttlakes),
+                ('tesseract_ttlakes_medium', overtrack.apex.ocr.tesseract_ttlakes_medium),
+                ('tesseract_arame', overtrack.apex.ocr.tesseract_arame),
+                ('tesseract_mensura', overtrack.apex.ocr.tesseract_mensura),
+            ]:
+                imageops.tesser_ocr(
+                    im,
+                    scale=scale,
+                    blur=blur,
+                    invert=bool(invert),
+
+                    engine=engine,
+
+                    **kwargs
+                )
+                table.append((name, engine.GetUTF8Text(), engine.AllWordConfidences()))
+        else:
+            engine = kwargs['engine']
             imageops.tesser_ocr(
                 im,
                 scale=scale,
@@ -271,9 +285,9 @@ def tesser_ocr(im: np.ndarray, vscale: float = 3, **kwargs) -> None:
 
                 engine=engine,
 
-                **kwargs
+                **{k: v for (k, v) in kwargs.items() if k != 'engine'}
             )
-            table.append((name, engine.GetUTF8Text(), engine.AllWordConfidences()))
+            table.append(('', engine.GetUTF8Text(), engine.AllWordConfidences()))
         import tabulate
         print(tabulate.tabulate(table))
         print()

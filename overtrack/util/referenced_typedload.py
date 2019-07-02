@@ -19,6 +19,7 @@ from overtrack.source.shmem import SharedMemorySource
 from overtrack.source.stream import TSSource
 
 import overtrack.overwatch.game.objective.models
+import overtrack.overwatch.game.objective_2.models
 import overtrack.overwatch.game.killfeed.models
 import overtrack.overwatch.game.killfeed_2.models
 import overtrack.overwatch.game.tab.models
@@ -114,6 +115,7 @@ class Loader(typedload.dataloader.Loader):
 
 _TYPES = {
     'objective': overtrack.overwatch.game.objective.models.Objective,
+    'objective2': overtrack.overwatch.game.objective_2.models.Objective2,
     'loading_map': overtrack.overwatch.game.loading_map.models.LoadingMap,
     'tab_screen': overtrack.overwatch.game.tab.models.TabScreen,
     'main_menu': overtrack.overwatch.game.menu.models.MainMenu,

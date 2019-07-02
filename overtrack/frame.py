@@ -110,6 +110,7 @@ class Frame(Dict[str, Any]):
         # debug_image: Optional[np.ndarray]
 
         import overtrack.overwatch.game.objective.models
+        import overtrack.overwatch.game.objective_2.models
         import overtrack.overwatch.game.loading_map.models
         import overtrack.overwatch.game.tab.models
         import overtrack.overwatch.game.menu.models
@@ -123,6 +124,7 @@ class Frame(Dict[str, Any]):
         import overtrack.overwatch.game.hero_select.models
         import overtrack.overwatch.game.overwatch_metadata
         objective: overtrack.overwatch.game.objective.Objective
+        objective2: overtrack.overwatch.game.objective_2.Objective2
         loading_map: overtrack.overwatch.game.loading_map.models.LoadingMap
         loading_match: float
         tab_screen: overtrack.overwatch.game.tab.models.TabScreen
