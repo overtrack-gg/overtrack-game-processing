@@ -28,7 +28,8 @@ champions = {
     'bangalore': Champion('Bangalore'),
     'mirage': Champion('Mirage'),
     'caustic': Champion('Caustic'),
-    'octane': Champion('Octane')
+    'octane': Champion('Octane'),
+    'wattson': Champion('Wattson')
 }
 
 
@@ -66,7 +67,8 @@ ars = [
 ]
 lmgs = [
     Weapon('Spitfire', 'lmg', 'heavy'),
-    Weapon('Devotion', 'lmg', 'energy')
+    Weapon('Devotion', 'lmg', 'energy'),
+    Weapon('L-STAR', 'lmg', 'special'),
 ]
 smgs = [
     Weapon('Alternator', 'smg', 'light'),
@@ -118,6 +120,15 @@ seasons = [
     Season(2, _season_2_start.timestamp(), float('inf'))
 ]
 
+
+ranks = [
+    'bronze',
+    'silver',
+    'gold',
+    'platinum',
+    'diamond',
+    'apex_predator'
+]
 
 class MapLocations:
 

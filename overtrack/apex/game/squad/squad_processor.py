@@ -1,14 +1,17 @@
 import logging
 import os
+from typing import Optional, List, Tuple
 
 import cv2
+import numpy as np
 
+from overtrack.apex import data
+from overtrack.apex.game.squad import Squad
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-from .models import *
 
 
 def _draw_squad(debug_image: Optional[np.ndarray], squad: Squad) -> None:
@@ -145,12 +148,14 @@ class SquadProcessor(Processor):
 
 def main() -> None:
     import glob
+
     config_logger('map_processor', logging.INFO, write_to_file=False)
 
     pipeline = SquadProcessor()
-    ps = ["C:/Users/simon/mpv-screenshots/mpv-shot0176.png"]
-    ps += glob.glob('../../../../dev/apex_images/squad/*.png')
-    ps += glob.glob('M:/Videos/apex/*.png')
+    # ps = ["C:/Users/simon/mpv-screenshots/mpv-shot0176.png"]
+    # ps += glob.glob('../../../../dev/apex_images/squad/*.png')
+    # ps += glob.glob('M:/Videos/apex/*.png')
+    ps = glob.glob("C:/Users/simon/overtrack_2/apex_images/squad/*.png")
     for p in ps:
         frame = Frame.create(
             cv2.resize(cv2.imread(p), (1920, 1080)),

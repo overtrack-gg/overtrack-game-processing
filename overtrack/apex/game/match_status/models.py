@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 from dataclasses import dataclass
 
@@ -10,3 +10,7 @@ class MatchStatus:
     kills: Optional[int]
 
     streak: Optional[int] = None
+
+    rank_badge_matches: Optional[Tuple[float, ...]] = None
+    rank_text: Optional[str] = None
+

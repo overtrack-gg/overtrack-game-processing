@@ -1,17 +1,19 @@
 import logging
 import os
 import string
-from typing import Optional
+from typing import Optional, Tuple
 
 import Levenshtein as levenshtein
 import cv2
+import dataclasses
 import numpy as np
 
-from overtrack.apex import ocr
+from overtrack.apex import ocr, data
 from overtrack.apex.game.match_status import MatchStatus
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
+from overtrack.util.imageops import matchTemplate
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 
@@ -21,21 +23,43 @@ logger = logging.getLogger(__name__)
 def _draw_status(debug_image: Optional[np.ndarray], status: MatchStatus) -> None:
     if debug_image is None:
         return
-    cv2.putText(
-        debug_image,
-        f'{status}',
-        (1050, 110),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.75,
-        (255, 0, 255),
-        2
-    )
+    lines = [
+        str(dataclasses.replace(status, rank_badge_matches=None)).replace('rank_badge_matches=None, ', ''),
+        '    rank_badge_matches=' + str(status.rank_badge_matches)
+    ]
+
+    for y, line in enumerate(lines):
+        cv2.putText(
+            debug_image,
+            line,
+            (400, 150 + 30 * y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.75,
+            (0, 0, 0),
+            3
+        )
+        cv2.putText(
+            debug_image,
+            line,
+            (400, 150 + 30 * y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.75,
+            (255, 0, 255),
+            1
+        )
 
 
 class MatchStatusProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), '..', 'data', 'regions', '16_9.zip'))
     HEAD_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'head.png'), 0)
     SKULL_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'skull.png'), 0)
+    RANK_TEMPLATES = [
+        (
+            rank,
+            imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'ranks', rank + '.png')),
+            cv2.cvtColor(imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'ranks', rank + '.png'), -1)[:, :, 3], cv2.COLOR_GRAY2BGR)
+        ) for rank in data.ranks
+    ]
     SUBS = [
         '?2',
         'O0',
@@ -43,6 +67,10 @@ class MatchStatusProcessor(Processor):
         'I1',
         'B6',
     ]
+
+    def __init__(self):
+        super().__init__()
+        self.last_rank_template = 0
 
     def eager_load(self):
         self.REGIONS.eager_load()
@@ -53,7 +81,7 @@ class MatchStatusProcessor(Processor):
 
         # The text moves depending on normal or elite queue
         # Look for the "head" template showing players alive
-        head_region = self.REGIONS['head_region'].extract_one(y)
+        head_region = np.max(self.REGIONS['head_region'].extract_one(frame.image), axis=2)
         _, head_thresh = cv2.threshold(head_region, 200, 255, cv2.THRESH_BINARY)
         head_match = cv2.matchTemplate(head_thresh, self.HEAD_TEMPLATE, cv2.TM_CCORR_NORMED)
         mnv, mxv, mnl, mxl = cv2.minMaxLoc(head_match)
@@ -69,17 +97,33 @@ class MatchStatusProcessor(Processor):
         kills_left = players_left_x - (self.REGIONS['alive'].regions[0][0] - self.REGIONS['kills'].regions[0][0])
 
         squads_left = self._get_squads_left(y, squads_left_x)
-        if squads_left is not None:
+        if squads_left:
+            # if left < 1750:
+            #     streak = self._get_streak(y, left + 115)
+            # else:
+            #     streak = None
             if left < 1750:
-                streak = self._get_streak(y, left + 115)
+                rank_badge_image = self.REGIONS['rank_badge'].extract_one(frame.image)
+                rank_badge_matches = self._get_rank_badge(rank_badge_image)
+                rank_text_image = self.REGIONS['rank_text'].extract_one(frame.image_yuv[:, :, 0])
+                rank_text = imageops.tesser_ocr(
+                    rank_text_image,
+                    whitelist='IV',
+                    scale=3,
+                    invert=True,
+                    engine=imageops.tesseract_only
+                )
             else:
-                streak = None
+                rank_badge_matches = None
+                rank_text = None
 
             frame.match_status = MatchStatus(
                 squads_left=squads_left,
                 players_alive=self._get_players_alive(y, players_left_x) if squads_left > 4 else None,
                 kills=self._get_kills(y, kills_left),
-                streak=streak
+                # streak=streak,
+                rank_badge_matches=rank_badge_matches,
+                rank_text=rank_text,
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_status(frame.debug_image, frame.match_status)
@@ -93,6 +137,7 @@ class MatchStatusProcessor(Processor):
             y: y + h,
             left_coord: left_coord + w
         ]
+        # cv2.imshow('squads_left', region)
         squads_left_text = imageops.tesser_ocr(
             region,
             engine=imageops.tesseract_lstm,
@@ -180,30 +225,43 @@ class MatchStatusProcessor(Processor):
         else:
             return None
 
-    def _get_streak(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
-        x, y, w, h = self.REGIONS['kills'].regions[0]
-        streak_image = luma[
-            y:y + h,
-            left_coord:left_coord + 37
-        ]
-        streak_text = imageops.tesser_ocr(
-            streak_image,
-            engine=imageops.tesseract_lstm,
-            scale=2,
-            invert=True
-        ).upper().strip()
-        for s1, s2 in self.SUBS:
-            streak_text = streak_text.replace(s1, s2)
-        try:
-            streak = int(streak_text)
-            if 0 < streak <= 50:
-                return streak
-            else:
-                logger.warning(f'Rejecting streak={streak}')
-                return None
-        except ValueError:
-            logger.warning(f'Cannot parse "{streak_text}" as int')
-            return None
+    # def _get_streak(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
+    #     x, y, w, h = self.REGIONS['kills'].regions[0]
+    #     streak_image = luma[
+    #         y:y + h,
+    #         left_coord:left_coord + 37
+    #     ]
+    #     streak_text = imageops.tesser_ocr(
+    #         streak_image,
+    #         engine=imageops.tesseract_lstm,
+    #         scale=2,
+    #         invert=True
+    #     ).upper().strip()
+    #     for s1, s2 in self.SUBS:
+    #         streak_text = streak_text.replace(s1, s2)
+    #     try:
+    #         streak = int(streak_text)
+    #         if 0 < streak <= 50:
+    #             return streak
+    #         else:
+    #             logger.warning(f'Rejecting streak={streak}')
+    #             return None
+    #     except ValueError:
+    #         logger.warning(f'Cannot parse "{streak_text}" as int')
+    #         return None
+
+    def _get_rank_badge(self, rank_badge_image: np.ndarray) -> Tuple[float, ...]:
+        matches = []
+        for rank, template, mask in self.RANK_TEMPLATES:
+            match = np.min(matchTemplate(
+                rank_badge_image,
+                template,
+                cv2.TM_SQDIFF,
+                mask=mask
+            ))
+            matches.append(round(match, 1))
+        return tuple(matches)
+
 
 def main() -> None:
 
@@ -213,8 +271,8 @@ def main() -> None:
     config_logger('map_processor', logging.DEBUG, write_to_file=False)
 
     pipeline = MatchStatusProcessor()
-    ps = ["C:/Users/simon/mpv-screenshots/mpv-shot0290.png", "M:/Videos/apex/2_103.png", "C:/Users/simon/workspace/overtrack_2/dev/apex_images/mpv-shot0171.png"]
-    ps += glob.glob('M:/Videos/apex/2_7*.png')
+    # ps = ["C:/Users/simon/mpv-screenshots/mpv-shot0290.png", "M:/Videos/apex/2_103.png", "C:/Users/simon/workspace/overtrack_2/dev/apex_images/mpv-shot0171.png"]
+    ps = glob.glob('C:/Users/simon/overtrack_2/apex_images/match/*.png')
     for p in ps:
         print(p)
         try:
