@@ -205,7 +205,11 @@ class MapProcessor(Processor):
 
         # _debug_map_canny(map_image)
 
-        if min_val < 0.85 and self.MAP_MASK[location.coordinates[1], location.coordinates[0]]:
+        if min_val < 0.85 and \
+                0 <= location.coordinates[1] < self.MAP_MASK.shape[1] and \
+                0 <= location.coordinates[0] < self.MAP_MASK.shape[1] and \
+                self.MAP_MASK[location.coordinates[1], location.coordinates[0]]:
+
             self.REGIONS.draw(frame.debug_image)
 
             self.map_rotated.append(rotated_map)
