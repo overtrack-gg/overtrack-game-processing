@@ -1,15 +1,16 @@
 import logging
 import os
+from typing import Optional
 
 import cv2
 import numpy as np
 
+from overtrack.apex.game.menu import PlayMenu
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-from .models import *
 
 
 def _draw_buttons_match(debug_image: Optional[np.ndarray], ready_match: float, cancel_match: float, required_match: float) -> None:
@@ -77,10 +78,28 @@ class MenuProcessor(Processor):
         if ready_match >= self.REQUIRED_MATCH or cancel_match >= self.REQUIRED_MATCH:
             player_name_image = self.REGIONS['player_name'].extract_one(y)
             mate1, mate2 = self.REGIONS['squadmates'].extract(y)
+
+            rank_text_region = self.REGIONS['rank_text'].extract_one(y)
+            rank_text = imageops.tesser_ocr(
+                rank_text_region,
+                invert=True,
+                engine=imageops.tesseract_lstm
+            )
+
+            rp_text_region = self.REGIONS['rp_text'].extract_one(y)
+            rp_text = imageops.tesser_ocr(
+                rp_text_region,
+                invert=True,
+                engine=imageops.tesseract_lstm
+            )
+
             frame.apex_play_menu = PlayMenu(
                 player_name=self._ocr_playername(player_name_image),
                 squadmates=(self._ocr_playername(mate1), self._ocr_playername(mate2)),
-                ready=cancel_match >= self.REQUIRED_MATCH
+                ready=cancel_match >= self.REQUIRED_MATCH,
+
+                rank_text=rank_text,
+                rp_text=rp_text,
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_play_menu(frame.debug_image, frame.apex_play_menu)
@@ -110,7 +129,7 @@ def main() -> None:
     pipeline = MenuProcessor()
 
     import glob
-    for p in glob.glob('../../../../dev/apex_images/menu/*.png') + glob.glob('../../../../dev/apex_images/**/*.png'):
+    for p in glob.glob("C:/Users/simon/overtrack_2/apex_images/menu/*.png"):
         frame = Frame.create(
             cv2.resize(cv2.imread(p), (1920, 1080)),
             0,
