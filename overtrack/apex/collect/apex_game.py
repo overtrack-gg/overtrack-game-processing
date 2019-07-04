@@ -228,7 +228,7 @@ class Squad:
                         matches[-1].append(0)
 
             table = [[names[i]] + matches[i] for i in range(3)]
-            headers = [levenshtein.median([s.name for s in stats]) for stats in all_player_stats]
+            headers = [''] + [levenshtein.median([s.name for s in stats]) for stats in all_player_stats]
             self.logger.info(f'Got name/stat matches:\n{tabulate.tabulate(table, headers=headers)}')
 
             matches = np.array(matches)
