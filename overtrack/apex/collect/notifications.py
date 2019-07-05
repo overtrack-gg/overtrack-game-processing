@@ -18,7 +18,7 @@ class DiscordMessage:
     DISCORD_BOT_TOKEN = os.environ['DISCORD_BOT_TOKEN']
     CHANNEL_CREATE_MESSAGE = '**REMOVED**'
 
-    GAME_PREFIX = 'https://apex-beta.overtrack.gg/game/'
+    GAME_PREFIX = 'https://apex.overtrack.gg/game/'
     IMAGE_PREFIX = 'http://apextrack-web-poc-assets.s3-us-west-2.amazonaws.com/1/images/'
 
     COLOR_BASE = int('992e26', base=16)
@@ -55,7 +55,7 @@ class DiscordMessage:
         self.game_embed = {
             'author': {
                 'name': 'overtrack.gg',
-                'url': 'https://apex-beta.overtrack.gg/',
+                'url': 'https://apex.overtrack.gg/',
                 'icon_url': 'https://overtrack.gg/favicon.png'
             },
             'color': self.colors.get(game.placed, self.COLOR_BASE),
