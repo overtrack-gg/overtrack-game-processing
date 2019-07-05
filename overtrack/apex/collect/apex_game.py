@@ -1387,13 +1387,13 @@ class ApexGame:
             # self.stats.kills
         )
 
-        if len(self.match_summary_frames):
+        if len(self.match_status_frames):
             rank_matches = sum(match_status.rank_text is not None for match_status in self.match_status_frames)
-            rank_matches_p = rank_matches / len(self.match_summary_frames)
+            rank_matches_p = rank_matches / len(self.match_status_frames)
         else:
             rank_matches = 0
             rank_matches_p = 0
-        self.logger.info(f'Got {rank_matches_p*100:.0f}% ({rank_matches}/{len(self.match_summary_frames)} of match status frames claiming ranked')
+        self.logger.info(f'Got {rank_matches_p*100:.0f}% ({rank_matches}/{len(self.match_status_frames)}) of match status frames claiming ranked')
         if rank_matches_p > 0.8 and rank_matches > 10:
             self.rank: Optional[Rank] = Rank(self.menu_frames, self.match_status_frames, self.placed, self.kills, debug=debug)
         else:
