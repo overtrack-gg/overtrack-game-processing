@@ -130,10 +130,50 @@ ranks = [
     'apex_predator'
 ]
 
+rank_tiers = [
+    'IV',
+    'III',
+    'II',
+    'I'
+]
+
+rank_rp = {
+    'bronze': (0, 120),
+    'silver': (120, 280),
+    'gold': (280, 480),
+    'platinum': (480, 720),
+    'diamond': (720, 1000),
+    'apex_predator': (1000, 10_000)
+}
+
+rank_entry_cost = {
+    'bronze': 0,
+    'silver': 1,
+    'gold': 2,
+    'platinum': 3,
+    'diamond': 4,
+    'apex_predator': 5
+}
+
+rank_rewards = {}
+for placement in range(1, 21):
+    if placement == 1:
+        reward = 12
+    elif placement <= 3:
+        reward = 7
+    elif placement <= 5:
+        reward = 4
+    elif placement <= 10:
+        reward = 2
+    else:
+        reward = 0
+    rank_rewards[placement] = reward
+
+
 class MapLocations:
 
     def __init__(self):
-        self.layers: Optional[List] = None
+        self.layers: Optional[List[str, np.ndarray]] = None
 
     def _ensure_loaded(self) -> None:
         if self.layers is not None:

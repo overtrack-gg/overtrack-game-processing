@@ -13,7 +13,9 @@ import typedload
 from dataclasses import dataclass, fields
 
 from overtrack.apex import data
+from overtrack.apex.game.match_status import MatchStatus
 from overtrack.apex.game.match_summary.models import MatchSummary
+from overtrack.apex.game.menu import PlayMenu
 from overtrack.apex.game.squad_summary.models import PlayerStats as SquadSummaryStats
 from overtrack.frame import Frame
 from overtrack.util import arrayops, s2ts, textops
@@ -49,6 +51,47 @@ class PlayerStats:
 
 
 class Player:
+    """
+    A Player from a Squad.
+    Each game (usually) has 3 Players forming a `Squad`.
+
+    The initial name is provided, then player data from other sources (i.e. in frames)
+    is derived by assigning data based on finding the best matching player from each other
+    source based on the edit distance/ratio of names from those sources.
+
+    Attributes
+    -----------
+    name: str
+        The name of the player. May be corrected from the supplied if a higher-accuracy source is found.
+    champion: str
+        The champion that the player is playing.
+    stats: Optional[PlayerStats]
+        The stats for this player.
+    is_owner: bool
+        Whether the player is the first-person player of the game
+    name_from_config: bool
+        Whether `name` is provided ahead of time from *config* (instead of OCR).
+        If True, the name is assumed fully accurate.
+    name_matches_api: bool
+        Whether `name` matches (or was updated to match) data provided from the Apex API.
+        If True, the name can likely be assumed to be fully accurate.
+
+    Parameters
+    ----------
+    :param name:
+        The (estimated) name of the player.
+    :param champion:
+        The champion of the player.
+    :param stats:
+        The stats of this player as per the squad summary frames
+    :param frames:
+        All frames of the game
+    :param is_owner:
+        Whether the player is the first person player of the game i.e. if the match summary (XP) stats belong to this player
+    :param name_from_config:
+        Whether `name` is provided ahead of time from *config* (instead of OCR).
+    """
+
     logger = logging.getLogger('Player')
 
     def __init__(self,
@@ -56,7 +99,7 @@ class Player:
                  champion: str,
                  stats: List[SquadSummaryStats],
                  frames: List[Frame],
-                 use_match_summary: bool = False,
+                 is_owner: bool = False,
                  name_from_config: bool = False):
 
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
@@ -64,10 +107,13 @@ class Player:
         self.logger.info( 
             f'Resolving player with estimated name="{name}", champion={champion} '
             f'from {len(squad_summaries)} squad summary frames | '
-            f'use_match_summary={use_match_summary}, name_from_config={name_from_config}'
+            f'use_match_summary={is_owner}, name_from_config={name_from_config}'
         )
         self.name = name
         self.champion = champion
+        self.is_owner = is_owner
+        self.name_from_config = name_from_config
+        self.name_matches_api = False
 
         if len(stats):
             # use name from stats screen as this is easier to OCR
@@ -81,7 +127,7 @@ class Player:
         else:
             self.stats = None
 
-        if use_match_summary:
+        if is_owner:
             summaries = [f.match_summary for f in frames if 'match_summary' in f]
             self.logger.info(f'Resolving stat from {len(summaries)} match summary (XP) frames')
             stats = self._get_mode_summary_stats(summaries)
@@ -97,8 +143,6 @@ class Player:
 
         if self.stats:
             self.stats = self._sanity_clip(self.stats)
-
-        self.name_from_config = name_from_config
 
         self.logger.info(f'Resolved to: {self}')
 
@@ -145,6 +189,37 @@ class Player:
             players_revived=_sanity_clip(stats.players_revived, 0, 20, 'players_revived'),
             players_respawned=_sanity_clip(stats.players_respawned, 0, 10, 'players_respawned'),
         )
+
+    def update_from_api(self, name: str, before: Dict[str, Any], after: Dict[str, Any]) -> None:
+        self.logger.info(f'Matched {name} {before["champion"]} for {self}')
+        self.logger.info(f'Banners before: {before["banners"]}')
+        self.logger.info(f'Banners after: {after["banners"]}')
+
+        if self.name != name:
+            self.logger.warning(f'Name for {self.name} does not match stats API - updating to {name}')
+            self.name = name
+
+        self.name_matches_api = True
+
+        if before['champion'] and self.champion != before['champion'].lower():
+            self.logger.warning(f'Champion for {self.name} does not match stats API - {self.champion} > {before["champion"]}')
+            self.champion = before['champion'].lower()
+
+        for stat_name, stat_value in before['banners'].items():
+            for stat_key, stat_field in ('_KILL', 'kills'), ('_DAMAGE', 'damage_dealt'):
+                if stat_key in stat_name and stat_name in after['banners']:
+                    if self.stats is None:
+                        self.stats = PlayerStats()
+                    ocr_value = getattr(self.stats, stat_field)
+                    api_value = after['banners'][stat_name] - before['banners'][stat_name]
+                    if ocr_value is None:
+                        self.logger.info(f'{stat_field} for {self.name} not provided by OCR, API={api_value} - using API')
+                        setattr(self.stats, stat_field, api_value)
+                    elif ocr_value != api_value:
+                        self.logger.info(
+                            f'{stat_field} for {self.name} from OCR does not match API: OCR={ocr_value} > API={api_value} - using OCR')
+                    else:
+                        self.logger.info(f'{stat_field} for {self.name} from OCR matches stats API: {stat_field}={api_value}')
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(' \
@@ -228,8 +303,8 @@ class Squad:
                         matches[-1].append(0)
 
             table = [[names[i]] + matches[i] for i in range(3)]
-            headers = [''] + [levenshtein.median([s.name for s in stats]) for stats in all_player_stats]
-            self.logger.info(f'Got name/stat matches:\n{tabulate.tabulate(table, headers=headers)}')
+            headers = [levenshtein.median([s.name for s in stats]) for stats in all_player_stats]
+            self.logger.info(f'Got name/stat matches:\n{tabulate.tabulate(table, headers=[""] + headers)}')
 
             matches = np.array(matches)
             for i in range(3):
@@ -262,7 +337,7 @@ class Squad:
                         champion,
                         stats,
                         frames,
-                        use_match_summary=bool(names_index == 0),
+                        is_owner=bool(names_index == 0),
                         name_from_config=bool(names_index == 0 and config_name is not None)
                     )
                 else:
@@ -281,7 +356,7 @@ class Squad:
                 champions[0],
                 [],
                 frames,
-                use_match_summary=True,
+                is_owner=True,
                 name_from_config=config_name is not None
             )
             self.squadmates = (
@@ -290,11 +365,11 @@ class Squad:
             )
 
         if stats_before and stats_after:
-            self._update_stats_from_api(stats_before, stats_after)
+            self._update_players_stats_from_api(stats_before, stats_after)
 
         self.squad_kills = self._get_squad_kills(frames)
 
-    def _update_stats_from_api(
+    def _update_players_stats_from_api(
             self,
             stats_before: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
             stats_after: Optional[List[Tuple[str, Dict[str, Any]]]] = None):
@@ -310,33 +385,7 @@ class Squad:
                 )
                 if best:
                     stats.remove(best)
-                    name, before, after = best
-                    self.logger.info(f'Matched {name} {before["champion"]} for {player}')
-                    self.logger.info(f'Banners before: {before["banners"]}')
-                    self.logger.info(f'Banners after: {after["banners"]}')
-
-                    if player.name != name:
-                        self.logger.warning(f'Name for {player.name} does not match stats API - updating to {name}')
-                        player.name = name
-
-                    if before['champion'] and player.champion != before['champion'].lower():
-                        self.logger.warning(f'Champion for {player.name} does not match stats API - {player.champion} > {before["champion"]}')
-                        player.champion = before['champion'].lower()
-
-                    for stat_name, stat_value in before['banners'].items():
-                        for stat_key, stat_field in ('_KILL', 'kills'), ('_DAMAGE', 'damage_dealt'):
-                            if stat_key in stat_name and stat_name in after['banners']:
-                                if player.stats is None:
-                                    player.stats = PlayerStats()
-                                ocr_value = getattr(player.stats, stat_field)
-                                api_value = after['banners'][stat_name] - before['banners'][stat_name]
-                                if ocr_value is None:
-                                    self.logger.info(f'{stat_field} for {player.name} not provided by OCR, API={api_value} - using API')
-                                    setattr(player.stats, stat_field, api_value)
-                                elif ocr_value != api_value:
-                                    self.logger.info(f'{stat_field} for {player.name} from OCR does not match API: OCR={ocr_value} > API={api_value} - using OCR')
-                                else:
-                                    self.logger.info(f'{stat_field} for {player.name} from OCR matches stats API: {stat_field}={api_value}')
+                    player.update_from_api(*best)
 
     def _get_champion_valid_count(self, squadmate_index: int) -> int:
         arr = np.array([s.squadmate_champions[squadmate_index] for s in self.squad])
@@ -1097,6 +1146,166 @@ class Route:
         }
 
 
+class Rank:
+    """
+    Ranked data for a game.
+
+    Attributes
+    -----------
+    rank: Optional[str]
+        The rank if known
+    rank_tier: Optional[str]
+        The rank tier if known, and if not Apex Predator
+    rp: Optional[int]
+        The amount of RP before and during the game
+    rp_change: Optional[int]
+        The RP change from this match, computed from entry cost, placement, and kills
+
+    Parameters
+    ----------
+    :param menu_frames:
+    :param match_status_frames:
+    :param placement:
+    :param kills:
+    :param debug:
+    """
+
+    logger = logging.getLogger(__qualname__)
+
+    def __init__(self, menu_frames: List[PlayMenu], match_status_frames: List[MatchStatus], placement: int, kills: int, debug: bool = False):
+        self.rank = None
+        self.tier = None
+        self.rp = None
+
+        self._resolve_match_status_rank(match_status_frames)
+        self._resolve_menu_rank(menu_frames, debug=debug)
+
+        if self.rank:
+            self.rp_change = -data.rank_entry_cost[self.rank] + min(kills, 5) + data.rank_rewards[placement]
+            self.logger.info(f'Got rp_change={self.rp_change:+}: rank={self.rank}, placement={placement}, kills={kills}')
+        else:
+            self.rp_change = None
+
+    def _resolve_match_status_rank(self, match_status_frames: List[MatchStatus], debug: bool = False) -> None:
+        rank_matches = np.array([
+            match_status.rank_badge_matches
+            for match_status in match_status_frames
+            if match_status.rank_badge_matches is not None
+        ])
+        rank_matches_avg = np.median(rank_matches, axis=0)
+
+        self.logger.info(f'Found ranked matches:\n{tabulate.tabulate([(data.ranks[i], rank_matches_avg[i]) for i in range(len(data.ranks))])}')
+        self.rank = data.ranks[arrayops.argmin(rank_matches_avg)]
+        self.logger.info(f'Got rank={self.rank}')
+
+        if self.rank != 'apex_predator':
+            rank_text = [match_status.rank_text for match_status in match_status_frames if match_status.rank_text]
+            rank_text_counter = Counter(rank_text)
+            self.logger.info(f'Found rank tier texts: {rank_text_counter}')
+
+            for text, count in rank_text_counter.most_common():
+                if text in data.rank_tiers:
+                    self.rank_tier = text
+                    self.logger.info(f'Got rank tier={self.rank_tier} - seen {(count / len(rank_text)) * 100:.0f}% {count}/{len(rank_text)}')
+                    break
+                else:
+                    self.logger.warning(f'Ignoring {text} (count={count}) - invalid tier')
+
+        if debug is True or debug == self.__class__.__name__:
+            import matplotlib.pyplot as plt
+
+            # plt.figure()
+            # plt.imshow(rank_matches)
+
+            plt.figure()
+            plt.title('Rank Badges')
+            for i, rank in enumerate(data.ranks):
+                from pprint import pprint
+
+                plt.plot(
+                    rank_matches[:, i],
+                    label=rank
+                )
+            plt.legend()
+            plt.show()
+
+    def _resolve_menu_rank(self, menu_frames: List[PlayMenu], debug: bool = False) -> None:
+        menu_rank_text = [menu.rank_text for menu in menu_frames]
+        if not len(menu_rank_text):
+            self.logger.warning(f'Got 0 rank texts from menu')
+            self.rp = None
+            return
+
+        menu_rank_counter = Counter(menu_rank_text)
+        self.logger.info(f'Got menu ranked text: {menu_rank_counter}')
+
+        options, choose_from = [], []
+        for rank in data.ranks:
+            if rank != 'apex_predator':
+                for tier in data.rank_tiers:
+                    options.append(rank + tier)
+                    choose_from.append((rank, tier))
+            else:
+                options.append(rank)
+                choose_from.append((rank, None))
+
+        rank_text = menu_rank_counter.most_common()[0][0]
+        if rank_text:
+            rank, tier = textops.best_match(
+                menu_rank_counter.most_common()[0][0],
+                options,
+                choose_from,
+                threshold=0.9
+            )
+            self.logger.info(f'Got rank={rank}, tier={tier}')
+            if rank != self.rank:
+                self.logger.warning(f'Rank from ingame badge={self.rank}, but menu got {rank}')
+                self.rank = rank
+            if tier != self.rank_tier:
+                self.logger.warning(f'Rank from ingame text={self.rank_tier}, but menu got {tier}')
+                self.rank_tier = tier
+            if rank != self.rank or tier != self.rank_tier:
+                self.logger.error(f'Ingame rank does not match menu rank', exc_info=True)
+
+        menu_rp_text = [menu.rp_text for menu in menu_frames]
+        menu_rp_counter = Counter(menu_rp_text)
+        self.logger.info(f'Got menu RP text: {menu_rp_counter}')
+        try:
+            rp_str = menu_rp_counter.most_common()[0][0].split('/')[0]
+            self.rp = int(rp_str)
+        except Exception as e:
+            self.logger.warning(f'Failed to parse menu RP: {e}')
+            self.rp = None
+        else:
+            rp_lower_limit, rp_upper_limit = data.rank_rp[self.rank]
+            if not rp_lower_limit < self.rp < rp_upper_limit:
+                self.logger.warning(f'RP: {self.rp} is not within {rp_lower_limit}, {rp_upper_limit} from rank {self.rank} - ignorng')
+                self.rp = None
+            else:
+                self.logger.info(f'Got RP={self.rp}')
+
+        if self.rp is None:
+            self.logger.error(f'Menu RP invalid')
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(' \
+            f'rank={self.rank}, ' \
+            f'rank_tier={self.rank_tier}, ' \
+            f'rp={self.rp}' \
+            f'rp_change={self.rp_change}' \
+            f')'
+
+    __repr__ = __str__
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'rank': self.rank,
+            'rank_tier': self.rank_tier,
+            'rp': self.rp,
+            'rp_change': self.rp_change
+        }
+
+
 class ApexGame:
     logger = logging.getLogger('ApexGame')
 
@@ -1116,7 +1325,8 @@ class ApexGame:
                     your_squad_first_index = i
                 your_squad_last_index = i
 
-        menu_names = [f.apex_play_menu.player_name for f in frames if 'apex_play_menu' in f]
+        self.menu_frames = [f.apex_play_menu for f in frames if 'apex_play_menu' in f]
+        menu_names = [apex_play_menu.player_name for apex_play_menu in self.menu_frames]
         self.logger.info(f'Processing game from {len(frames) - your_squad_first_index} frames and {len(menu_names)} menu frames')
 
         self.player_name = levenshtein.median(menu_names)
@@ -1176,6 +1386,18 @@ class ApexGame:
             len(self.combat.eliminations),
             # self.stats.kills
         )
+
+        if len(self.match_summary_frames):
+            rank_matches = sum(match_status.rank_text is not None for match_status in self.match_status_frames)
+            rank_matches_p = rank_matches / len(self.match_summary_frames)
+        else:
+            rank_matches = 0
+            rank_matches_p = 0
+        self.logger.info(f'Got {rank_matches_p*100:.0f}% ({rank_matches}/{len(self.match_summary_frames)} of match status frames claiming ranked')
+        if rank_matches_p > 0.8 and rank_matches > 10:
+            self.rank: Optional[Rank] = Rank(self.menu_frames, self.match_status_frames, self.placed, self.kills, debug=debug)
+        else:
+            self.rank: Optional[Rank] = None
 
         self.images = {}
         for f in frames:
@@ -1315,6 +1537,7 @@ class ApexGame:
                f'landed={self.route.landed_name}, ' \
                f'placed={self.placed}, ' \
                f'kills={self.kills}' \
+               f'rank={self.rank}' \
                f')'
 
     __repr__ = __str__
@@ -1334,6 +1557,7 @@ class ApexGame:
             'combat': self.combat.to_dict(),
             'route': self.route.to_dict(),
             'weapons': self.weapons.to_dict(),
+            'rank': self.rank.to_dict() if self.rank else None,
 
             'images': self.images
         }

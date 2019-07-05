@@ -2,7 +2,7 @@ import datetime
 import os
 from typing import Any, Iterable, TYPE_CHECKING, no_type_check, Optional
 
-from pynamodb.attributes import NumberAttribute, UnicodeAttribute, BooleanAttribute
+from pynamodb.attributes import NumberAttribute, UnicodeAttribute, BooleanAttribute, MapAttribute
 from pynamodb.indexes import AllProjection, GlobalSecondaryIndex
 from pynamodb.models import Model
 
@@ -32,6 +32,12 @@ class UserIDTimeIndex(GlobalSecondaryIndex):
 # class Weapon(MapAttribute):
 #     name: UnicodeAttribute()
 
+class Rank(MapAttribute):
+    rank = UnicodeAttribute()
+    tier = UnicodeAttribute(null=True)
+    rp = NumberAttribute(null=True)
+    rp_change = NumberAttribute(null=True)
+
 
 class ApexGameSummary(OverTrackModel):
     class Meta:
@@ -56,11 +62,17 @@ class ApexGameSummary(OverTrackModel):
     landed = UnicodeAttribute(null=True)
     squad_kills = NumberAttribute(null=True)
     # weapons = ListAttribute(of=Weapon)
+    rank = Rank(null=True)
 
     url = UnicodeAttribute(null=True)
 
     @classmethod
     def create(cls, game: 'ApexGame', user_id: int, url: str = None, source: Optional[str] = None) -> 'ApexGameSummary':
+        if game.rank:
+            rank = Rank(rank=game.rank.rank, tier=game.rank.rank_tier, rp=game.rank.rp, rp_change=game.rank.rp_change)
+        else:
+            rank = None
+
         return cls(
             key=game.key,
             user_id=user_id,
@@ -80,6 +92,7 @@ class ApexGameSummary(OverTrackModel):
             placed=game.placed,
             landed=game.route.landed_name,
             squad_kills=game.squad.squad_kills,
+            rank=rank,
 
             url=url
         )
@@ -92,3 +105,12 @@ class ApexGameSummary(OverTrackModel):
         return f'ApexGameSummary(key={self.key}, time={self.time}, placed={self.placed}, url={self.url})'
 
     __repr__ = __str__
+
+
+def main() -> None:
+    for g in ApexGameSummary.user_id_time_index.query(-906446192, ApexGameSummary.rank.does_not_exist()):
+        print(g)
+
+
+if __name__ == '__main__':
+    main()
