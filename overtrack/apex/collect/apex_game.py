@@ -930,7 +930,7 @@ class Route:
         alive_at[:20] = True
         alive_at[-20:] = True
         for f, a in zip(frames, alive):
-            alive_at[int((f.timestamp - frames[0].timestamp) / 10)] |= (a > 0)
+            alive_at[int((f.timestamp - frames[0].timestamp) / 10)] |= (a > 2)
 
         if debug is True or debug == self.__class__.__name__:
             import matplotlib.pyplot as plt
@@ -952,16 +952,17 @@ class Route:
             if location.match > 0.7:
                 continue
 
-            if len(recent) >= recent.maxlen:
+            if len(recent):
                 last = np.mean(recent, axis=0)
                 dist = np.sqrt(np.sum((np.array(last) - np.array(location.coordinates)) ** 2))
                 if not alive_at[int(rts / 10)]:
-                    pass  # ignore route - not from this player
-                elif dist < 150:
+                    # ignore route - not from this player
+                    self.logger.debug(f'Ignoring location {i}: {location} - not alive')
+                elif dist < 250:
                     self.locations.append((rts, location.coordinates))
                 else:
                     self.logger.warning(
-                        f'Ignoring location {i}: {location} {dist:.1f} away from average {np.round(last, 1)}'
+                        f'Ignoring location {i}: {location} - {dist:.1f} away from average {np.round(last, 1)}'
                     )
             recent.append(location.coordinates)
 
@@ -974,12 +975,24 @@ class Route:
             self.landed_name = None
             self.locations_visited = []
         else:
-            if weapons.first_weapon_timestamp is not None:
-                self.time_landed = weapons.first_weapon_timestamp
-            else:
-                self.logger.warning(f'Did not see weapon - assuming drop location = last location seen')
-                self.time_landed = self.locations[-1][0]
-            self.landed_location_index = max(0, min(bisect.bisect(self.locations, (self.time_landed, (0, 0))) + 1, len(self.locations) - 1))
+
+            x = np.array([l[1][0] for l in self.locations])
+            y = np.array([l[1][1] for l in self.locations])
+            ts = np.array([l[0] for l in self.locations])
+            time_offset = np.array(ts[1:] - ts[:-1])
+            speed = np.sqrt((x[1:] - x[:-1]) ** 2 + (y[1:] - y[:-1]) ** 2) / time_offset
+            speed_smooth = np.convolve(speed, np.ones(3) / 3, mode='same')
+            # accel = np.diff(speed_smooth)
+            self.landed_location_index = int(np.argmax(speed_smooth < 6)) + 1
+            self.time_landed = float(ts[self.landed_location_index])
+            self.logger.info(f'Speed dropped below 4 @ {s2ts(self.time_landed)}, index={self.landed_location_index}')
+
+            # if weapons.first_weapon_timestamp is not None:
+            #     self.time_landed = weapons.first_weapon_timestamp
+            # else:
+            #     self.logger.warning(f'Did not see weapon - assuming drop location = last location seen')
+            #     self.time_landed = self.locations[-1][0]
+            # self.landed_location_index = max(0, min(bisect.bisect(self.locations, (self.time_landed, (0, 0))) + 1, len(self.locations) - 1))
 
             # average location of first 5 locations
             mean_location = np.mean([
@@ -1032,15 +1045,36 @@ class Route:
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        x = [l[1][0] for l in self.locations]
-        y = [l[1][1] for l in self.locations]
+        x = np.array([l[1][0] for l in self.locations])
+        y = np.array([l[1][1] for l in self.locations])
         t = [l[0] for l in self.locations]
         ax.scatter(x, y, t, c='green', marker='o')
 
         ts = np.array([l[0] for l in self.locations])
         plt.figure()
         plt.title('time offsets')
-        plt.plot(ts[1:] - ts[:-1])
+        time_offset = np.array(ts[1:] - ts[:-1])
+        plt.plot(time_offset)
+
+        plt.figure()
+        plt.title('speed')
+        speed = np.sqrt((x[1:] - x[:-1])**2 + (y[1:] - y[:-1])**2) / time_offset
+        plt.plot(speed)
+        #q
+        # plt.figure()
+        # plt.title('speed2')
+        # speed2 = speed / time_offset
+        # plt.plot(speed2)
+
+        speed_smooth = np.convolve(speed, np.ones(3)/3, mode='valid')
+        plt.figure()
+        plt.title('speed_smooth')
+        plt.plot(speed_smooth)
+
+        plt.figure()
+        plt.title('accel')
+        accel = np.diff(speed_smooth)
+        plt.plot(accel)
 
         plt.show()
 
@@ -1174,7 +1208,7 @@ class Rank:
 
     def __init__(self, menu_frames: List[PlayMenu], match_status_frames: List[MatchStatus], placement: int, kills: int, debug: bool = False):
         self.rank = None
-        self.tier = None
+        self.rank_tier = None
         self.rp = None
 
         self._resolve_match_status_rank(match_status_frames)
