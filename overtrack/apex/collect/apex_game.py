@@ -1251,21 +1251,25 @@ class Rank:
 
         rank_text = menu_rank_counter.most_common()[0][0]
         if rank_text:
-            rank, tier = textops.best_match(
-                menu_rank_counter.most_common()[0][0],
+            rank_tier = textops.best_match(
+                rank_text,
                 options,
                 choose_from,
                 threshold=0.9
             )
-            self.logger.info(f'Got rank={rank}, tier={tier}')
-            if rank != self.rank:
-                self.logger.warning(f'Rank from ingame badge={self.rank}, but menu got {rank}')
-                self.rank = rank
-            if tier != self.rank_tier:
-                self.logger.warning(f'Rank from ingame text={self.rank_tier}, but menu got {tier}')
-                self.rank_tier = tier
-            if rank != self.rank or tier != self.rank_tier:
-                self.logger.error(f'Ingame rank does not match menu rank', exc_info=True)
+            if not rank_tier:
+                self.logger.warning(f'Could not identify rank for {rank_text}')
+            else:
+                rank, tier = rank_tier
+                self.logger.info(f'Got rank={rank}, tier={tier}')
+                if rank != self.rank:
+                    self.logger.warning(f'Rank from ingame badge={self.rank}, but menu got {rank}')
+                    self.rank = rank
+                if tier != self.rank_tier:
+                    self.logger.warning(f'Rank from ingame text={self.rank_tier}, but menu got {tier}')
+                    self.rank_tier = tier
+                if rank != self.rank or tier != self.rank_tier:
+                    self.logger.error(f'Ingame rank does not match menu rank', exc_info=True)
 
         menu_rp_text = [menu.rp_text for menu in menu_frames]
         menu_rp_counter = Counter(menu_rp_text)
