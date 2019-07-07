@@ -1340,8 +1340,8 @@ class Rank:
 
     def _resolve_api_rank(self, player_name, stats_after, stats_before):
         self.logger.info(f'Trying to resolve RP from API stats for "{player_name}"')
-        player_stats_before_l = [s for n, s in stats_before if n == player_name]
-        player_stats_after_l = [s for n, s in stats_after if n == player_name]
+        player_stats_before_l = [n_s[1] for n_s in stats_before if n_s and n_s[0] == player_name]
+        player_stats_after_l = [n_s[1] for n_s in stats_after if n_s and n_s[0] == player_name]
         if len(player_stats_before_l) == 1 and len(player_stats_after_l) == 1:
             player_stats_before = player_stats_before_l[0]
             player_stats_after = player_stats_after_l[0]
