@@ -1,13 +1,12 @@
 import datetime
-
-import cv2
 import logging
 import os
 import re
 import zipfile
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 from urllib.parse import unquote
 
+import cv2
 import numpy as np
 from dataclasses import dataclass
 

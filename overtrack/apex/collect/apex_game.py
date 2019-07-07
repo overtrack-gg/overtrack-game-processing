@@ -1206,7 +1206,17 @@ class Rank:
 
     logger = logging.getLogger(__qualname__)
 
-    def __init__(self, menu_frames: List[PlayMenu], match_status_frames: List[MatchStatus], placement: int, kills: int, debug: bool = False):
+    def __init__(
+            self,
+            menu_frames: List[PlayMenu],
+            match_status_frames: List[MatchStatus],
+            placement: int,
+            kills: int,
+            player_name: str,
+            stats_before: Optional[List[Tuple[str, Dict[str, Any]]]],
+            stats_after: Optional[List[Tuple[str, Dict[str, Any]]]],
+            debug: bool = False):
+
         self.rank = None
         self.rank_tier = None
         self.rp = None
@@ -1219,6 +1229,9 @@ class Rank:
             self.logger.info(f'Got rp_change={self.rp_change:+}: rank={self.rank}, placement={placement}, kills={kills}')
         else:
             self.rp_change = None
+
+        if stats_before and stats_after:
+            self._resolve_api_rank(player_name, stats_after, stats_before)
 
     def _resolve_match_status_rank(self, match_status_frames: List[MatchStatus], debug: bool = False) -> None:
         rank_matches = np.array([
@@ -1324,6 +1337,70 @@ class Rank:
 
         if self.rp is None:
             self.logger.error(f'Menu RP invalid')
+
+    def _resolve_api_rank(self, player_name, stats_after, stats_before):
+        self.logger.info(f'Trying to resolve RP from API stats for "{player_name}"')
+        player_stats_before_l = [s for n, s in stats_before if n == player_name]
+        player_stats_after_l = [s for n, s in stats_after if n == player_name]
+        if len(player_stats_before_l) == 1 and len(player_stats_after_l) == 1:
+            player_stats_before = player_stats_before_l[0]
+            player_stats_after = player_stats_after_l[0]
+            if 'rank_score' in player_stats_before and 'rank_score' in player_stats_after:
+                rp_before = player_stats_before['rank_score']
+                rp_after = player_stats_after['rank_score']
+                rp_change = rp_after - rp_before
+                error = False
+
+                if rp_before != self.rp:
+                    self.logger.warning(f'Had RP={self.rp}, but API said RP={rp_before} - using API')
+                    error |= self.rp is not None  # if RP *was* parsed from OCR but disagrees, then something is wrong
+                else:
+                    self.logger.info(f'API RP={rp_before} agrees with OCR')
+
+                if rp_change != self.rp_change:
+                    self.logger.warning(f'Had RP change={self.rp_change}, but API said RP change={rp_change} - using API')
+                    error |= self.rp_change is not None
+                else:
+                    self.logger.info(f'API RP change={rp_change:+} agrees with OCR')
+
+                self.rp = rp_before
+                self.rp_change = rp_change
+
+                derived_rank = None
+                derived_tier = None
+                for rank, (lower, upper) in data.rank_rp.items():
+                    if lower <= self.rp < upper:
+                        derived_rank = rank
+                        if rank != 'apex_predator':
+                            division = (upper - lower) // 4
+                            tier_ind = (self.rp - lower) // division
+                            derived_tier = data.rank_tiers[tier_ind]
+                        break
+                else:
+                    self.logger.warning(f'API RP={self.rp} did not correspond to a valid rank')
+                    error = True
+
+                if derived_rank:
+                    if derived_rank != self.rank:
+                        self.logger.warning(f'Had rank={self.rank}, but API said rank={derived_rank} - using API')
+                        error |= self.rank is not None
+                    else:
+                        self.logger.info(f'API rank={derived_rank} agrees with OCR')
+
+                    if derived_tier != self.rank_tier:
+                        self.logger.warning(f'Had rank tier={self.rank_tier}, but API said rank={derived_tier} - using API')
+                        error |= derived_tier is not None and self.rank_tier is not None
+                    else:
+                        self.logger.info(f'API rank tier={derived_tier} agrees with API')
+
+                    self.rank = derived_rank
+                    self.rank_tier = derived_tier
+
+                if error:
+                    self.logger.error(f'Got disagreeing RP/RP change/rank from OCR and API', exc_info=True)
+
+        else:
+            self.logger.error(f'API stats invalid', exc_info=True)
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(' \
@@ -1433,7 +1510,16 @@ class ApexGame:
             rank_matches_p = 0
         self.logger.info(f'Got {rank_matches_p*100:.0f}% ({rank_matches}/{len(self.match_status_frames)}) of match status frames claiming ranked')
         if rank_matches_p > 0.8 and rank_matches > 10:
-            self.rank: Optional[Rank] = Rank(self.menu_frames, self.match_status_frames, self.placed, self.kills, debug=debug)
+            self.rank: Optional[Rank] = Rank(
+                self.menu_frames,
+                self.match_status_frames,
+                self.placed,
+                self.kills,
+                self.squad.player.name,
+                stats_before,
+                stats_after,
+                debug=debug
+            )
         else:
             self.rank: Optional[Rank] = None
 
