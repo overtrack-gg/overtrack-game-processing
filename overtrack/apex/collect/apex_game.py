@@ -1216,9 +1216,9 @@ class Rank:
             stats_after: Optional[List[Tuple[str, Dict[str, Any]]]],
             debug: bool = False):
 
-        self.rank = None
-        self.rank_tier = None
-        self.rp = None
+        self.rank: Optional[str] = None
+        self.rank_tier: Optional[str] = None
+        self.rp: Optional[int] = None
 
         self._resolve_match_status_rank(match_status_frames)
         self._resolve_menu_rank(menu_frames, debug=debug)
@@ -1226,6 +1226,9 @@ class Rank:
         if self.rank:
             self.rp_change = -data.rank_entry_cost[self.rank] + min(kills, 5) + data.rank_rewards[placement]
             self.logger.info(f'Got rp_change={self.rp_change:+}: rank={self.rank}, placement={placement}, kills={kills}')
+            if self.rp and self.rp + self.rp_change < data.rank_rp[self.rank][0]:
+                self.logger.info(f'RP {self.rp} {self.rp_change} would drop rank - setting RP change to 0')
+                self.rp_change = 0
         else:
             self.rp_change = None
 
@@ -1328,7 +1331,7 @@ class Rank:
             self.rp = None
         else:
             rp_lower_limit, rp_upper_limit = data.rank_rp[self.rank]
-            if not rp_lower_limit < self.rp < rp_upper_limit:
+            if not rp_lower_limit <= self.rp < rp_upper_limit:
                 self.logger.warning(f'RP: {self.rp} is not within {rp_lower_limit}, {rp_upper_limit} from rank {self.rank} - ignorng')
                 self.rp = None
             else:
