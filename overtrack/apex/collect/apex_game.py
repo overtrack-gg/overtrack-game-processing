@@ -978,20 +978,18 @@ class Route:
             x = np.array([l[1][0] for l in self.locations])
             y = np.array([l[1][1] for l in self.locations])
             ts = np.array([l[0] for l in self.locations])
-            time_offset = np.array(ts[1:] - ts[:-1])
-            speed = np.sqrt((x[1:] - x[:-1]) ** 2 + (y[1:] - y[:-1]) ** 2) / time_offset
-            speed_smooth = np.convolve(speed, np.ones(3) / 3, mode='same')
-            # accel = np.diff(speed_smooth)
-            self.landed_location_index = int(np.argmax(speed_smooth < 6)) + 1
-            self.time_landed = float(ts[self.landed_location_index])
-            self.logger.info(f'Speed dropped below 4 @ {s2ts(self.time_landed)}, index={self.landed_location_index}')
-
-            # if weapons.first_weapon_timestamp is not None:
-            #     self.time_landed = weapons.first_weapon_timestamp
-            # else:
-            #     self.logger.warning(f'Did not see weapon - assuming drop location = last location seen')
-            #     self.time_landed = self.locations[-1][0]
-            # self.landed_location_index = max(0, min(bisect.bisect(self.locations, (self.time_landed, (0, 0))) + 1, len(self.locations) - 1))
+            if len(ts) < 3:
+                self.logger.warning(f'Only got {len(ts)} locations - assuming drop location = last location seen')
+                self.landed_location_index = len(ts) - 1
+                self.time_landed = float(ts[self.landed_location_index])
+            else:
+                time_offset = np.array(ts[1:] - ts[:-1])
+                speed = np.sqrt((x[1:] - x[:-1]) ** 2 + (y[1:] - y[:-1]) ** 2) / time_offset
+                speed_smooth = np.convolve(speed, np.ones(3) / 3, mode='same')
+                # accel = np.diff(speed_smooth)
+                self.landed_location_index = int(np.argmax(speed_smooth < 6)) + 1
+                self.time_landed = float(ts[self.landed_location_index])
+                self.logger.info(f'Speed dropped below 4 @ {s2ts(self.time_landed)}, index={self.landed_location_index}')
 
             # average location of first 5 locations
             mean_location = np.mean([
