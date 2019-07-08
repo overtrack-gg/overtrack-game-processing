@@ -324,9 +324,8 @@ class Squad:
                 else:
                     self.logger.warning(
                         f'Got potentially bad match {name}<->{[Counter(s.name for s in stats)]}: {match:1.2f} and champion was not seen - '
-                        f'rejecting player ({2 - i} other options)'
+                        f'champion=None ({2 - i} other options)'
                     )
-                    reject = True
 
                 matches[names_index, :] = -1
                 matches[:, stats_index] = -1
