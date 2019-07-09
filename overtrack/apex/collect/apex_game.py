@@ -1495,12 +1495,14 @@ class ApexGame:
         self.route: Route = Route(self.frames, self.weapons, self.combat, debug=debug)
         # self.stats = Stats(frames, self.squad)  # TODO: stats using match summary
 
-        self.kills = max(
-            self._get_kills(debug) or 0,
-            self.squad.player.stats.kills or 0 if self.squad.player.stats else 0,
-            len(self.combat.eliminations),
-            # self.stats.kills
-        )
+        if self.squad.player and self.squad.player.stats and self.squad.player.stats.kills is not None:
+            self.kills = self.squad.player.stats.kills
+            self.logger.info(f'Using kills from stats: kills={self.kills}')
+        else:
+            self.kills = max(
+                self._get_match_state_kills(debug) or 0,
+                len(self.combat.eliminations),
+            )
 
         if len(self.match_status_frames):
             rank_matches = sum(match_status.rank_text is not None for match_status in self.match_status_frames)
@@ -1592,20 +1594,11 @@ class ApexGame:
             self.logger.info(f'Using placed from last squads alive: {last_squads_alive}')
             return last_squads_alive
 
-    def _get_kills(self, debug: Union[bool, str]= False) -> int:
-        summary_kills_seen = [s.xp_stats.kills for s in self.match_summary_frames if s.xp_stats.kills is not None]
+    def _get_match_state_kills(self, debug: Union[bool, str]= False) -> int:
         kills_seen = [s.kills for s in self.match_status_frames if s.kills]
         self.logger.info(
-            f'Getting kills from {len(self.match_summary_frames)} summary frames with {len(summary_kills_seen)} killcounts parsed '
-            f'and {len(self.match_status_frames)} match status frames with {len(kills_seen)} killcounts seen'
+            f'Getting kills from {len(self.match_status_frames)} match status frames with {len(kills_seen)} killcounts seen'
         )
-
-        summary_kills: Optional[int] = None
-        if len(summary_kills_seen):
-            kills_counter = Counter(summary_kills_seen)
-            summary_kills, count = kills_counter.most_common(1)[0]
-            if count != len(summary_kills_seen):
-                self.logger.warning(f'Got disagreeing summary kill counts: {kills_counter}')
 
         if len(kills_seen) > 10:
             kills_seen = arrayops.modefilt(kills_seen, 5)
@@ -1614,8 +1607,6 @@ class ApexGame:
                 import matplotlib.pyplot as plt
                 plt.figure()
                 plt.title('Kills')
-                if summary_kills is not None:
-                    plt.axhline(summary_kills, color='r')
                 plt.plot(kills_seen)
                 plt.show()
 
@@ -1627,14 +1618,7 @@ class ApexGame:
             self.logger.info(f'Only saw {len(kills_seen)} killcounts - using last_killcount=0')
             last_killcount = 0
 
-        if summary_kills is not None:
-            if summary_kills != last_killcount:
-                self.logger.warning(f'Match summary kills={summary_kills} did not agree with last seen kills={last_killcount}')
-            self.logger.info(f'Using summary_kills={summary_kills}')
-            return summary_kills
-        else:
-            self.logger.warning(f'Did not get summary kills - using last seen kills={last_killcount}')
-            return last_killcount
+        return last_killcount
 
     @property
     def time(self) -> datetime.datetime:
