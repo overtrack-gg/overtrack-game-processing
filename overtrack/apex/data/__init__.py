@@ -6,7 +6,6 @@ import zipfile
 from typing import List, Optional, Tuple
 from urllib.parse import unquote
 
-import cv2
 import numpy as np
 from dataclasses import dataclass
 
@@ -175,6 +174,8 @@ class MapLocations:
         self.layers: Optional[List[str, np.ndarray]] = None
 
     def _ensure_loaded(self) -> None:
+        import cv2
+
         if self.layers is not None:
             return
         self.layers = []
