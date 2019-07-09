@@ -38,6 +38,11 @@ class Rank(MapAttribute):
     rp = NumberAttribute(null=True)
     rp_change = NumberAttribute(null=True)
 
+    def __str__(self) -> str:
+        return OverTrackModel.__str__(self)
+
+    __repr__ = __str__
+
 
 class ApexGameSummary(OverTrackModel):
     class Meta:
