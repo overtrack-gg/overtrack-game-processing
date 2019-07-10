@@ -1,4 +1,4 @@
-from pynamodb.attributes import ListAttribute
+from pynamodb.attributes import ListAttribute, MapAttribute
 from pynamodb.models import Model
 
 
@@ -45,10 +45,16 @@ class OverTrackModel(Model):
         return self.__class__.__name__ + '(' + items_str + ')'
 
     def asdict(self):
-        key_name = [k for k, v in self._attributes.items() if v.is_hash_key][0]
         attributes = list(self._attributes.keys())
-        attributes.remove(key_name)
-        attributes.insert(0, key_name)
-        return {
+        # make `key` the first item
+        key_names = [k for k, v in self._attributes.items() if v.is_hash_key]
+        if len(key_names):
+            key_name = key_names[0]
+            attributes.remove(key_name)
+            attributes.insert(0, key_name)
+        attrs = {
             attr: getattr(self, attr) for attr in attributes
+        }
+        return {
+            k: OverTrackModel.asdict(v) if isinstance(v, MapAttribute) else v for k, v in attrs.items()
         }
