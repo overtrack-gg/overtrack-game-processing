@@ -674,25 +674,27 @@ class Combat:
                 seen_events.append((ts, event))
 
         if placed == 1 and squad.player.stats and squad.player.stats.kills and squad.player.stats.kills > len(self.eliminations):
-            last_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'match_status' in f][-1]
-            self.logger.warning(
-                f'Got won game with {squad.player.stats.kills} kills, but only saw {len(self.eliminations)} eliminations from combat - '
-                f'Trying to resolve final fight (ended {s2ts(last_timestamp)})'
-            )
-            # detect recent knockdowns that don't have elims after them, and add the elim as it should be a final elim
-            for knock in self.knockdowns:
-                if last_timestamp - knock.timestamp < 60:
-                    elims_following = [e for e in self.eliminations if e.timestamp > knock.timestamp]
-                    if not len(elims_following):
-                        final_elim = CombatEvent(last_timestamp, 'eliminated', inferred=True)
-                        self.eliminations.append(final_elim)
-                        self.logger.warning(f'Adding elim for final fight knockdown @{s2ts(knock.timestamp)}: {final_elim}')
+            match_status_frames = [f for f in frames if 'match_status' in f]
+            if len(match_status_frames):
+                last_timestamp = [f.timestamp - frames[0].timestamp for f in match_status_frames][-1]
+                self.logger.warning(
+                    f'Got won game with {squad.player.stats.kills} kills, but only saw {len(self.eliminations)} eliminations from combat - '
+                    f'Trying to resolve final fight (ended {s2ts(last_timestamp)})'
+                )
+                # detect recent knockdowns that don't have elims after them, and add the elim as it should be a final elim
+                for knock in self.knockdowns:
+                    if last_timestamp - knock.timestamp < 60:
+                        elims_following = [e for e in self.eliminations if e.timestamp > knock.timestamp]
+                        if not len(elims_following):
+                            final_elim = CombatEvent(last_timestamp, 'eliminated', inferred=True)
+                            self.eliminations.append(final_elim)
+                            self.logger.warning(f'Adding elim for final fight knockdown @{s2ts(knock.timestamp)}: {final_elim}')
 
-            while squad.player.stats.kills > len(self.eliminations):
-                # still lacking on elims - this player got the final kill
-                self.knockdowns.append(CombatEvent(last_timestamp, 'downed'))
-                self.eliminations.append(CombatEvent(last_timestamp, 'eliminated'))
-                self.logger.warning(f'Adding down+elim for final kill(s) of the match: {self.knockdowns[-1]}, {self.eliminations[-1]}')
+                while squad.player.stats.kills > len(self.eliminations):
+                    # still lacking on elims - this player got the final kill
+                    self.knockdowns.append(CombatEvent(last_timestamp, 'downed'))
+                    self.eliminations.append(CombatEvent(last_timestamp, 'eliminated'))
+                    self.logger.warning(f'Adding down+elim for final kill(s) of the match: {self.knockdowns[-1]}, {self.eliminations[-1]}')
 
             # if len(self.eliminations) > len(self.knockdowns):
             #     self.logger.warning(
