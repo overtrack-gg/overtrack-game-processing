@@ -167,7 +167,7 @@ class Pad(Layer):
 class NormaliseByte(Layer):
 
     def __init__(self, **kwargs):
-        super(NormaliseByte, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def compute_output_shape(self, input_shape):
         input_shape = tensor_shape.TensorShape(input_shape).as_list()
@@ -176,12 +176,22 @@ class NormaliseByte(Layer):
     def get_config(self) -> Dict[str, any]:
         config = {
         }
-        base_config = super(NormaliseByte, self).get_config()
+        base_config = super().get_config()
         # noinspection PyTypeChecker
         return dict(list(base_config.items()) + list(config.items()))
 
     def call(self, inputs, training=None):
         return tf.cast(inputs, tf.float32) / 255. - 0.5
+
+
+class ByteToFloat(NormaliseByte):
+    def call(self, inputs, training=None):
+        return tf.cast(inputs, tf.float32) / 255. - 0.5
+
+
+class BGR2RGB(NormaliseByte):
+    def call(self, inputs, training=None):
+        return tf.reverse(inputs, axis=[-1])
 
 
 class CTCDecoder(Layer):

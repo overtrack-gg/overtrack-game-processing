@@ -14,9 +14,9 @@ active_images: Dict[str, 'UploadableImage'] = {}
 logger = logging.getLogger('Image')
 
 
-def lazy_upload(key: str, image: 'np.ndarray', timestamp: float, maxlen: int = MAXLEN) -> 'UploadableImage':
+def lazy_upload(key: str, image: 'np.ndarray', timestamp: float, maxlen: int = MAXLEN, selection='middle') -> 'UploadableImage':
     if key not in active_images:
-        active_images[key] = UploadableImage(key, maxlen)
+        active_images[key] = UploadableImage(key, maxlen, selection=selection)
 
     active_images[key].append(image, timestamp)
     return active_images[key]
@@ -33,9 +33,10 @@ def lazy_upload_unique(key: str, image: 'np.ndarray') -> 'UploadableImage':
 
 class UploadableImage:
 
-    def __init__(self, key: str, maxlen: int):
+    def __init__(self, key: str, maxlen: int, selection='middle'):
         self.key = key
         self.images = deque(maxlen=maxlen)
+        self.selection = selection
         self.url = None
         logger.info(f'Created {self}')
 
@@ -46,7 +47,14 @@ class UploadableImage:
     def make_single(self) -> 'np.ndarray':
         # import numpy as np
         # return np.mean([i for t, i in self.images], axis=0).astype(np.uint8)
-        return [i for t, i in self.images][len(self.images) // 2]
+        if self.selection == 'first':
+            return self.images[0][1]
+        elif self.selection == 'last':
+            return self.images[-1][1]
+        else:
+            if self.selection != 'middle':
+                logger.warning(f'Got unknown selection mode {self.selection} - using "middle"')
+            return [i for t, i in self.images][len(self.images) // 2]
 
     @property
     def timestamps(self) -> List[int]:
