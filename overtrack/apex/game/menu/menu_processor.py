@@ -11,6 +11,7 @@ from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
+from overtrack.util.uploadable_image import lazy_upload
 
 
 def _draw_buttons_match(debug_image: Optional[np.ndarray], ready_match: float, cancel_match: float, required_match: float) -> None:
@@ -100,6 +101,12 @@ class MenuProcessor(Processor):
 
                 rank_text=rank_text,
                 rp_text=rp_text,
+
+                rp_image=lazy_upload(
+                    'rp_full',
+                    self.REGIONS['rp_full'].extract_one(frame.image),
+                    frame.timestamp
+                )
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_play_menu(frame.debug_image, frame.apex_play_menu)
@@ -124,7 +131,7 @@ class MenuProcessor(Processor):
 
 
 def main() -> None:
-    config_logger('map_processor', logging.INFO, write_to_file=False)
+    config_logger('menu_processor', logging.INFO, write_to_file=False)
 
     pipeline = MenuProcessor()
 
@@ -139,6 +146,8 @@ def main() -> None:
         print(frame)
         cv2.imshow('debug', frame.debug_image)
         cv2.waitKey(0)
+
+
 
 
 if __name__ == '__main__':

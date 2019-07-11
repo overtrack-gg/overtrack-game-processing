@@ -2,6 +2,8 @@ from typing import Optional, Tuple
 
 from dataclasses import dataclass
 
+from overtrack.util.uploadable_image import UploadableImage
+
 
 @dataclass
 class PlayMenu:
@@ -11,3 +13,6 @@ class PlayMenu:
 
     rank_text: Optional[str] = None
     rp_text: Optional[str] = None
+
+    rp_image: Optional[UploadableImage] = None
+
