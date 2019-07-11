@@ -29,6 +29,7 @@ class DiscordBotNotification(OverTrackModel):
 
     key = UnicodeAttribute(hash_key=True, null=False)
     user_id = NumberAttribute(null=False)
+    game_ = UnicodeAttribute(attr_name='game')
 
     guild_id = UnicodeAttribute(null=False)
     guild_name = UnicodeAttribute(null=False)
@@ -49,6 +50,7 @@ class DiscordBotNotification(OverTrackModel):
         return DiscordBotNotification(
             key=f'{user_id}.{game}.{channel_id}',
             user_id=user_id,
+            game_=game,
             guild_id=guild_id,
             guild_name=guild_name,
             channel_name=channel_name,
@@ -57,6 +59,8 @@ class DiscordBotNotification(OverTrackModel):
 
     @property
     def game(self) -> str:
+        if self.game_:
+            return self.game_
         return self.key.split('.')[1]
 
     @property
