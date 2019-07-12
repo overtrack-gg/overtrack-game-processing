@@ -21,6 +21,7 @@ tabulate = "*"
 
 # embedded web servers
 sanic = "^0.8"
+cherrypy = "^18"
 
 # ingest instance management
 python-digitalocean = { git = "https://github.com/koalalorenzo/python-digitalocean.git" }
