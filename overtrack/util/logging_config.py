@@ -45,16 +45,17 @@ LOG_FORMAT = '[%(asctime)16s | %(levelname)8s | %(name)24s | %(filename)s:%(line
 def intermittent_log(
         logger: logging.Logger,
         line: str,
-        frequency: float=60,
-        level: int=logging.INFO,
+        frequency: float = 60,
+        level: int = logging.INFO,
         negative_level: Optional[int]=None,
-        _last_logged: DefaultDict[Tuple[str, int], float]=defaultdict(float),
         caller_extra_id: Any = None,
-        _caller: Optional[str] = None) -> None:
+        _caller: Optional[str] = None,
+        _last_logged: DefaultDict[Tuple[str, int], float] = defaultdict(float),
+        _times_suppressed: DefaultDict[Tuple[str, int], float] = defaultdict(int)) -> None:
     try:
         caller = None
         if _caller:
-            frame_id = _caller
+            frame_id = _caller, caller_extra_id
         else:
             try:
                 caller = inspect.stack()[1]
@@ -65,7 +66,12 @@ def intermittent_log(
         output = negative_level
         if time.time() - _last_logged[frame_id] > frequency:
             _last_logged[frame_id] = time.time()
+            if _times_suppressed[frame_id]:
+                line += f' | [log called {_times_suppressed[frame_id]} times since last]'
+            _times_suppressed[frame_id] = 0
             output = level
+        else:
+            _times_suppressed[frame_id] += 1
         if output and logger.isEnabledFor(output):
             if caller:
                 co = caller.frame.f_code
@@ -311,6 +317,19 @@ def patch_sentry_locals_capture() -> None:
         if isinstance(value, (bytes, str)) and len(value) > 1024:
             return safe_repr(value[:1024]) + f'..., len={len(value)}'
         return NotImplemented
+
+
+CLOUD_INIT_OUTPUT = '/var/log/cloud-init-output.log'
+
+# def log_cloud_init():
+#     logger = logging.getLogger('cloud-init')
+#     if os.path.exists(CLOUD_INIT_OUTPUT):
+#         logger.info(f'Found cloud init log: {CLOUD_INIT_OUTPUT}')
+#         logger.info('-' * 15 + ' Begin Cloud Init Log ' + '-' * 15)
+#         with open(CLOUD_INIT_OUTPUT) as f:
+#             started = False
+#             for line in f.readlines():
+
 
 
 
