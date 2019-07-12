@@ -1350,6 +1350,11 @@ class Rank:
             if 'rank_score' in player_stats_before and 'rank_score' in player_stats_after:
                 rp_before = player_stats_before['rank_score']
                 rp_after = player_stats_after['rank_score']
+
+                if not rp_before or not rp_after:
+                    self.logger.warning(f'API RP before={rp_before}, after={rp_after} - may be invalid: ignoring API RP')
+                    return
+
                 rp_change = rp_after - rp_before
                 error = False
 
@@ -1360,7 +1365,7 @@ class Rank:
                     self.logger.info(f'API RP={rp_before} agrees with OCR')
 
                 if rp_change != self.rp_change:
-                    self.logger.warning(f'Had RP change={self.rp_change}, but API said RP change={rp_change} - using API')
+                    self.logger.warning(f'Had RP change={self.rp_change}, but API said RP after={rp_after}, change={rp_change} - using API')
                     error |= self.rp_change is not None
                 else:
                     self.logger.info(f'API RP change={rp_change:+} agrees with OCR')
