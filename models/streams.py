@@ -49,6 +49,7 @@ class Stream(Model):
     ip = UnicodeAttribute()
     # whether the client is currently streaming (published)
     live = BooleanAttribute()
+    type = UnicodeAttribute(default='rtmp')
 
     # latest heartbeat from the worker processing this stream
     latest_heartbeat = NumberAttribute()
