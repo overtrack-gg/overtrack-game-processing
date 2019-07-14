@@ -67,7 +67,7 @@ def intermittent_log(
         if time.time() - _last_logged[frame_id] > frequency:
             _last_logged[frame_id] = time.time()
             if _times_suppressed[frame_id]:
-                line += f' | [log called {_times_suppressed[frame_id]} times since last]'
+                line += f' [log suppressed {_times_suppressed[frame_id]} times since last]'
             _times_suppressed[frame_id] = 0
             output = level
         else:

@@ -6,8 +6,7 @@ authors = ["Simon Pinfold <simon@uint8.me>"]
 
 [tool.poetry.dependencies]
 python = "^3.6"
-
-setuptools = "^40"
+setuptools = "^41"
 
 # base requirements
 requests = "^2"
