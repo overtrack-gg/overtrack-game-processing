@@ -1,4 +1,9 @@
-from pynamodb.attributes import ListAttribute, MapAttribute
+from typing import Iterable, TypeVar, Generic, TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing import Protocol
+
+from pynamodb.attributes import ListAttribute, MapAttribute, NumberAttribute
+from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
 from pynamodb.models import Model
 
 
@@ -58,3 +63,38 @@ class OverTrackModel(Model):
         return {
             k: OverTrackModel.asdict(v) if isinstance(v, MapAttribute) else v for k, v in attrs.items()
         }
+
+
+T = TypeVar('T', bound=Model, covariant=True)
+
+if TYPE_CHECKING:
+
+    class UserIDIndexBase(Protocol, Generic[T]):
+        def query(self, user_id: int, *args, **kwargs) -> Iterable[T]:
+            ...
+
+        def count(self, user_id: int, *args, **kwargs) -> int:
+            ...
+else:
+    class UserIDIndexBase(Generic[T]):
+        pass
+
+
+def make_user_id_index():
+    class UserIDIndex(GlobalSecondaryIndex):
+        class Meta:
+            index_name = 'user_id_index'
+            projection = AllProjection()
+            read_capacity_units = 1
+            write_capacity_units = 1
+
+        user_id = NumberAttribute(attr_name='user_id', hash_key=True)
+
+        def query(self, user_id: int, *args, **kwargs):
+            return super(UserIDIndex, self).query(user_id, *args, **kwargs)
+
+        def count(self, user_id: int, *args, **kwargs) -> int:
+            return super(UserIDIndex, self).count(user_id, *args, **kwargs)
+
+    return UserIDIndex()
+

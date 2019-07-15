@@ -6,8 +6,9 @@ from pprint import pformat, pprint
 import requests
 
 from models.apex_game_summary import ApexGameSummary
-from models.notifications import DiscordBotNotification
+from models.notifications import DiscordBotNotification, TwitchBotNotification
 from overtrack.apex.collect.apex_game import ApexGame
+from overtrack.twitch import twitch_bot
 
 logger = logging.getLogger(__name__)
 
@@ -121,19 +122,65 @@ class DiscordMessage:
             return True
 
 
-def send_notifications(user_id: int, game: ApexGame, summary: ApexGameSummary, url: str, username: str, dev_embed: Optional[Dict]) -> None:
-    message = DiscordMessage(game, summary, url, username)
+class TwitchMessage:
+    COLOUR_MAP = {
+        1: 'Goldenrod',
+        2: 'BlueViolet',
+        3: 'DodgerBlue'
+    }
 
+    def __init__(self, game: ApexGame, summary: ApexGameSummary, url: str, username: Optional[str] = None):
+        if username is None:
+            name = game.squad.player.name
+        else:
+            name = username
+
+        self.message = f'{name} just placed #{game.placed} with {game.kills} kills'
+        # if placed == 1:
+        #     message += ' mendoEZ'
+        # elif placed == 2:
+        #     message += random.choice([' mendoSip', ' mendoDab'])
+        # elif placed == 3:
+        #     message += random.choice([' mendoGun', ' mendoSip'])
+
+        if game.squad:
+            if game.squad.squad_kills is not None:
+                self.message += f' | {game.squad.squad_kills} squad kills'
+        if game.route.landed_name and game.route.landed_name != 'Unknown':
+            self.message += f' | Dropped {game.route.landed_name}'
+        self.message += f' | {url}'
+
+        self.color = self.COLOUR_MAP.get(game.placed)
+
+    def send(self, channel: str) -> None:
+        twitch_bot.send_message(
+            channel,
+            self.message,
+            colour=self.color
+        )
+
+
+def send_notifications(user_id: int, game: ApexGame, summary: ApexGameSummary, url: str, username: str, dev_embed: Optional[Dict]) -> None:
+    discord_message = DiscordMessage(game, summary, url, username)
     for discord_integration in DiscordBotNotification.user_id_index.query(user_id):
         top3_only = discord_integration.notification_data.get('top3_only', False)
         if (top3_only and summary.placed <= 3) or not top3_only:
             logger.info(f'Sending {summary} to {discord_integration}')
-            message.send(discord_integration.channel_id)
+            discord_message.send(discord_integration.channel_id)
         else:
             logger.info(f'Not sending {summary} to {discord_integration}')
 
     logger.info(f'Sending {summary} to OverTrack#apex-games')
     if dev_embed:
-        message.post_to_webhook(APEX_GAMES_WEBHOOK, [dev_embed])
+        discord_message.post_to_webhook(APEX_GAMES_WEBHOOK, [dev_embed])
     else:
-        message.post_to_webhook(APEX_GAMES_WEBHOOK)
+        discord_message.post_to_webhook(APEX_GAMES_WEBHOOK)
+
+    twitch_message = TwitchMessage(game, summary, url, username)
+    for twitch_integration in TwitchBotNotification.user_id_index.query(user_id):
+        top3_only = twitch_integration.notification_data.get('top3_only', False)
+        if (top3_only and summary.placed <= 3) or not top3_only:
+            logger.info(f'Sending {summary} to {twitch_integration}')
+            twitch_message.send(twitch_integration.twitch_channel_name)
+        else:
+            logger.info(f'Not sending {summary} to {twitch_integration}')
