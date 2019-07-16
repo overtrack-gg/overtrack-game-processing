@@ -1552,13 +1552,20 @@ class ApexGame:
         match_summary_placed: Optional[int] = None
         if len(self.match_summary_frames):
             placed_counter = Counter([s.placed for s in self.match_summary_frames])
-            match_summary_placed, count = placed_counter.most_common(1)[0]
-            if count != len(self.match_summary_frames):
-                self.logger.warning(f'Got disagreeing match summary placed counts: {placed_counter}')
-
-            self.logger.info(f'Got match summary > placed={match_summary_placed} from summary')
-        else:
-            self.logger.info(f'Did not get match summary')
+            self.logger.info(f'Got match_summary.placed={placed_counter}')
+            count = None
+            for e in placed_counter.most_common():
+                if 1 <= e[0] <= 20:
+                    match_summary_placed, count = e
+                    break
+                else:
+                    self.logger.warning(f'Ignoring match_summary.placed={e[0]} - not in range')
+            if match_summary_placed:
+                if count != len(self.match_summary_frames):
+                    self.logger.warning(f'Got disagreeing match summary placed counts: {placed_counter}')
+                self.logger.info(f'Got match summary > placed={match_summary_placed} from summary')
+        if not match_summary_placed:
+            self.logger.info(f'Did not get (valid) match summary placement')
 
         squad_summary_placed: Optional[int] = None
         if len(self.squad_summary_frames):
@@ -1570,17 +1577,30 @@ class ApexGame:
             placed_vals = [s.placed for s in self.squad_summary_frames if s.placed]
             if len(placed_vals):
                 placed_counter = Counter(placed_vals)
-                squad_summary_placed, count = placed_counter.most_common(1)[0]
-                if count != len(self.squad_summary_frames):
-                    self.logger.warning(f'Got disagreeing squad summary placed counts: {placed_counter}')
-
-                self.logger.info(f'Got squad summary > placed = {squad_summary_placed}')
+                self.logger.info(f'Got squad_summary.placed={placed_counter}')
+                count = None
+                for e in placed_counter.most_common():
+                    if 1 <= e[0] <= 20:
+                        squad_summary_placed, count = e
+                        break
+                    else:
+                        self.logger.warning(f'Ignoring squad_summary.placed={e[0]} - not in range')
+                if squad_summary_placed:
+                    if count != len(self.squad_summary_frames):
+                        self.logger.warning(f'Got disagreeing squad summary placed counts: {placed_counter}')
+                    self.logger.info(f'Got squad summary > placed = {squad_summary_placed}')
+        if not squad_summary_placed:
+            self.logger.info(f'Did not get (valid) squad summary placement')
 
         if len(self.match_status_frames) > 10:
             # TODO: record this plot as edges
             squads_alive = arrayops.modefilt([s.squads_left for s in self.match_status_frames], 5)
             last_squads_alive = int(squads_alive[-1])
-            self.logger.info(f'Got last seen squads alive = {last_squads_alive}')
+            if 1 <= last_squads_alive <= 20:
+                self.logger.info(f'Got last seen squads alive = {last_squads_alive}')
+            else:
+                self.logger.info(f'Did not get valid last seen squads alive: {last_squads_alive}')
+                last_squads_alive = None
         else:
             self.logger.warning(f'Did not get any match summaries - last seen squads alive = 20')
             last_squads_alive = 20
