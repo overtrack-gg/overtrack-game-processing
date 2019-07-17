@@ -168,8 +168,17 @@ class Player:
                 damage_dealt=s.xp_stats.damage_done,
                 survival_time=s.xp_stats.time_survived,
                 players_revived=s.xp_stats.revive_ally,
-                players_respawned=s.xp_stats.respawn_ally
-            ) for s in summaries
+                players_respawned=s.xp_stats.respawn_ally,
+            ) for s in summaries if s.xp_stats
+        ] + [
+            SquadSummaryStats(
+                name='',
+                kills=s.score_report.kills,
+                damage_dealt=None,
+                survival_time=None,
+                players_revived=None,
+                players_respawned=None,
+            ) for s in summaries if s.score_report
         ])
 
     def _sanity_clip(self, stats: PlayerStats) -> PlayerStats:
@@ -1222,6 +1231,8 @@ class Rank:
 
         self._resolve_match_status_rank(match_status_frames)
         self._resolve_menu_rank(menu_frames, debug=debug)
+        # TODO: resolve RP and change from match summary > score summary
+        # NOTE: score summary current RP is an animation - take the last frame and use IFF there are enough frames for it to have finished animating
 
         if self.rank:
             self.rp_change = -data.rank_entry_cost[self.rank] + min(kills, 5) + data.rank_rewards[placement]

@@ -21,6 +21,8 @@ class ScoreReport:
     entry_rank: str = None
     kills: Optional[int] = None
     placement: Optional[int] = None
+    rp_adjustment: Optional[int] = None
+    current_rp: Optional[int] = None
 
 
 @dataclass

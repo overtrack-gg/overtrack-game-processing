@@ -87,9 +87,8 @@ class SquadSummaryProcessor(Processor):
                 placed=self._process_yellowtext(self.REGIONS['placed'].extract_one(frame.image), hash=True),
                 squad_kills=self._process_yellowtext(self.REGIONS['squad_kills'].extract_one(frame.image), hash=False),
                 player_stats=self._process_player_stats(y),
-
+                elite=elite,
                 image=lazy_upload('squad_summary', self.REGIONS.blank_out(frame.image), frame.timestamp),
-                elite=elite
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_squad_summary(frame.debug_image, frame.squad_summary)

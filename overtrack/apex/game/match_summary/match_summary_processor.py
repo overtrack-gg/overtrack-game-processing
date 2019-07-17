@@ -122,7 +122,7 @@ class MatchSummaryProcessor(Processor):
                     xp_stats=xp_stats,
                     score_report=score_report,
 
-                    image=lazy_upload(image_title, self.REGIONS.blank_out(frame.image), frame.timestamp)
+                    image=lazy_upload(image_title, self.REGIONS.blank_out(frame.image), frame.timestamp, selection='last')
                 )
                 _draw_match_summary(frame.debug_image, frame.match_summary)
                 return True
@@ -193,7 +193,7 @@ class MatchSummaryProcessor(Processor):
                     try:
                         score_report.kills = int(stat_value.replace('o', '0'))
                     except ValueError:
-                        logger.warning(f'Could not parse Score Report > kills: {stat_value} as int')
+                        logger.warning(f'Could not parse Score Report > kills: "{stat_value}"" as int')
                     else:
                         valid = True
                 elif stat_name == 'matchplacement':
@@ -201,11 +201,37 @@ class MatchSummaryProcessor(Processor):
                     try:
                         score_report.placement = int(stat_value.replace('o', '0').split('/', 1)[0])
                     except ValueError:
-                        logger.warning(f'Could not parse Score Report > placement: {stat_value} as placement')
+                        logger.warning(f'Could not parse Score Report > placement: "{stat_value}"" as placement')
                     else:
                         valid = True
             if not valid:
-                logger.warning(f'Unknown line in score report: {line}')
+                logger.warning(f'Unknown line in score report: "{line}"')
+
+        score_adjustment_image = self.REGIONS['score_adjustment'].extract_one(y)
+        score_adjustment_text = imageops.tesser_ocr(
+            score_adjustment_image,
+            engine=imageops.tesseract_lstm,
+            invert=True,
+            scale=1
+        )
+        score_adjustment_text_strip = textops.strip_string(score_adjustment_text, alphabet=string.digits + 'RP+-').replace('RP', '').replace('+', '').replace('-', '')
+        try:
+            score_report.rp_adjustment = int(score_adjustment_text_strip)
+        except ValueError:
+            logger.warning(f'Could not parse Score Report > score adjustment: "{score_adjustment_text}"" as valid adjustment')
+
+        current_rp_image = self.REGIONS['current_rp'].extract_one(y)
+        current_rp_text = imageops.tesser_ocr(
+            current_rp_image,
+            engine=imageops.tesseract_lstm,
+            invert=True,
+            scale=1
+        )
+        current_rp_text_strip = textops.strip_string(current_rp_text, alphabet=string.digits + 'RP').replace('RP', '')
+        try:
+            score_report.current_rp = int(current_rp_text_strip)
+        except ValueError:
+            logger.warning(f'Could not parse Score Report > current RP: "{current_rp_text}"" as valid RP')
 
         return score_report
 
