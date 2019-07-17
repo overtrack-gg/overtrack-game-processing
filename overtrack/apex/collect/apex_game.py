@@ -1551,12 +1551,15 @@ class ApexGame:
 
         match_summary_placed: Optional[int] = None
         if len(self.match_summary_frames):
-            placed_counter = Counter([s.placed for s in self.match_summary_frames])
+            placed_values = [s.placed for s in self.match_summary_frames]
+            placed_counter = Counter(placed_values)
+            placed_counter_dict = dict(placed_counter.most_common())
             self.logger.info(f'Got match_summary.placed={placed_counter}')
             count = None
-            for e in placed_counter.most_common():
-                if 1 <= e[0] <= 20:
-                    match_summary_placed, count = e
+            for e in placed_values[::-1]:
+                if 1 <= e <= 20:
+                    match_summary_placed = e
+                    count = placed_counter_dict[match_summary_placed]
                     break
                 else:
                     self.logger.warning(f'Ignoring match_summary.placed={e[0]} - not in range')
