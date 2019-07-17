@@ -17,9 +17,17 @@ class XPStats:
 
 
 @dataclass
+class ScoreReport:
+    entry_rank: str = None
+    kills: Optional[int] = None
+    placement: Optional[int] = None
+
+
+@dataclass
 class MatchSummary:
     placed: int
-    xp_stats: XPStats
+    xp_stats: Optional[XPStats] = None
+    score_report: Optional[ScoreReport] = None
 
     image: Optional[UploadableImage] = None
 

@@ -31,21 +31,36 @@ def _draw_match_summary(debug_image: Optional[np.ndarray], summary: MatchSummary
         (0, 255, 0),
         2
     )
-    for i, f in enumerate(fields(XPStats)):
-        cv2.putText(
-            debug_image,
-            f'{f.name}: {getattr(summary.xp_stats, f.name)}',
-            (1000, 150 + i * 20),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (0, 255, 0),
-            1
-        )
+    if summary.xp_stats:
+        for i, f in enumerate(fields(XPStats)):
+            cv2.putText(
+                debug_image,
+                f'{f.name}: {getattr(summary.xp_stats, f.name)}',
+                (1000, 150 + i * 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 255, 0),
+                1
+            )
+    elif summary.score_report:
+        for i, f in enumerate(fields(ScoreReport)):
+            cv2.putText(
+                debug_image,
+                f'{f.name}: {getattr(summary.score_report, f.name)}',
+                (1000, 150 + i * 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 255, 0),
+                1
+            )
 
 
 class MatchSummaryProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
+
     MATCH_SUMMARY_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'match_summary.png'), 0)
+    XP_BREAKDOWN_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'xp_breakdown.png'), 0)
+    SCORE_REPORT_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'score_report.png'), 0)
     REQUIRED_MATCH = 0.75
 
     PLACED_COLOUR = (32, 61, 238)
@@ -83,12 +98,31 @@ class MatchSummaryProcessor(Processor):
         if match >= self.REQUIRED_MATCH:
             self.REGIONS.draw(frame.debug_image)
             placed = self._get_placed(frame)
+
+            image_title = 'match_summary'
+            xp_stats, score_report = None, None
+
+            xp_breakdown_title_image = self.REGIONS['xp_breakdown'].extract_one(y)
+            _, xp_breakdown_title_thresh = cv2.threshold(xp_breakdown_title_image, 150, 255, cv2.THRESH_BINARY)
+            xp_breakdown_title_match = np.max(cv2.matchTemplate(xp_breakdown_title_thresh, self.XP_BREAKDOWN_TEMPLATE, cv2.TM_CCORR_NORMED))
+            if xp_breakdown_title_match > self.REQUIRED_MATCH:
+                xp_stats = self._parse_xp_breakdown(y)
+                image_title += '_xp_breakdown'
+            else:
+                score_report_title_image = self.REGIONS['score_report'].extract_one(y)
+                _, score_report_title_thresh = cv2.threshold(score_report_title_image, 150, 255, cv2.THRESH_BINARY)
+                score_report_title_match = np.max(cv2.matchTemplate(score_report_title_thresh, self.SCORE_REPORT_TEMPLATE, cv2.TM_CCORR_NORMED))
+                if score_report_title_match > self.REQUIRED_MATCH:
+                    score_report = self._parse_score_report(y)
+                    image_title += '_score_report'
+
             if placed is not None:
                 frame.match_summary = MatchSummary(
                     placed=placed,
-                    xp_stats=self._parse_xp_breakdown(y),
+                    xp_stats=xp_stats,
+                    score_report=score_report,
 
-                    image=lazy_upload('xp_breakdown', self.REGIONS.blank_out(frame.image), frame.timestamp)
+                    image=lazy_upload(image_title, self.REGIONS.blank_out(frame.image), frame.timestamp)
                 )
                 _draw_match_summary(frame.debug_image, frame.match_summary)
                 return True
@@ -96,7 +130,7 @@ class MatchSummaryProcessor(Processor):
         return False
 
     def _parse_xp_breakdown(self, y: np.ndarray) -> XPStats:
-        xp_breakdown_image = self.REGIONS['xp_breakdown'].extract_one(y)
+        xp_breakdown_image = self.REGIONS['xp_fields'].extract_one(y)
         xp_breakdown_image = cv2.adaptiveThreshold(
             xp_breakdown_image,
             255,
@@ -133,6 +167,47 @@ class MatchSummaryProcessor(Processor):
                 elif stat_name == 'Respawn Ally':
                     xp_stats.respawn_ally = stat_value
         return xp_stats
+
+    def _parse_score_report(self, y: np.ndarray) -> ScoreReport:
+        rp_report_image = self.REGIONS['rp_fields'].extract_one(y)
+
+        lines = []
+        for line in range(3):
+            line_im = rp_report_image[line * 40 + 5: (line + 1) * 40 - 7, 5:]
+            lines.append(imageops.tesser_ocr(
+                line_im,
+                engine=imageops.tesseract_lstm,
+                invert=True,
+                scale=2
+            ))
+
+        score_report = ScoreReport()
+        for line in lines:
+            valid = False
+            if ':' in line:
+                stat_name, stat_value = line.lower().replace(' ', '').split(':')
+                if stat_name == 'entrycost':
+                    score_report.entry_rank = stat_value.lower()
+                    valid = True
+                elif stat_name == 'kills':
+                    try:
+                        score_report.kills = int(stat_value.replace('o', '0'))
+                    except ValueError:
+                        logger.warning(f'Could not parse Score Report > kills: {stat_value} as int')
+                    else:
+                        valid = True
+                elif stat_name == 'matchplacement':
+                    stat_value = stat_value.replace('#', '')
+                    try:
+                        score_report.placement = int(stat_value.replace('o', '0').split('/', 1)[0])
+                    except ValueError:
+                        logger.warning(f'Could not parse Score Report > placement: {stat_value} as placement')
+                    else:
+                        valid = True
+            if not valid:
+                logger.warning(f'Unknown line in score report: {line}')
+
+        return score_report
 
     def _parse_stat(self, line: str) -> Tuple[Optional[str], Optional[int]]:
         if len(line) > 5:
@@ -211,9 +286,7 @@ def main() -> None:
     pipeline = MatchSummaryProcessor()
 
     import glob
-
-    ps = "C:/Users/simon/mpv-screenshots/mpv-shot0250.png"
-    for p in [ps] + glob.glob('../../../../dev/apex_images/match_summary/*.png') + glob.glob('../../../../dev/apex_images/**/*.png'):
+    for p in reversed(glob.glob("C:/Users/simon/overtrack_2/apex_images/match_summary/*.png")):
         frame = Frame.create(
             cv2.resize(cv2.imread(p), (1920, 1080)),
             0,
