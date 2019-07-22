@@ -1,6 +1,6 @@
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING, Union
 
 import cv2
 import dataclasses
@@ -123,6 +123,7 @@ class Frame(Dict[str, Any]):
         import overtrack.overwatch.game.endgame_sr.models
         import overtrack.overwatch.game.hero_select.models
         import overtrack.overwatch.game.overwatch_metadata
+        import overtrack.overwatch.game.role_select.models
         objective: overtrack.overwatch.game.objective.Objective
         objective2: overtrack.overwatch.game.objective_2.Objective2
         loading_map: overtrack.overwatch.game.loading_map.models.LoadingMap
@@ -148,13 +149,8 @@ class Frame(Dict[str, Any]):
         endgame_sr: overtrack.overwatch.game.endgame_sr.models.EndgameSR
         assemble_your_team_match: float
         assemble_your_team: overtrack.overwatch.game.hero_select.models.AssembleYourTeam
+        role_select: overtrack.overwatch.game.role_select.models.RoleSelect
         overwatch_metadata: overtrack.overwatch.game.overwatch_metadata.OverwatchClientMetadata
-
-        timings: Timings
-
-        # this source is used in the online version
-        from overtrack.source.stream.ts_stream import TSSource
-        source: TSSource
 
         import overtrack.apex.game.match_status.models
         import overtrack.apex.game.match_summary.models
@@ -181,6 +177,14 @@ class Frame(Dict[str, Any]):
         location: overtrack.apex.game.map.models.Location
         combat_log: overtrack.apex.game.combat.models.CombatLog
         apex_metadata: overtrack.apex.game.apex_metadata.ApexClientMetadata
+
+        timings: Timings
+
+        from overtrack.source.stream.ts_stream import TSSource
+        from overtrack.source.display_duplication import DisplayDuplicationSource
+        from overtrack.source.shmem import SharedMemorySource
+
+        source: Union[TSSource, DisplayDuplicationSource, SharedMemorySource]
 
     @classmethod
     def create(

@@ -31,6 +31,7 @@ import overtrack.overwatch.game.endgame.models
 import overtrack.overwatch.game.hero.models
 import overtrack.overwatch.game.endgame_sr.models
 import overtrack.overwatch.game.hero_select.models
+import overtrack.overwatch.game.role_select.models
 import overtrack.overwatch.game.overwatch_metadata
 
 import overtrack.apex.game.match_status.models
@@ -129,6 +130,7 @@ _TYPES = {
     'hero': overtrack.overwatch.game.hero.models.Hero,
     'endgame_sr': overtrack.overwatch.game.endgame_sr.models.EndgameSR,
     'assemble_your_team': overtrack.overwatch.game.hero_select.models.AssembleYourTeam,
+    'role_select': overtrack.overwatch.game.role_select.models.RoleSelect,
 
     'match_status': overtrack.apex.game.match_status.models.MatchStatus,
     'match_summary': overtrack.apex.game.match_summary.models.MatchSummary,

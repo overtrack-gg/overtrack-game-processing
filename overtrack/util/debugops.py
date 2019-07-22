@@ -33,7 +33,7 @@ def manual_thresh(gray_image: np.ndarray, scale: float=3.) -> int:
     return t
 
 
-def manul_thresh_adaptive(gray_image: np.ndarray, scale: float = 3.) -> Tuple[int, int, int]:
+def manual_thresh_adaptive(gray_image: np.ndarray, scale: float = 3.) -> Tuple[int, int, int]:
     cv2.namedWindow('thresh')
     cv2.createTrackbar('method', 'thresh', 0, 1, lambda x: None)
     cv2.createTrackbar('block_size', 'thresh', 0, 100, lambda x: None)
@@ -226,6 +226,7 @@ def inrange(image: np.ndarray, scale: float = 2, callback: Optional[Callable[[np
 
     return (c1_l, c2_l, c3_l), (c1_h, c2_h, c3_h)
 
+
 def show_ocr_segmentations(names: List[np.ndarray], **kwargs: Any) -> None:
     cv2.imshow('names', np.vstack(names))
     segmented_names = []
@@ -357,6 +358,33 @@ def test_tesser_engines(image: np.ndarray, scale: float = 1.) -> None:
     print(tabulate.tabulate(table))
 
 
+def manual_canny(gray_image: np.ndarray, scale: float = 3.) -> int:
+    cv2.namedWindow('canny')
+    cv2.createTrackbar('t1', 'canny', 0, 255, lambda x: None)
+    cv2.createTrackbar('t2', 'canny', 0, 255, lambda x: None)
+    last = None, None
+    while True:
+        t1, t2 = cv2.getTrackbarPos('t1', 'canny'), cv2.getTrackbarPos('t2', 'canny')
+        out = cv2.Canny(gray_image, t1, t2)
+        cv2.imshow('thresh', cv2.resize(
+            np.vstack((
+                gray_image,
+                out
+            )),
+            (0, 0),
+            fx=scale,
+            fy=scale
+        ))
+        k = cv2.waitKey(1) & 0xFF
+        if k == 27:
+            break
+        t = cv2.getTrackbarPos('t', 'thresh')
+        if (t1, t2) != last:
+            last = t1, t2
+    cv2.destroyAllWindows()
+    return t1, t2
+
+
 def hstack(images: Sequence[np.ndarray]) -> np.ndarray:
     images = list(images)
     h = max(i.shape[0] for i in images)
@@ -370,3 +398,14 @@ def hstack(images: Sequence[np.ndarray]) -> np.ndarray:
             cv2.BORDER_CONSTANT
         ) for i in images
     )
+
+
+def main() -> None:
+    im = cv2.imread("C:/Users/simon/mpv-screenshots/Untitled.png")
+    # img = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    # manual_canny(img)
+    inrange(im)
+
+
+if __name__ == '__main__':
+    main()
