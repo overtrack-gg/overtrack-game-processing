@@ -46,6 +46,10 @@ class OverwatchGameSummary(OverTrackModel):
     key = UnicodeAttribute(attr_name='key', hash_key=True, null=False)
     user_id = NumberAttribute(attr_name='user-id')
     time = NumberAttribute(attr_name='time')
+
+    season = NumberAttribute(null=True)
+    role = UnicodeAttribute(null=True)
+
     player_name = UnicodeAttribute(attr_name='player-name')
     player_battletag = UnicodeAttribute(attr_name='player-battletag', null=True)
     log_id = TupleAttribute(attr_name='log-id', length=3, null=True, default=None)
@@ -90,7 +94,6 @@ class OverwatchGameSummary(OverTrackModel):
             })
         else:
             for attr in ['player_name',
-                         'player_battletag',
                          'map',
                          'duration',
                          'heroes_played',
@@ -98,8 +101,8 @@ class OverwatchGameSummary(OverTrackModel):
                          'score',
                          'start_sr',
                          'end_sr',
-                         'rank',
-                         'viewable'
+                         'viewable',
+                         'role'
                          ]:
                 data[attr] = getattr(self, attr)
             data['custom_game'] = bool(self.custom_game)
