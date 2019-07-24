@@ -185,7 +185,7 @@ class MatchSummaryProcessor(Processor):
         for line in lines:
             valid = False
             if ':' in line:
-                stat_name, stat_value = line.lower().replace(' ', '').split(':')
+                stat_name, stat_value = line.lower().replace(' ', '').split(':', 1)
                 if stat_name == 'entrycost':
                     score_report.entry_rank = stat_value.lower()
                     valid = True
