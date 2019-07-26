@@ -100,3 +100,23 @@ def html2bgr(hex_str: str) -> Tuple[int, int, int]:
     if hex_str[0] == '#':
         hex_str = hex_str[1:]
     return int(hex_str[4:6], 16), int(hex_str[2:4], 16), int(hex_str[0:2], 16)
+
+
+def test_processor(directory: str, proc, *fields: str) -> None:
+    import glob
+    import cv2
+    from overtrack.frame import Frame
+
+    logging.basicConfig(level=logging.DEBUG)
+
+    for p in glob.glob(f"C:/Users/simon/overtrack_2/overwatch_images/{directory}/*.png")[::-1] + \
+             glob.glob("C:/Users/simon/overtrack_2/overwatch_images/*/*.png", recursive=True):
+
+        im = cv2.imread(p)
+        im = cv2.resize(im, (1920, 1080))
+        f = Frame.create(im, 0, debug=True)
+        proc.process(f)
+        for n in fields:
+            print(f.get(n))
+        cv2.imshow('debug', f.debug_image)
+        cv2.waitKey(0)
