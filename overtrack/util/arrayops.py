@@ -1,3 +1,4 @@
+import bisect
 from collections import Counter
 from typing import Sequence, Union, Tuple, TypeVar, Iterable
 
@@ -94,3 +95,23 @@ def medfilt(x, k):
         y[:-j, -(i + 1)] = x[j:]
         y[-j:, -(i + 1)] = x[-1]
     return np.median(y, axis=1)
+
+
+def closest_index(lst: Sequence[float], target: float) -> int:
+    """
+    Assumes myList is sorted. Returns closest value to myNumber.
+
+    If two numbers are equally close, return the smallest number.
+    """
+    pos = bisect.bisect_left(lst, target)
+    if pos == 0:
+        return 0
+    elif pos == len(lst):
+        return len(lst) - 1
+    # before = lst[pos - 1]
+    # after = lst[pos]
+    # if after - target < target - before:
+    #     return pos - 1
+    # else:
+    #     return pos
+    return pos
