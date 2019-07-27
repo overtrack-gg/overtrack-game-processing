@@ -1,6 +1,6 @@
 import bisect
 from collections import Counter
-from typing import Sequence, Union, Tuple, TypeVar, Iterable
+from typing import Sequence, Union, Tuple, TypeVar, Iterable, Optional
 
 import numpy as np
 
@@ -25,7 +25,9 @@ def monotonic(seq: Union[Sequence[Num], np.ndarray], increasing: bool = True):
 
 T = TypeVar('T')
 
-def most_common(vals: Iterable[T]) -> T:
+def most_common(vals: Iterable[T]) -> Optional[T]:
+    if not len(vals):
+        return None
     return Counter(vals).most_common(1)[0][0]
 
 
