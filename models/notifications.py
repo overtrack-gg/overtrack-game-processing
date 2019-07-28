@@ -1,7 +1,7 @@
 import os
 from typing import Dict
 
-from pynamodb.attributes import JSONAttribute, NumberAttribute, UnicodeAttribute
+from pynamodb.attributes import JSONAttribute, NumberAttribute, UnicodeAttribute, BooleanAttribute
 
 from models.common import OverTrackModel, UserIDIndexBase, make_user_id_index
 
@@ -23,6 +23,9 @@ class DiscordBotNotification(OverTrackModel):
     channel_name = UnicodeAttribute(null=False)
 
     notification_data = JSONAttribute(null=False)
+
+    is_parent = BooleanAttribute(default=True)
+    autoapprove_children = BooleanAttribute(default=False)
 
     @classmethod
     def create(cls,
