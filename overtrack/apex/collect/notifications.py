@@ -176,8 +176,8 @@ def send_notifications(user_id: int, game: ApexGame, summary: ApexGameSummary, u
     else:
         discord_message.post_to_webhook(APEX_GAMES_WEBHOOK)
 
-    twitch_message = TwitchMessage(game, summary, url, username)
     for twitch_integration in TwitchBotNotification.user_id_index.query(user_id):
+        twitch_message = TwitchMessage(game, summary, url, twitch_integration.twitch_channel_name)
         top3_only = twitch_integration.notification_data.get('top3_only', False)
         if (top3_only and summary.placed <= 3) or not top3_only:
             logger.info(f'Sending {summary} to {twitch_integration}')
