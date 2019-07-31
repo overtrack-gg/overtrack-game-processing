@@ -20,13 +20,24 @@ class UserIDTimeIndex(GlobalSecondaryIndex):
         write_capacity_units = 1
 
     user_id = NumberAttribute(attr_name='user_id', hash_key=True)
-    time = NumberAttribute(attr_name='timestamp', range_key=True)
+    timestamp = NumberAttribute(attr_name='timestamp', range_key=True)
 
     @no_type_check
     def query(self, hash_key: str, *args: Any, newest_first: bool = False, **kwargs: Any) -> Iterable['ApexGameSummary']:
         if newest_first is not None:
             kwargs['scan_index_forward'] = not newest_first
         return super(UserIDTimeIndex, self).query(hash_key, *args, **kwargs)
+
+
+class SeasonTimestampIndex(GlobalSecondaryIndex):
+    class Meta:
+        index_name = 'season-timestamp-index'
+        projection = AllProjection()
+        read_capacity_units = 1
+        write_capacity_units = 1
+
+    season = NumberAttribute(attr_name='season', hash_key=True)
+    timestamp = NumberAttribute(attr_name='timestamp', range_key=True)
 
 
 # class Weapon(MapAttribute):
@@ -50,6 +61,7 @@ class ApexGameSummary(OverTrackModel):
         region = os.environ.get('DYNAMODB_REGION', 'us-west-2')
 
     user_id_time_index = UserIDTimeIndex()
+    season_timestamp_index = SeasonTimestampIndex()
 
     key = UnicodeAttribute(hash_key=True)
     user_id = NumberAttribute()
@@ -113,8 +125,10 @@ class ApexGameSummary(OverTrackModel):
 
 
 def main() -> None:
-    for g in ApexGameSummary.user_id_time_index.query(-906446192, ApexGameSummary.rank.does_not_exist()):
-        print(g)
+    import time
+
+    c = ApexGameSummary.season_time_index.count(2, ApexGameSummary.timestamp > time.time() - 24 * 60 * 60)
+    print(c)
 
 
 if __name__ == '__main__':

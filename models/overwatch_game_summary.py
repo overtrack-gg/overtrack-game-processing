@@ -33,6 +33,17 @@ class HasExceptionIndex(GlobalSecondaryIndex):
     exception = NumberAttribute(attr_name='has-exception', hash_key=True)
 
 
+class SeasonTimeIndex(GlobalSecondaryIndex):
+    class Meta:
+        index_name = 'season-time-index'
+        projection = AllProjection()
+        read_capacity_units = 1
+        write_capacity_units = 1
+
+    season = NumberAttribute(attr_name='season', hash_key=True)
+    time = NumberAttribute(attr_name='time', range_key=True)
+
+
 # noinspection PyAbstractClass
 class OverwatchGameSummary(OverTrackModel):
 
@@ -42,6 +53,7 @@ class OverwatchGameSummary(OverTrackModel):
 
     user_id_time_index = UserIDTimeIndex()
     has_exception_index = HasExceptionIndex()
+    season_time_index = SeasonTimeIndex()
 
     key = UnicodeAttribute(attr_name='key', hash_key=True, null=False)
     user_id = NumberAttribute(attr_name='user-id')
@@ -114,3 +126,12 @@ class OverwatchGameSummary(OverTrackModel):
         return data
 
 
+def main() -> None:
+    import time
+
+    for g in OverwatchGameSummary.season_time_index.query(17, OverwatchGameSummary.time > time.time() - 24 * 60 * 60):
+        print(g)
+
+
+if __name__ == '__main__':
+    main()
