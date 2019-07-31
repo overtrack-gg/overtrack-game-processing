@@ -335,6 +335,7 @@ class Squad:
                         f'Got potentially bad match {name}<->{[Counter(s.name for s in stats)]}: {match:1.2f} and champion was not seen - '
                         f'champion=None ({2 - i} other options)'
                     )
+                    reject = True
 
                 matches[names_index, :] = -1
                 matches[:, stats_index] = -1
