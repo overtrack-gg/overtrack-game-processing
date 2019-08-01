@@ -175,6 +175,7 @@ class User(OverTrackModel):
 
     apex_one_time_webhook = JSONAttribute(null=True)
     apex_current_game = JSONAttribute(null=True)
+    apex_games_public = BooleanAttribute(default=False)
 
     __nonce = UnicodeAttribute(attr_name='nonce', null=True)
     __record_states = BooleanAttribute(attr_name='record-states', null=True)
