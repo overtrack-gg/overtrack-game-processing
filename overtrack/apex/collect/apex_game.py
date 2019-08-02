@@ -1,5 +1,6 @@
 import bisect 
 import datetime
+import itertools
 import logging
 import string
 from collections import deque, Counter
@@ -384,6 +385,13 @@ class Squad:
             stats_after: Optional[List[Tuple[str, Dict[str, Any]]]] = None):
         stats = [(sb[0], sb[1], sa[1]) if sb and sb[1] and sa and sa[1] else None for sb, sa in zip(stats_before, stats_after)]
         self.logger.info(f'Resolving player stats using API stats')
+
+        squadnames = [s[0] for s in stats if s]
+        name_similarities = [levenshtein.ratio(*c) for c in itertools.combinations(squadnames, 2)]
+        if np.max(name_similarities) > 0.9:
+            self.logger.warning(f'Squadmates (names={squadnames}) had the same name(s) - refusing to use API stats')
+            return
+
         for player in list(self.squadmates) + [self.player]:
             if player and player.name and any(s for s in stats):
                 best = textops.best_match(
