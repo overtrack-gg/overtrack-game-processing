@@ -19,7 +19,6 @@ tqdm = "*"
 tabulate = "*"
 
 # embedded web servers
-sanic = "^0.8"
 cherrypy = "^18"
 
 # ingest instance management
