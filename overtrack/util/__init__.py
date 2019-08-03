@@ -105,11 +105,12 @@ def html2bgr(hex_str: str) -> Tuple[int, int, int]:
 def test_processor(directory: str, proc, *fields: str) -> None:
     import glob
     import cv2
+    from pprint import pprint
     from overtrack.frame import Frame
 
     logging.basicConfig(level=logging.DEBUG)
 
-    for p in glob.glob(f"C:/Users/simon/overtrack_2/overwatch_images/{directory}/*.png")[::-1] + \
+    for p in glob.glob(f"C:/Users/simon/overtrack_2/overwatch_images/{directory}/*.png") + \
              glob.glob("C:/Users/simon/overtrack_2/overwatch_images/*/*.png", recursive=True):
 
         im = cv2.imread(p)
@@ -118,5 +119,6 @@ def test_processor(directory: str, proc, *fields: str) -> None:
         proc.process(f)
         for n in fields:
             print(f.get(n))
+        pprint(f.timings)
         cv2.imshow('debug', f.debug_image)
         cv2.waitKey(0)
