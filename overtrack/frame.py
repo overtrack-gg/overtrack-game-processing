@@ -124,6 +124,7 @@ class Frame(Dict[str, Any]):
         import overtrack.overwatch.game.hero_select.models
         import overtrack.overwatch.game.overwatch_metadata
         import overtrack.overwatch.game.role_select.models
+        import overtrack.overwatch.game.eliminations.models
         objective: overtrack.overwatch.game.objective.Objective
         objective2: overtrack.overwatch.game.objective_2.Objective2
         loading_map: overtrack.overwatch.game.loading_map.models.LoadingMap
@@ -150,6 +151,7 @@ class Frame(Dict[str, Any]):
         assemble_your_team_match: float
         assemble_your_team: overtrack.overwatch.game.hero_select.models.AssembleYourTeam
         role_select: overtrack.overwatch.game.role_select.models.RoleSelect
+        eliminations: overtrack.overwatch.game.eliminations.models.Eliminations
         overwatch_metadata: overtrack.overwatch.game.overwatch_metadata.OverwatchClientMetadata
 
         import overtrack.apex.game.match_status.models
