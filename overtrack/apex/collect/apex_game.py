@@ -392,7 +392,7 @@ class Squad:
         name_similarities = [levenshtein.ratio(*c) for c in itertools.combinations(squadnames, 2)]
         self.logger.info(f'Resolving player stats using API stats')
 
-        if np.max(name_similarities) > 0.9:
+        if len(name_similarities) and np.max(name_similarities) > 0.9:
             self.logger.warning(f'Squadmates (names={squadnames}) had the same name(s) - refusing to use API stats')
             return
 
