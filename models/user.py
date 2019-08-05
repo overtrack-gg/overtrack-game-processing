@@ -177,6 +177,8 @@ class User(OverTrackModel):
     apex_current_game = JSONAttribute(null=True)
     apex_games_public = BooleanAttribute(default=False)
 
+    client_last_started = NumberAttribute(null=True)
+
     __nonce = UnicodeAttribute(attr_name='nonce', null=True)
     __record_states = BooleanAttribute(attr_name='record-states', null=True)
     __demo = BooleanAttribute(attr_name='demo', null=True)
