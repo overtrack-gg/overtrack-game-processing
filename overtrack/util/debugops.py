@@ -7,9 +7,9 @@ from overtrack.overwatch.ocr import big_noodle
 from overtrack.util import imageops
 
 
-def manual_thresh(gray_image: np.ndarray, scale: float=3.) -> int:
+def manual_thresh(gray_image: np.ndarray, scale: float=3., _last={}) -> int:
     cv2.namedWindow('thresh')
-    cv2.createTrackbar('t', 'thresh', 0, 255, lambda x: None)
+    cv2.createTrackbar('t', 'thresh', _last.get('t', 0), 255, lambda x: None)
     lastt = t = 0
     while True:
         _, thresh = cv2.threshold(gray_image, t, 255, cv2.THRESH_BINARY)
@@ -26,6 +26,7 @@ def manual_thresh(gray_image: np.ndarray, scale: float=3.) -> int:
         if k == 27:
             break
         t = cv2.getTrackbarPos('t', 'thresh')
+        _last['t'] = t
         if t != lastt:
             print(t)
             lastt = t

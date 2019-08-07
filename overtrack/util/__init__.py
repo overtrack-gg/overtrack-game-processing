@@ -8,6 +8,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+BIG_NOODLE_DIGITSUBS = 'O0', 'D0', 'I1', 'L1', 'B8', 'A8', 'S5'
+
+
+def big_noodle_digitsub(s: str) -> str:
+    for c1, c2 in BIG_NOODLE_DIGITSUBS:
+        s = s.replace(c1, c2)
+    return s
+
 
 def humansize(nbytes: float, suffixes: Tuple[str, ...]=('B', 'KB', 'MB', 'GB', 'TB', 'PB')) -> str:
     # http://stackoverflow.com/a/14996816
@@ -21,17 +29,21 @@ def humansize(nbytes: float, suffixes: Tuple[str, ...]=('B', 'KB', 'MB', 'GB', '
     return '%s %s' % (f, suffixes[i])
 
 
-def s2ts(s: float, ms: bool=False, zpad: bool=True) -> str:
-    sign = ''
+def s2ts(s: float, ms: bool=False, zpad: bool=True, sign=False) -> str:
+    prepend = ''
     if s < 0:
-        sign = '-'
+        prepend = '-'
         s = -s
+    elif sign:
+        prepend = '+'
+
     m = s / 60
     h = m / 60
     if zpad or int(h):
-        ts = '%s%02d:%02d:%02d' % (sign, h, m % 60, s % 60)
+        ts = '%s%02d:%02d:%02d' % (prepend, h, m % 60, s % 60)
     else:
-        ts = '%s%02d:%02d' % (sign, m % 60, s % 60)
+        ts = '%s%02d:%02d' % (prepend, m % 60, s % 60)
+
     if ms:
         return ts + f'{s % 1 :1.3f}'[1:]
     else:
@@ -102,16 +114,21 @@ def html2bgr(hex_str: str) -> Tuple[int, int, int]:
     return int(hex_str[4:6], 16), int(hex_str[2:4], 16), int(hex_str[0:2], 16)
 
 
-def test_processor(directory: str, proc, *fields: str) -> None:
+def test_processor(directory: str, proc, *fields: str, show=True) -> None:
     import glob
     import cv2
+    import os
     from pprint import pprint
     from overtrack.frame import Frame
 
-    logging.basicConfig(level=logging.DEBUG)
+    from overtrack.util.logging_config import config_logger
+
+    config_logger(directory, logging.DEBUG, False)
 
     for p in glob.glob(f"C:/Users/simon/overtrack_2/overwatch_images/{directory}/*.png") + \
              glob.glob("C:/Users/simon/overtrack_2/overwatch_images/*/*.png", recursive=True):
+
+        print(os.path.abspath(p))
 
         im = cv2.imread(p)
         im = cv2.resize(im, (1920, 1080))
@@ -120,5 +137,6 @@ def test_processor(directory: str, proc, *fields: str) -> None:
         for n in fields:
             print(f.get(n))
         pprint(f.timings)
-        cv2.imshow('debug', f.debug_image)
-        cv2.waitKey(0)
+        if show:
+            cv2.imshow('debug', f.debug_image)
+            cv2.waitKey(0)
