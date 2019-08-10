@@ -49,6 +49,9 @@ def intermittent_log(
         level: int = logging.INFO,
         negative_level: Optional[int]=None,
         caller_extra_id: Any = None,
+        fn_override: Optional[str] = None,
+        line_override: Optional[int] = None,
+        func_override: Optional[str] = None,
         _caller: Optional[str] = None,
         _last_logged: DefaultDict[Tuple[str, int], float] = defaultdict(float),
         _times_suppressed: DefaultDict[Tuple[str, int], float] = defaultdict(int)) -> None:
@@ -76,9 +79,29 @@ def intermittent_log(
             if caller:
                 co = caller.frame.f_code
                 fn, lno, func, sinfo = (co.co_filename, caller.frame.f_lineno, co.co_name, None)
-                record = logger.makeRecord(logger.name, output, str(fn), lno, line, {}, None, func, None, sinfo)
+                record = logger.makeRecord(
+                    logger.name,
+                    output,
+                    fn_override or str(fn),
+                    line_override or lno,
+                    line,
+                    {},
+                    None,
+                    func_override or func,
+                    None,
+                    sinfo
+                )
             else:
-                record = logger.makeRecord(logger.name, output, '???', 0, line, {}, None)
+                record = logger.makeRecord(
+                    logger.name,
+                    output,
+                    fn_override or '???',
+                    line_override or 0,
+                    line,
+                    {},
+                    None,
+                    func_override
+                )
             logger.handle(record)
     except:
         # noinspection PyProtectedMember
