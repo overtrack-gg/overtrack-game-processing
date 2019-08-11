@@ -19,7 +19,7 @@ tqdm = "*"
 tabulate = "*"
 
 # embedded web servers
-cherrypy = "^18"
+aiohttp = "^3.5"
 
 # ingest instance management
 python-digitalocean = { git = "https://github.com/koalalorenzo/python-digitalocean.git" }
