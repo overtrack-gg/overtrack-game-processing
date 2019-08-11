@@ -176,6 +176,8 @@ class User(OverTrackModel):
     apex_one_time_webhook = JSONAttribute(null=True)
     apex_current_game = JSONAttribute(null=True)
     apex_games_public = BooleanAttribute(default=False)
+    apex_seasons = NumberSetAttribute(default=set())
+    apex_last_season = NumberAttribute(null=True)
 
     overwatch_seasons = NumberSetAttribute(default=set())
     overwatch_last_season = NumberAttribute(null=True)
