@@ -2,13 +2,12 @@ import inspect
 import logging
 import logging.config
 import os
-import socket
 import sys
-import time
 from collections import defaultdict
 from threading import Thread
-from typing import Callable, Optional, Sequence, Mapping, DefaultDict, Tuple, Dict, Union, \
-    Any, List, TYPE_CHECKING, no_type_check
+from typing import Any, Callable, DefaultDict, Dict, Optional, Sequence, TYPE_CHECKING, Tuple
+
+import time
 
 if TYPE_CHECKING:
     from mypy_extensions import TypedDict
@@ -119,12 +118,10 @@ def config_logger(
 
         write_to_file: bool = True,
 
-        use_datadog: bool = False,
         use_stackdriver: bool = False,
-
         stackdriver_level: int = logging.INFO,
 
-        use_stackdriver_error: bool = False,
+        tracemalloc: bool = False,
 
         upload_func: Optional[Callable[[str, str], None]] = None,
         upload_frequency: Optional[float] = None,
@@ -248,24 +245,42 @@ def config_logger(
             exclude.propagate = False
             # exclude.addHandler(logging.StreamHandler())
 
-    if use_stackdriver_error:
-        from google.cloud import error_reporting
-        client = error_reporting.Client()
+    if tracemalloc:
+        import tracemalloc
 
-    if use_datadog:
-        import datadog
-        from datadog_logger import DatadogLogHandler
-        datadog.initialize(api_key=os.environ['DATADOG_API_KEY'], app_key=os.environ['DATADOG_APP_KEY'])
-        datadog_handler = DatadogLogHandler(
-            tags=[
-                f'host:{socket.gethostname()}',
-                f'pid:{os.getpid()}',
-                f'stack:{name}',
-                'type:log'],
-            mentions=[],
-            level=logging.INFO
-        )
-        logger.addHandler(datadog_handler)
+        tracemalloc.start()
+
+        tracemalloc_logger = logging.getLogger('tracemalloc')
+
+        def tracemalloc_loop():
+            while True:
+                time.sleep(60)
+                snapshot = tracemalloc.take_snapshot()
+                top_stats = snapshot.statistics('lineno')
+                tracemalloc_logger.info(f'tracemalloc:')
+                for stat in top_stats[:10]:
+                    tracemalloc_logger.info(f'  {stat}')
+
+        Thread(target=tracemalloc_loop, name='tracemalloc', daemon=True).start()
+
+    # if use_stackdriver_error:
+    #     from google.cloud import error_reporting
+    #     client = error_reporting.Client()
+
+    # if use_datadog:
+    #     import datadog
+    #     from datadog_logger import DatadogLogHandler
+    #     datadog.initialize(api_key=os.environ['DATADOG_API_KEY'], app_key=os.environ['DATADOG_APP_KEY'])
+    #     datadog_handler = DatadogLogHandler(
+    #         tags=[
+    #             f'host:{socket.gethostname()}',
+    #             f'pid:{os.getpid()}',
+    #             f'stack:{name}',
+    #             'type:log'],
+    #         mentions=[],
+    #         level=logging.INFO
+    #     )
+    #     logger.addHandler(datadog_handler)
 
     for _ in range(3):
         logger.info('')
