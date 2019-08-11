@@ -1,6 +1,6 @@
 import os
 
-from pynamodb.attributes import BooleanAttribute, JSONAttribute, NumberAttribute, UnicodeAttribute
+from pynamodb.attributes import BooleanAttribute, JSONAttribute, NumberAttribute, UnicodeAttribute, ListAttribute, UnicodeSetAttribute, NumberSetAttribute
 from pynamodb.indexes import AllProjection, GlobalSecondaryIndex, KeysOnlyProjection
 
 from models.common import OverTrackModel
@@ -176,6 +176,9 @@ class User(OverTrackModel):
     apex_one_time_webhook = JSONAttribute(null=True)
     apex_current_game = JSONAttribute(null=True)
     apex_games_public = BooleanAttribute(default=False)
+
+    overwatch_seasons = NumberSetAttribute(default=set())
+    overwatch_last_season = NumberAttribute(null=True)
 
     client_last_started = NumberAttribute(null=True)
 
