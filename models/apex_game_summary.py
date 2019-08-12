@@ -66,6 +66,7 @@ class ApexGameSummary(OverTrackModel):
     key = UnicodeAttribute(hash_key=True)
     user_id = NumberAttribute()
     source = UnicodeAttribute(null=True)
+    frames_uri = UnicodeAttribute(null=True)
 
     season = NumberAttribute(default=0)
 
@@ -84,7 +85,13 @@ class ApexGameSummary(OverTrackModel):
     url = UnicodeAttribute(null=True)
 
     @classmethod
-    def create(cls, game: 'ApexGame', user_id: int, url: str = None, source: Optional[str] = None) -> 'ApexGameSummary':
+    def create(
+            cls,
+            game: 'ApexGame',
+            user_id: int,
+            url: Optional[str] = None,
+            frames_uri: Optional[str] = None,
+            source: Optional[str] = None) -> 'ApexGameSummary':
         if game.rank:
             rank = Rank(rank=game.rank.rank, tier=game.rank.rank_tier, rp=game.rank.rp, rp_change=game.rank.rp_change)
         else:
@@ -94,6 +101,7 @@ class ApexGameSummary(OverTrackModel):
             key=game.key,
             user_id=user_id,
             source=source,
+            frames_uri=frames_uri,
 
             season=game.season,
 
