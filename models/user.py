@@ -178,6 +178,7 @@ class User(OverTrackModel):
     apex_games_public = BooleanAttribute(default=False)
     apex_seasons = NumberSetAttribute(default=set())
     apex_last_season = NumberAttribute(null=True)
+    apex_last_game_ranked = BooleanAttribute(null=True)
 
     overwatch_seasons = NumberSetAttribute(default=set())
     overwatch_last_season = NumberAttribute(null=True)
