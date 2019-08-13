@@ -101,17 +101,19 @@ class OverwatchGameSummary(OverTrackModel):
                 'parsing_failed': True
             })
         else:
-            for attr in ['player_name',
-                         'map',
-                         'duration',
-                         'heroes_played',
-                         'result',
-                         'score',
-                         'start_sr',
-                         'end_sr',
-                         'viewable',
-                         'role'
-                         ]:
+            for attr in [
+                'player_name',
+                'map',
+                'duration',
+                'heroes_played',
+                'result',
+                'score',
+                'start_sr',
+                'end_sr',
+                'rank',
+                'viewable',
+                'role'
+             ]:
                 data[attr] = getattr(self, attr)
             data['custom_game'] = bool(self.custom_game)
             if self.custom_game:
