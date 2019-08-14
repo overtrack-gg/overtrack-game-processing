@@ -1610,7 +1610,8 @@ class ApexGame:
             self.logger.info(f'Did not get (valid) match summary placement')
 
         squad_summary_placed: Optional[int] = None
-        if len(self.squad_summary_frames):
+        if len(self.squad_summary_frames) and not self.solo:
+            # TODO: support solo (change crop regions and use the squad kills as placed_
             champions = np.mean([s.champions for s in self.squad_summary_frames])
             if champions > 0.75:
                 self.logger.info(f'Got champions={champions:1.1f} from squad summary - using placed = 1')
