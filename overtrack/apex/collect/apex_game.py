@@ -243,7 +243,7 @@ class Player:
     def to_dict(self) -> Dict[str, Any]:
         stats = None
         if self.stats:
-            stats = typedload.dump(self.stats)
+            stats = typedload.dump(self.stats, hidedefault=False)
         return {
             'name': self.name,
             'champion': self.champion,
@@ -734,10 +734,10 @@ class Combat:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'eliminations': typedload.dump(self.eliminations),
-            'knockdowns': typedload.dump(self.knockdowns),
-            'elimination_assists': typedload.dump(self.elimination_assists),
-            'knockdown_assists': typedload.dump(self.knockdown_assists),
+            'eliminations': typedload.dump(self.eliminations, hidedefault=False),
+            'knockdowns': typedload.dump(self.knockdowns, hidedefault=False),
+            'elimination_assists': typedload.dump(self.elimination_assists, hidedefault=False),
+            'knockdown_assists': typedload.dump(self.knockdown_assists, hidedefault=False),
         }
 
 
@@ -936,7 +936,7 @@ class Weapons:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'weapon_stats': typedload.dump(self.weapon_stats)
+            'weapon_stats': typedload.dump(self.weapon_stats, hidedefault=False)
         }
 
 
