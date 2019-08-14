@@ -356,6 +356,7 @@ def match_templates(image: np.ndarray, templates: Dict[str, np.ndarray], method:
         arrop = np.max
         valop = operator.gt
 
+    # TODO: check the last template that matched first
     best: Optional[Tuple[float, str]] = None
     for key, template in templates.items():
         match = arrop(matchTemplate(image, template, method))

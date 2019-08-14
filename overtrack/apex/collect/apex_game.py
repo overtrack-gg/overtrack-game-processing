@@ -262,6 +262,7 @@ class Squad:
             config_name: Optional[str],
             stats_before: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
             stats_after: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
+            solo: bool = False,
             debug: Union[bool, str] = False):
         self.squad = [f.squad for f in frames if 'squad' in f]
         self.logger.info(f'Processing squad from {len(self.squad)} squad frames')
@@ -269,17 +270,20 @@ class Squad:
         if debug is True or debug == self.__class__.__name__:
             self._debug_champions(frames)
 
-        names = [
-            self._get_name(menu_names) if not config_name else config_name,
-            self._get_squadmate_name(0),
-            self._get_squadmate_name(1)
-        ]
+        if solo:
+            names = [
+                self._get_name(menu_names) if not config_name else config_name
+            ]
+        else:
+            names = [
+                self._get_name(menu_names) if not config_name else config_name,
+                self._get_squadmate_name(0),
+                self._get_squadmate_name(1)
+            ]
+
         champions = [
             self._get_champion(debug)
         ]
-        #     self._get_squadmate_champion(0, debug),
-        #     self._get_squadmate_champion(1, debug)
-        # ]
 
         squadmate_champion_0_valid = self._get_champion_valid_count(0)
         squadmate_champion_1_valid = self._get_champion_valid_count(1)
@@ -299,6 +303,8 @@ class Squad:
             all_player_stats: List[List[SquadSummaryStats]] = [[], [], []]
             for summary in squad_summaries:
                 for i in range(3):
+                    if solo and i != 1:
+                        continue
                     all_player_stats[i].append(summary.player_stats[i])
 
             self.player = None
@@ -312,12 +318,12 @@ class Squad:
                     else:
                         matches[-1].append(0)
 
-            table = [[names[i]] + matches[i] for i in range(3)]
+            table = [[names[i]] + matches[i] for i in range(3 if not solo else 1)]
             headers = [levenshtein.median([s.name for s in stats]) for stats in all_player_stats]
             self.logger.info(f'Got name/stat matches:\n{tabulate.tabulate(table, headers=[""] + headers)}')
 
             matches = np.array(matches)
-            for i in range(3):
+            for i in range(3 if not solo else 1):
                 names_index, stats_index = np.unravel_index(np.argmax(matches), matches.shape)
                 match = matches[names_index, stats_index]
                 name = names[names_index]
@@ -369,10 +375,13 @@ class Squad:
                 is_owner=True,
                 name_from_config=config_name is not None
             )
-            self.squadmates = (
-                Player(names[1], champions[1], [], frames) if champions[1] else None,
-                Player(names[2], champions[2], [], frames) if champions[2] else None,
-            )
+            if solo:
+                self.squadmates = (None, None)
+            else:
+                self.squadmates = (
+                    Player(names[1], champions[1], [], frames) if champions[1] else None,
+                    Player(names[2], champions[2], [], frames) if champions[2] else None,
+                )
 
         if stats_before and stats_after:
             self._update_players_stats_from_api(stats_before, stats_after)
@@ -1466,10 +1475,14 @@ class ApexGame:
         your_squad_first_index = 0
         your_squad_last_index = 0
         for i, f in enumerate(frames):
-            if 'your_squad' in f:
+            if 'your_squad' in f or 'your_selection' in f:
                 if not your_squad_first_index:
                     your_squad_first_index = i
                 your_squad_last_index = i
+
+        self.solo = any('your_selection' in f for f in frames)
+        if self.solo and any('your_squad' in f for f in frames):
+            self.logger.error(f'Got game with both "your_selection" and "your_squad"')
 
         self.menu_frames = [f.apex_play_menu for f in frames if 'apex_play_menu' in f]
         menu_names = [apex_play_menu.player_name for apex_play_menu in self.menu_frames]
@@ -1520,7 +1533,7 @@ class ApexGame:
                 self.player_name = config_name
                 self.logger.info(f'Got player name from config: "{config_name}"')
 
-        self.squad = Squad(self.all_frames, menu_names, config_name, stats_before, stats_after, debug=debug)
+        self.squad = Squad(self.all_frames, menu_names, config_name, stats_before, stats_after, solo=self.solo, debug=debug)
         self.combat = Combat(self.frames, self.placed, self.squad, debug=debug)
         self.weapons = Weapons(self.frames, self.combat, debug=debug)
         self.route: Route = Route(self.frames, self.weapons, self.combat, debug=debug)
@@ -1560,6 +1573,8 @@ class ApexGame:
         for f in frames:
             if 'your_squad' in f and f.your_squad.images:
                 self.images['your_squad'] = f.your_squad.images.url
+            if 'your_selection' in f and f.your_selection.image:
+                self.images['your_selection'] = f.your_selection.image.url
             if 'champion_squad' in f and f.champion_squad.images:
                 self.images['champion_squad'] = f.champion_squad.images.url
             if 'match_summary' in f and f.match_summary.image:
@@ -1684,6 +1699,8 @@ class ApexGame:
 
     @property
     def season(self) -> int:
+        if self.solo:
+            return 1002
         for season in data.seasons:
             if season.start < self.timestamp < season.end:
                 return season.index
@@ -1693,6 +1710,8 @@ class ApexGame:
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(' \
                f'key={self.key}, ' \
+               f'season={self.season}, ' \
+               f'solo={self.solo}, ' \
                f'duration={s2ts(self.duration)}, ' \
                f'frames={len(self.frames)}, ' \
                f'squad={self.squad}, ' \
@@ -1710,6 +1729,7 @@ class ApexGame:
             'timestamp': self.timestamp,
             'duration': self.duration,
             'season': self.season,
+            'solo': self.solo,
 
             # 'player_name': self.player_name,
             'kills': self.kills,

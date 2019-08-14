@@ -94,10 +94,11 @@ class Season:
     index: int
     start: float
     end: float
+    season_name: Optional[str] = None
 
     @property
     def name(self) -> str:
-        return f'Season {self.index}'
+        return self.season_name or f'Season {self.index}'
 
 
 _PDT = datetime.timezone(datetime.timedelta(hours=-7))
@@ -115,7 +116,9 @@ _season_2_start = datetime.datetime.strptime(
 seasons = [
     Season(0, 0, _season_1_start.timestamp()),
     Season(1, _season_1_start.timestamp(), _season_2_start.timestamp()),
-    Season(2, _season_2_start.timestamp(), float('inf'))
+    Season(2, _season_2_start.timestamp(), float('inf')),
+
+    Season(1002, 0, 0, season_name='Season 2 Solo')
 ]
 
 

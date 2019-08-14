@@ -38,6 +38,7 @@ class UploadableImage:
     def __init__(self, key: str, maxlen: int, selection='middle'):
         self.key = key
         self.images = deque(maxlen=maxlen)
+        self.dropped = 0
         self.selection = selection
         self.url = None
         logger.info(f'Created {self}')
@@ -46,9 +47,11 @@ class UploadableImage:
         intermittent_log(
             logger,
             f'{self}: Adding image @ {timestamp:.1f}',
-            frequency=15,
+            frequency=2 if not self.dropped else self.dropped,
             caller_extra_id=self.key
         )
+        if len(self.images) == self.images.maxlen:
+            self.dropped += 1
         self.images.append((timestamp, image))
 
     def make_single(self) -> 'np.ndarray':

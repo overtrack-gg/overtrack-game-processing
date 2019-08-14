@@ -114,7 +114,7 @@ def html2bgr(hex_str: str) -> Tuple[int, int, int]:
     return int(hex_str[4:6], 16), int(hex_str[2:4], 16), int(hex_str[0:2], 16)
 
 
-def test_processor(directory: str, proc, *fields: str, show=True) -> None:
+def test_processor(directory: str, proc, *fields: str, game='overwatch', show=True) -> None:
     import glob
     import cv2
     import os
@@ -125,9 +125,11 @@ def test_processor(directory: str, proc, *fields: str, show=True) -> None:
 
     config_logger(directory, logging.DEBUG, False)
 
-    for p in glob.glob(f"C:/Users/simon/overtrack_2/overwatch_images/{directory}/*.png") + \
-             glob.glob("C:/Users/simon/overtrack_2/overwatch_images/*/*.png", recursive=True):
+    for p in glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/{directory}/*.png") + \
+             glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/*/*.png", recursive=True):
 
+        time.sleep(0.01)
+        print('\n\n' + '-' * 32 )
         print(os.path.abspath(p))
 
         im = cv2.imread(p)
@@ -140,3 +142,5 @@ def test_processor(directory: str, proc, *fields: str, show=True) -> None:
         if show:
             cv2.imshow('debug', f.debug_image)
             cv2.waitKey(0)
+
+        print('-' * 32)

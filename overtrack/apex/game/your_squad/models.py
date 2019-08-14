@@ -5,13 +5,19 @@ from dataclasses import dataclass
 from overtrack.util.uploadable_image import UploadableImage
 
 
-@dataclass
+@dataclass(frozen=True)
 class YourSquad:
     names: Tuple[Optional[str], Optional[str], Optional[str]]
     images: Optional[UploadableImage] = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class ChampionSquad:
     names: Tuple[Optional[str], Optional[str], Optional[str]]
     images: Optional[UploadableImage] = None
+
+
+@dataclass(frozen=True)
+class YourSelection:
+    name: str
+    image: Optional[UploadableImage] = None

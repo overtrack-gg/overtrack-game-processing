@@ -140,6 +140,7 @@ _TYPES = {
     'squad': overtrack.apex.game.squad.models.Squad,
     'weapons': overtrack.apex.game.weapon.models.Weapons,
     'your_squad': overtrack.apex.game.your_squad.models.YourSquad,
+    'your_selection': overtrack.apex.game.your_squad.models.YourSelection,
     'champion_squad': overtrack.apex.game.your_squad.models.ChampionSquad,
     'squad_summary': overtrack.apex.game.squad_summary.models.SquadSummary,
     'location': overtrack.apex.game.map.models.Location,
