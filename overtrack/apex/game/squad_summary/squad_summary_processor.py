@@ -1,5 +1,6 @@
 import logging
 import os
+import pprint
 
 import cv2
 import dataclasses
@@ -34,7 +35,7 @@ def _draw_squad_summary(debug_image: Optional[np.ndarray], squad_summary: SquadS
             cv2.putText(
                 debug_image,
                 f'{stats}',
-                (i * 200, 550 + 30 * i),
+                (i * 100, 800 + 30 * i),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.75,
                 c,
@@ -54,9 +55,8 @@ class SquadSummaryProcessor(Processor):
         k: imageops.imread(os.path.join(os.path.dirname(__file__), 'data', k + '.png'), 0)
         for k in [
             'squad_eliminated',
-            'squad_eliminated_elite',
             'champions_of_the_arena',
-            'champions_of_the_arena_elite'
+            'match_summary'
         ]
     }
 
@@ -71,6 +71,8 @@ class SquadSummaryProcessor(Processor):
         champions_eliminated = self.REGIONS['champions_eliminated'].extract_one(y)
         t, thresh = cv2.threshold(champions_eliminated, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
 
+        # cv2.imshow('thresh', thresh)
+
         match, key = imageops.match_templates(
             thresh,
             self.TEMPLATES,
@@ -79,16 +81,15 @@ class SquadSummaryProcessor(Processor):
         )
         frame.squad_summary_match = round(match, 5)
         if match > self.REQUIRED_MATCH:
-            champions = key in ['champions_of_the_arena', 'champions_of_the_arena_elite']
-            elite = key in ['squad_eliminated_elite', 'champions_of_the_arena_elite']
+            champions = key in ['champions_of_the_arena']
 
             frame.squad_summary = SquadSummary(
                 champions=champions,
                 placed=self._process_yellowtext(self.REGIONS['placed'].extract_one(frame.image), hash=True),
                 squad_kills=self._process_yellowtext(self.REGIONS['squad_kills'].extract_one(frame.image), hash=False),
                 player_stats=self._process_player_stats(y),
-                elite=elite,
-                image=lazy_upload('squad_summary', self.REGIONS.blank_out(frame.image), frame.timestamp),
+                elite=False,
+                image=lazy_upload('squad_summary', self.REGIONS.blank_out(frame.image), frame.timestamp, selection='last'),
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_squad_summary(frame.debug_image, frame.squad_summary)
@@ -108,7 +109,7 @@ class SquadSummaryProcessor(Processor):
         squad_kills_image_g = np.max(squad_kills_image, axis=2)
         squad_kills_image_g = cv2.erode(squad_kills_image_g, np.ones((2,2)))
 
-        # from overtrack.util import debugops
+        # from overtrack.util import  ps
         # cv2.imshow('yellow', yellow)
         # cv2.imshow('squad_kills_image', squad_kills_image)
         # cv2.imshow('squad_kills_image_g', squad_kills_image_g)
@@ -127,10 +128,9 @@ class SquadSummaryProcessor(Processor):
             text = text.replace(s1, s2)
         logger.info(f'Got text={otext} -> {text}')
 
-        # debugops.tesser_ocr(squad_kills_image_g, vscale=4)
-
         if hash:
-            text = text.replace('#', '')
+            for hashchar in '#H':
+                text = text.replace(hashchar, '')
 
         try:
             return int(text)
@@ -167,30 +167,55 @@ class SquadSummaryProcessor(Processor):
 
         stat_images = self.REGIONS['stats'].extract(y)
         # remove 'M' and 'S' from survived time
-        for image in stat_images[6:9]:
-            comp_image, comps = imageops.connected_components(cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1])
-            for component in comps:
-                # MS chars are 17 px high
-                if 14 < component.h < 19:
-                    # mask out those components
-                    mask = (comp_image == component.label).astype(np.uint8) * 255
-                    mask = cv2.dilate(mask, None)
-                    image[:] = cv2.bitwise_and(255 - mask, image)
+        # for image in stat_images[6:9]:
+        #     comp_image, comps = imageops.connected_components(cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1])
+        #     for component in comps:
+        #         # MS chars are 17 px high
+        #         if 14 < component.h < 19:
+        #             # mask out those components
+        #             mask = (comp_image == component.label).astype(np.uint8) * 255
+        #             mask = cv2.dilate(mask, None)
+        #             image[:] = cv2.bitwise_and(255 - mask, image)
+
+        # for im in stat_images:
+        #     from overtrack.util import debugops
+        #     debugops.test_tesser_engines(im)
 
         stats = imageops.tesser_ocr_all(
             stat_images,
-            engine=ocr.tesseract_ttlakes_digits,
-            expected_type=int
+            engine=ocr.tesseract_ttlakes_digits_specials,
         )
-        for i in 6, 7, 8:
-            if stats[i] is not None:
-                seconds = mmss_to_seconds(stats[i])
-                logger.info(f'MM:SS {stats[i]} -> {seconds}')
-                stats[i] = seconds
+        for i in range(len(stats)):
+            value = stats[i]
+            if value:
+                value = value.lower().replace(' ', '')
+                for c1, c2 in 'l1', 'i1', 'o0':
+                    value = value.replace(c1, c2)
+            if 6 <= i <= 8:
+                # survival time
+                if stats[i] is not None:
+                    seconds_s = value.replace(':', '')
+                    try:
+                        seconds = int(seconds_s)
+                    except ValueError as e:
+                        logger.warning(f'Could not parse "{stats[i]}" as int: {e}')
+                        seconds = None
+                    else:
+                        seconds = mmss_to_seconds(seconds)
+                        logger.info(f'MM:SS {stats[i]} -> {seconds}')
+                    stats[i] = seconds
+            else:
+                try:
+                    stats[i] = int(value)
+                except ValueError as e:
+                    logger.warning(f'Could not parse "{value}" as int" {e}')
+                    stats[i] = None
 
         # typing: ignore
         # noinspection PyTypeChecker
-        return tuple([PlayerStats(names[i], *stats[i::3]) for i in range(3)])
+        r = tuple([PlayerStats(names[i], *stats[i::3]) for i in range(3)])
+        logger.info(f'Got {pprint.pformat(r)}')
+        return r
 
 
 def main() -> None:
