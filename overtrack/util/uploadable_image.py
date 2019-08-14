@@ -5,6 +5,8 @@ from typing import Dict, List, TYPE_CHECKING
 
 from dataclasses import dataclass
 
+from overtrack.util.logging_config import intermittent_log
+
 if TYPE_CHECKING:
     import numpy as np
 
@@ -41,7 +43,12 @@ class UploadableImage:
         logger.info(f'Created {self}')
 
     def append(self, image: 'np.ndarray', timestamp: float) -> None:
-        logger.info(f'{self}: Adding image @ {timestamp:.1f}')
+        intermittent_log(
+            logger,
+            f'{self}: Adding image @ {timestamp:.1f}',
+            frequency=15,
+            caller_extra_id=self.key
+        )
         self.images.append((timestamp, image))
 
     def make_single(self) -> 'np.ndarray':
@@ -72,7 +79,7 @@ class UploadableImage:
             ustr = ', uploaded=False'
         else:
             ustr = f', url={self.url}'
-        return f'Image(key={self.key}{ustr}, count={len(self.images)})'
+        return f'Image(id={id(self)}, key={self.key}{ustr}, count={len(self.images)})'
 
     __repr__ = __str__
 

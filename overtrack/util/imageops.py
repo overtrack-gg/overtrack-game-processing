@@ -132,7 +132,8 @@ def tesser_ocr(
         invert: bool = False,
         scale: float = 1,
         blur: Optional[float] = None,
-        engine: tesserocr.PyTessBaseAPI = None) -> str:
+        engine: tesserocr.PyTessBaseAPI = None,
+        warn_on_fail: bool = True) -> str:
     ...
 @overload
 def tesser_ocr(
@@ -142,7 +143,8 @@ def tesser_ocr(
         invert: bool = False,
         scale: float = 1,
         blur: Optional[float] = None,
-        engine: tesserocr.PyTessBaseAPI = None) -> Optional[T]:
+        engine: tesserocr.PyTessBaseAPI = None,
+        warn_on_fail: bool = True) -> Optional[T]:
     ...
 @no_type_check
 def tesser_ocr(
@@ -152,7 +154,8 @@ def tesser_ocr(
         invert: bool = False,
         scale: float = 1,
         blur: Optional[float] = None,
-        engine: tesserocr.PyTessBaseAPI = tesseract_only) -> Optional[T]:
+        engine: tesserocr.PyTessBaseAPI = tesseract_only,
+        warn_on_fail: bool = True) -> Optional[T]:
 
     with lock:
 
@@ -200,19 +203,20 @@ def tesser_ocr(
         if not any(c in whitelist for c in string.ascii_lowercase):
             text = text.upper()
 
-
         if expected_type:
             try:
                 return expected_type(text)
             except Exception as e:
                 try:
                     caller = inspect.stack()[1]
-                    logger.warning(
+                    logger.log(
+                        logging.WARNING if warn_on_fail else logging.DEBUG,
                         f'{os.path.basename(caller.filename)}:{caller.lineno} {caller.function} | '
                         f'Got exception interpreting "{text}" as {expected_type.__name__}'
                     )
                 except:
-                    logger.warning(
+                    logger.log(
+                        logging.WARNING if warn_on_fail else logging.DEBUG,
                         f'Got exception interpreting "{text}" as {expected_type.__name__}'
                     )
                 return None

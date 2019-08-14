@@ -222,7 +222,12 @@ class MapProcessor(Processor):
 
     def _get_location_rotated(self, frame, map_fragment):
         bearing_image = self.REGIONS['bearing'].extract_one(frame.image_yuv[:, :, 0])
-        bearing = imageops.tesser_ocr(bearing_image, expected_type=int, engine=ocr.tesseract_ttlakes_digits)
+        bearing = imageops.tesser_ocr(
+            bearing_image,
+            expected_type=int,
+            engine=ocr.tesseract_ttlakes_digits,
+            warn_on_fail=False
+        )
         if not bearing or not 0 <= bearing <= 360:
             logger.debug(f'Got invalid bearing: {bearing}')
             return None, None, None, 1

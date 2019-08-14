@@ -220,7 +220,7 @@ class MatchStatusProcessor(Processor):
                     logger.warning(f'Rejecting kills={kills}')
                     return None
             except ValueError:
-                logger.warning(f'Cannot parse "{kills_text}" as int')
+                logger.warning(f'Cannot parse kills="{kills_text}" as int')
                 return None
         else:
             return None

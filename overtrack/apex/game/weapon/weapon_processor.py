@@ -55,7 +55,8 @@ class WeaponProcessor(Processor):
             clip_im,
             expected_type=int,
             scale=2,
-            engine=ocr.tesseract_arame
+            engine=ocr.tesseract_arame,
+            warn_on_fail=False
         )
 
         ammo_im = self.REGIONS['ammo'].extract_one(y)
@@ -80,7 +81,8 @@ class WeaponProcessor(Processor):
             ammo_im,
             expected_type=int,
             scale=3,
-            engine=ocr.tesseract_arame
+            engine=ocr.tesseract_arame,
+            warn_on_fail=False
         )
 
         selected_weapons = [int(np.median(im)) for im in self.REGIONS['selected_weapon_tell'].extract(y)]
