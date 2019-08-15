@@ -359,7 +359,7 @@ def match_templates(image: np.ndarray, templates: Dict[str, np.ndarray], method:
     # TODO: check the last template that matched first
     best: Optional[Tuple[float, str]] = None
     for key, template in templates.items():
-        match = arrop(matchTemplate(image, template, method))
+        match = float(arrop(matchTemplate(image, template, method)))
         if required_match is not None and valop(match, required_match):
             return match, key
         if not best or valop(match, best[0]):

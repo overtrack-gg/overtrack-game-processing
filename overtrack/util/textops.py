@@ -170,7 +170,7 @@ def best_match(
     match, index = best
     if (not use_ratio and match <= threshold) or (use_ratio and match > threshold):
         if level and not disable_log:
-            logging.log(
+            logger.log(
                 level,
                 f'Matched "{text if isinstance(text, str) else Counter(text)}" to "{options[index]}" -> '
                 f'{repr((choose_from or options)[index])} - match={match}'

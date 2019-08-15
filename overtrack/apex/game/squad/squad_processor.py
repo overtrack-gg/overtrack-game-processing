@@ -109,7 +109,7 @@ class SquadProcessor(Processor):
                 cv2.TM_CCORR_NORMED,
                 mask=mask
             )
-            matches.append(round(float(np.max(match)), 5))
+            matches.append(round(float(np.max(match)), 4))
         return matches
 
     def _ocr_playername(self, image: np.ndarray, large: bool) -> Optional[str]:

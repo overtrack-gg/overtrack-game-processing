@@ -584,7 +584,7 @@ class Squad:
         else:
             squad_kills, count = squad_kills_counter.most_common(1)[0]
             if count != len(squad_summary):
-                self.logger.warning(f'Got disagreeing placed counts: {squad_kills_counter}')
+                self.logger.warning(f'Got disagreeing squad kills: {Counter(s.squad_kills for s in squad_summary)}')
             self.logger.info(f'Got squad_kills from summary: {squad_kills}')
             if derived_squad_kills and squad_kills != derived_squad_kills:
                 self.logger.warning(f'Got disagreeing squad kills: from stats={derived_squad_kills}, from summary= {squad_kills} - using stats')
