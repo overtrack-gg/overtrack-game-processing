@@ -386,7 +386,10 @@ class Squad:
         if stats_before and stats_after:
             self._update_players_stats_from_api(stats_before, stats_after)
 
-        self.squad_kills = self._get_squad_kills(frames)
+        if not solo:
+            self.squad_kills = self._get_squad_kills(frames)
+        else:
+            self.squad_kills = None
 
     def _update_players_stats_from_api(
             self,
@@ -1483,6 +1486,7 @@ class ApexGame:
         self.solo = any('your_selection' in f for f in frames)
         if self.solo and any('your_squad' in f for f in frames):
             self.logger.error(f'Got game with both "your_selection" and "your_squad"')
+        self.squad_count = 20 if not self.solo else 60
 
         self.menu_frames = [f.apex_play_menu for f in frames if 'apex_play_menu' in f]
         menu_names = [apex_play_menu.player_name for apex_play_menu in self.menu_frames]
@@ -1520,7 +1524,11 @@ class ApexGame:
             datetimestr = datetime.datetime.utcfromtimestamp(self.timestamp).strftime('%Y-%m-%d-%H-%M')
             self.key = f'{datetimestr}-{shortuuid.uuid()[:6]}'
 
-        self.match_status_frames = [f.match_status for f in self.frames if 'match_status' in f]
+        self.match_status_frames = [
+            f.match_status
+            for f in self.frames
+            if 'match_status' in f and (f.match_status.squads_left is not None or f.match_status.solos_players_left is not None)
+        ]
         self.squad_summary_frames = [f.squad_summary for f in self.all_frames if 'squad_summary' in f]
         self.match_summary_frames = [f.match_summary for f in self.all_frames if 'match_summary' in f]
 
@@ -1582,7 +1590,7 @@ class ApexGame:
             if 'squad_summary' in f and f.squad_summary.image:
                 self.images['squad_summary'] = f.squad_summary.image.url
 
-    def _get_placed(self, debug: Union[bool, str]= False) -> int:
+    def _get_placed(self, debug: Union[bool, str] = False) -> int:
         self.logger.info(f'Getting squad placement from '
                          f'{len(self.match_summary_frames)} summary frames, '
                          f'{len(self.squad_summary_frames)} squad summary frames, '
@@ -1596,7 +1604,7 @@ class ApexGame:
             self.logger.info(f'Got match_summary.placed={placed_counter}')
             count = None
             for e in placed_values[::-1]:
-                if 1 <= e <= 20:
+                if 1 <= e <= self.squad_count:
                     match_summary_placed = e
                     count = placed_counter_dict[match_summary_placed]
                     break
@@ -1623,7 +1631,7 @@ class ApexGame:
                 self.logger.info(f'Got squad_summary.placed={placed_counter}')
                 count = None
                 for e in placed_counter.most_common():
-                    if 1 <= e[0] <= 20:
+                    if 1 <= e[0] <= self.squad_count:
                         squad_summary_placed, count = e
                         break
                     else:
@@ -1637,16 +1645,23 @@ class ApexGame:
 
         if len(self.match_status_frames) > 10:
             # TODO: record this plot as edges
-            squads_alive = arrayops.modefilt([s.squads_left for s in self.match_status_frames], 5)
+            squads_alive = arrayops.modefilt([s.squads_left if s.squads_left is not None else s.solos_players_left for s in self.match_status_frames], 5)
             last_squads_alive = int(squads_alive[-1])
-            if 1 <= last_squads_alive <= 20:
+            if 1 <= last_squads_alive <= self.squad_count:
                 self.logger.info(f'Got last seen squads alive = {last_squads_alive}')
             else:
                 self.logger.info(f'Did not get valid last seen squads alive: {last_squads_alive}')
                 last_squads_alive = None
         else:
             self.logger.warning(f'Did not get any match summaries - last seen squads alive = 20')
-            last_squads_alive = 20
+            last_squads_alive = self.squad_count
+
+        if debug in [True, 'Placed']:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.title('Squads Alive')
+            plt.plot(squads_alive)
+            plt.show()
 
         if match_summary_placed and squad_summary_placed:
             if match_summary_placed != squad_summary_placed:

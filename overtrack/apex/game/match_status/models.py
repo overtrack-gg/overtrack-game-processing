@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 @dataclass
 class MatchStatus:
-    squads_left: int
+    squads_left: Optional[int]
     players_alive: Optional[int]
     kills: Optional[int]
 

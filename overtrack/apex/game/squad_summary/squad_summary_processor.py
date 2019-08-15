@@ -85,8 +85,8 @@ class SquadSummaryProcessor(Processor):
 
             frame.squad_summary = SquadSummary(
                 champions=champions,
-                placed=self._process_yellowtext(self.REGIONS['placed'].extract_one(frame.image), hash=True),
-                squad_kills=self._process_yellowtext(self.REGIONS['squad_kills'].extract_one(frame.image), hash=False),
+                placed=self._process_yellowtext(self.REGIONS['placed'].extract_one(frame.image)),
+                squad_kills=self._process_yellowtext(self.REGIONS['squad_kills'].extract_one(frame.image)),
                 player_stats=self._process_player_stats(y),
                 elite=False,
                 image=lazy_upload('squad_summary', self.REGIONS.blank_out(frame.image), frame.timestamp, selection='last'),
@@ -97,7 +97,7 @@ class SquadSummaryProcessor(Processor):
 
         return False
 
-    def _process_yellowtext(self, image: np.ndarray, hash: bool) -> Optional[int]:
+    def _process_yellowtext(self, image: np.ndarray) -> Optional[int]:
         # mask out only yellow text (digits)
         yellow = cv2.inRange(
             image,
@@ -126,11 +126,9 @@ class SquadSummaryProcessor(Processor):
         text = text.upper()
         for s1, s2 in '|1', 'I1', 'L1', 'O0', 'S5':
             text = text.replace(s1, s2)
+        for hashchar in '#H':
+            text = text.replace(hashchar, '')
         logger.info(f'Got text={otext} -> {text}')
-
-        if hash:
-            for hashchar in '#H':
-                text = text.replace(hashchar, '')
 
         try:
             return int(text)
