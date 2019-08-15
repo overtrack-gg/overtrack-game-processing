@@ -79,7 +79,7 @@ class SquadSummaryProcessor(Processor):
             cv2.TM_CCORR_NORMED,
             self.REQUIRED_MATCH
         )
-        frame.squad_summary_match = round(match, 5)
+        frame.squad_summary_match = round(match, 4)
         if match > self.REQUIRED_MATCH:
             champions = key in ['champions_of_the_arena']
 

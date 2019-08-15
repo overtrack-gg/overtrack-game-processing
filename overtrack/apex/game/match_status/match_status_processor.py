@@ -96,13 +96,19 @@ class MatchStatusProcessor(Processor):
         squads_left_x = players_left_x - (self.REGIONS['alive'].regions[0][0] - self.REGIONS['squads_left'].regions[0][0])
         kills_left = players_left_x - (self.REGIONS['alive'].regions[0][0] - self.REGIONS['kills'].regions[0][0])
 
-        squads_left = self._get_squads_left(y, squads_left_x)
-        if squads_left:
+        squads_left_text = self._parse_squads_left_text(y, squads_left_x)
+        squads_left = self._get_squads_left(squads_left_text)
+        if not squads_left:
+            solos_players_left = self._get_squads_left(squads_left_text, solos=True)
+        else:
+            solos_players_left = None
+
+        if squads_left or solos_players_left:
             # if left < 1750:
             #     streak = self._get_streak(y, left + 115)
             # else:
             #     streak = None
-            if left < 1750:
+            if squads_left and left < 1750:
                 rank_badge_image = self.REGIONS['rank_badge'].extract_one(frame.image)
                 rank_badge_matches = self._get_rank_badge(rank_badge_image)
                 rank_text_image = self.REGIONS['rank_text'].extract_one(frame.image_yuv[:, :, 0])
@@ -119,11 +125,12 @@ class MatchStatusProcessor(Processor):
 
             frame.match_status = MatchStatus(
                 squads_left=squads_left,
-                players_alive=self._get_players_alive(y, players_left_x) if squads_left > 4 else None,
+                players_alive=self._get_players_alive(y, players_left_x) if squads_left and squads_left > 4 else None,
                 kills=self._get_kills(y, kills_left),
-                # streak=streak,
                 rank_badge_matches=rank_badge_matches,
                 rank_text=rank_text,
+
+                solos_players_left=solos_players_left
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_status(frame.debug_image, frame.match_status)
@@ -131,8 +138,16 @@ class MatchStatusProcessor(Processor):
         else:
             return False
 
-    def _get_squads_left(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
+    def _parse_squads_left_text(self, luma: np.ndarray, left_coord: int) -> str:
         x, y, w, h = self.REGIONS['squads_left'].regions[0]
+
+        # unranked: 1640
+        # ranked: 1565
+        # solos: 1653
+        if left_coord > 1646:
+            left_coord -= 20
+            w += 10
+
         region = luma[
             y: y + h,
             left_coord: left_coord + w
@@ -147,7 +162,11 @@ class MatchStatusProcessor(Processor):
         squads_left_text = ''.join(
             c for c in squads_left_text if c in string.ascii_uppercase + string.digits + ' '
         ).strip().replace('B', '6')
-        text_match = levenshtein.ratio(squads_left_text[2:].replace(' ', ''), 'SQUADSLEFT')
+        return squads_left_text
+
+    def _get_squads_left(self, squads_left_text: str, solos: bool = False) -> Optional[int]:
+        expected_text = 'SQUADSLEFT' if not solos else 'PLAYERSLEFT'
+        text_match = levenshtein.ratio(squads_left_text[2:].replace(' ', ''), expected_text)
         if text_match > 0.8:
             number_text = squads_left_text[:3].split(' ', 1)[0]
             for s1, s2 in self.SUBS:
@@ -158,7 +177,7 @@ class MatchStatusProcessor(Processor):
                 logger.warning(f'Failed to parse "{number_text}" as int - extracted from "{squads_left_text}"')
                 return None
             else:
-                if 2 <= squads_left <= 20:
+                if 2 <= squads_left <= (20 if not solos else 60):
                     return squads_left
                 else:
                     logger.warning(f'Got squads_left={squads_left} - rejecting. Extracted from "{squads_left_text}"')
@@ -189,10 +208,18 @@ class MatchStatusProcessor(Processor):
 
     def _get_kills(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
         x, y, w, h = self.REGIONS['kills'].regions[0]
+
+        # unranked: 1548
+        # ranked: 1473
+        # solos: 1561
+        if left_coord > 1555:
+            left_coord -= 15
+
         kills_image = luma[
             y: y + h,
             left_coord: left_coord + w
         ]
+        # cv2.imshow('kills_image', kills_image)
         _, kills_thresh = cv2.threshold(kills_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         match = cv2.matchTemplate(
             kills_thresh,
@@ -263,34 +290,7 @@ class MatchStatusProcessor(Processor):
         return tuple(matches)
 
 
-def main() -> None:
-
-    print(levenshtein.ratio(' SAUADS LEFT'.replace(' ', ''), 'SQUADSLEFT'))
-
-    import glob
-    config_logger('map_processor', logging.DEBUG, write_to_file=False)
-
-    pipeline = MatchStatusProcessor()
-    # ps = ["C:/Users/simon/mpv-screenshots/mpv-shot0290.png", "M:/Videos/apex/2_103.png", "C:/Users/simon/workspace/overtrack_2/dev/apex_images/mpv-shot0171.png"]
-    ps = glob.glob('C:/Users/simon/overtrack_2/apex_images/match/*.png')
-    for p in ps:
-        print(p)
-        try:
-            frame = Frame.create(
-                cv2.resize(cv2.imread(p), (1920, 1080)),
-                0,
-                True
-            )
-        except:
-            continue
-        pipeline.process(frame)
-        print(frame)
-        cv2.imshow('debug', frame.debug_image)
-        if 'match_status' in frame and frame.match_status.kills:
-            cv2.waitKey(0)
-        else:
-            cv2.waitKey(0)
-
-
 if __name__ == '__main__':
-    main()
+    from overtrack import util
+
+    util.test_processor('match', MatchStatusProcessor(), 'match_status', game='apex')

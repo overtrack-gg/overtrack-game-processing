@@ -306,23 +306,7 @@ class MatchSummaryProcessor(Processor):
             return None
 
 
-def main() -> None:
-    config_logger('map_processor', logging.INFO, write_to_file=False)
-
-    pipeline = MatchSummaryProcessor()
-
-    import glob
-    for p in reversed(glob.glob("C:/Users/simon/overtrack_2/apex_images/match_summary/*.png")):
-        frame = Frame.create(
-            cv2.resize(cv2.imread(p), (1920, 1080)),
-            0,
-            True
-        )
-        pipeline.process(frame)
-        print(frame)
-        cv2.imshow('debug', frame.debug_image)
-        cv2.waitKey(0)
-
-
 if __name__ == '__main__':
-    main()
+    from overtrack import util
+
+    util.test_processor('match_summary', MatchSummaryProcessor(), 'match_summary', 'match_summary_match', game='apex')

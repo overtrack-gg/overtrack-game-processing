@@ -14,3 +14,5 @@ class MatchStatus:
     rank_badge_matches: Optional[Tuple[float, ...]] = None
     rank_text: Optional[str] = None
 
+    solos_players_left: Optional[int] = None
+
