@@ -1,4 +1,5 @@
 import os
+import time
 
 from pynamodb.attributes import BooleanAttribute, JSONAttribute, NumberAttribute, UnicodeAttribute, ListAttribute, UnicodeSetAttribute, NumberSetAttribute
 from pynamodb.indexes import AllProjection, GlobalSecondaryIndex, KeysOnlyProjection
@@ -241,9 +242,8 @@ class User(OverTrackModel):
 
 
 if __name__ == '__main__':
-    import logging
-    import time
     import string
+    import logging
 
     ALLOWED = string.ascii_letters + string.digits + '_-'
 
