@@ -9,6 +9,7 @@ from typing import Any, Callable, DefaultDict, Dict, Optional, Sequence, TYPE_CH
 
 import time
 
+
 if TYPE_CHECKING:
     from mypy_extensions import TypedDict
     LogConfig = TypedDict(
@@ -254,7 +255,7 @@ def config_logger(
 
         def tracemalloc_loop():
             while True:
-                time.sleep(60)
+                time.sleep(5 * 60)
                 snapshot = tracemalloc.take_snapshot()
                 top_stats = snapshot.statistics('lineno')
                 tracemalloc_logger.info(f'tracemalloc:')
@@ -323,8 +324,6 @@ def finish_logging() -> None:
         upload_logs_settings['upload_func'](*upload_logs_settings['args'])
 
 
-
-
 def patch_sentry_locals_capture() -> None:
     from sentry_sdk.serializer import add_global_repr_processor, Serializer
     from sentry_sdk.utils import safe_repr
@@ -332,29 +331,40 @@ def patch_sentry_locals_capture() -> None:
 
     ser = Serializer()
 
-    @add_global_repr_processor
-    def processor(value, hint):
+    def frame_processor(value, hint):
         if isinstance(value, Frame):
-            return {'timestamp': value.timestamp}
+            # from overtrack.util import referenced_typedload
+            import typedload
+            f = value.copy()
+            f.strip()
+            return typedload.dump(f)
         return NotImplemented
 
-    @add_global_repr_processor
-    def processor(value, hint):
-        if isinstance(list, Frame) and len(value) > 2 and isinstance(value[0], Frame) and isinstance(value[-1], Frame):
-                return [ser._serialize_node_impl(value[0]), f'...<{len(value) - 2}>...', ser._serialize_node_impl(value[-1])]
+    def frame_list_processor(value, hint):
+        if isinstance(value, list) and len(value) > 2 and isinstance(value[0], Frame) and isinstance(value[-1], Frame):
+            return [frame_processor(value[0], None), f'...<{len(value) - 2}>...', frame_processor(value[-1], None)]
         return NotImplemented
 
-    @add_global_repr_processor
-    def processor(value, hint):
+    def large_list_processor(value, hint):
         if isinstance(value, Sequence) and not isinstance(value, (bytes, str)) and len(value) > 64:
-            return [ser._serialize_node_impl(value[0]), f'...<{len(value) - 2}>...', ser._serialize_node_impl(value[-1])]
+            return [ser._serialize_node_impl(value[0], None, None), f'...<{len(value) - 2}>...', ser._serialize_node_impl(value[-1], None, None)]
         return NotImplemented
 
-    @add_global_repr_processor
-    def processor(value, hint):
+    def large_str_processor(value, hint):
         if isinstance(value, (bytes, str)) and len(value) > 1024:
             return safe_repr(value[:1024]) + f'..., len={len(value)}'
         return NotImplemented
+
+    def set_processor(value, hint):
+        if isinstance(value, set):
+            return list(value)
+        return NotImplemented
+
+    add_global_repr_processor(frame_processor)
+    add_global_repr_processor(frame_list_processor)
+    add_global_repr_processor(large_list_processor)
+    add_global_repr_processor(large_str_processor)
+    add_global_repr_processor(set_processor)
 
 
 CLOUD_INIT_OUTPUT = '/var/log/cloud-init-output.log'
