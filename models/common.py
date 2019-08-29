@@ -64,6 +64,17 @@ class OverTrackModel(Model):
             k: OverTrackModel.asdict(v) if isinstance(v, MapAttribute) else v for k, v in attrs.items()
         }
 
+    def refresh(self, consistent_read=False):
+        # Fix for https://github.com/pynamodb/PynamoDB/issues/424
+        # Only works on models with no range key
+
+        hash_key_field = [k for k, v in self._attributes.items() if v.is_hash_key][0]
+        assert len([k for k, v in self._attributes.items() if v.is_range_key]) == 0
+        fresh = self.__class__.get(getattr(self, hash_key_field))
+
+        for k in self._attributes:
+            setattr(self, k, getattr(fresh, k))
+
 
 T = TypeVar('T', bound=Model, covariant=True)
 
