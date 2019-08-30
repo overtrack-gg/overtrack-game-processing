@@ -18,7 +18,7 @@ class OverwatchHeroStats(OverTrackModel):
 
     hero = UnicodeAttribute()
     account = UnicodeAttribute()
-    role = UnicodeAttribute()
+    role = UnicodeAttribute(null=True)
 
     sr = NumberAttribute(null=True)
     rank = UnicodeAttribute(null=True)
