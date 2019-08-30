@@ -75,7 +75,7 @@ class Timings(Dict[str, float]):
         return sum([v for k, v in self.items() if k not in ['wait', 'fetch', 'in_queue']])
 
     def __setitem__(self, key: str, value: float) -> None:
-        super().__setitem__(key, round(value, 4))
+        super().__setitem__(key, round(value, 3))
 
     def __str__(self) -> str:
         return str({k: round(v, 3) for k, v in dict(TOTAL=self.total, **self).items()})
