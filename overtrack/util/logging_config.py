@@ -11,7 +11,7 @@ import time
 
 
 if TYPE_CHECKING:
-    from mypy_extensions import TypedDict
+    from typing_extensions import TypedDict
     LogConfig = TypedDict(
         'LogConfig',
         {

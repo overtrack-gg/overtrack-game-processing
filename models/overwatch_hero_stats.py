@@ -39,6 +39,7 @@ class OverwatchHeroStats(OverTrackModel):
     hero_damage_done = NumberAttribute()
     healing_done = NumberAttribute()
     deaths = NumberAttribute()
+    final_blows = NumberAttribute()
 
     hero_specific_stats = JSONAttribute(null=True)
 
