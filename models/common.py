@@ -1,4 +1,4 @@
-from typing import Iterable, TypeVar, Generic, TYPE_CHECKING
+from typing import Iterable, TypeVar, Generic, Dict, TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Protocol
 
@@ -38,7 +38,7 @@ class TupleAttribute(ListAttribute):
 
 # noinspection PyAbstractClass,PyUnresolvedReferences
 class OverTrackModel(Model):
-    def __str__(self):
+    def __str__(self) -> str:
         attributes = list(self._attributes.keys())
         # make `key` the first item
         key_names = [k for k, v in self._attributes.items() if v.is_hash_key]
@@ -49,7 +49,7 @@ class OverTrackModel(Model):
         items_str = ', '.join('%s=%s' % (attr, repr(getattr(self, attr))) for attr in attributes)
         return self.__class__.__name__ + '(' + items_str + ')'
 
-    def asdict(self):
+    def asdict(self) -> Dict[str, object]:
         attributes = list(self._attributes.keys())
         # make `key` the first item
         key_names = [k for k, v in self._attributes.items() if v.is_hash_key]
@@ -64,7 +64,7 @@ class OverTrackModel(Model):
             k: OverTrackModel.asdict(v) if isinstance(v, MapAttribute) else v for k, v in attrs.items()
         }
 
-    def refresh(self, consistent_read=False):
+    def refresh(self, consistent_read=False) -> None:
         # Fix for https://github.com/pynamodb/PynamoDB/issues/424
         # Only works on models with no range key
 

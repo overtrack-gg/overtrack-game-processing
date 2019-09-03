@@ -17,12 +17,24 @@ class UserIDTimestampIndex(GlobalSecondaryIndex):
     timestamp = NumberAttribute(range_key=True)
 
 
+class HeroTimestampIndex(GlobalSecondaryIndex):
+    class Meta:
+        index_name = 'hero-timestamp-index'
+        projection = AllProjection()
+        read_capacity_units = 1
+        write_capacity_units = 1
+
+    hero = UnicodeAttribute(hash_key=True)
+    timestamp = NumberAttribute(range_key=True)
+
+
 class OverwatchHeroStats(OverTrackModel):
     class Meta:
         table_name = 'overtrack-hero-stats-2'
         region = 'us-west-2'
 
     user_id_timestamp_index = UserIDTimestampIndex()
+    hero_timestamp_index = HeroTimestampIndex()
 
     user_id = NumberAttribute(hash_key=True)
     timestamp_hero = UnicodeAttribute(range_key=True)
@@ -67,7 +79,10 @@ class OverwatchHeroStats(OverTrackModel):
 
 
 def main() -> None:
-    OverwatchHeroStats.create_table(wait=True, read_capacity_units=1, write_capacity_units=1)
+    from tqdm import tqdm
+    for e in tqdm(OverwatchHeroStats.scan(OverwatchHeroStats.time_played > 1e5)):
+        print(e.game_key, e.time_played)
+        e.delete()
 
 
 if __name__ == '__main__':
