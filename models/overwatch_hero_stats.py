@@ -1,14 +1,28 @@
 import datetime
 
 from pynamodb.attributes import NumberAttribute, UnicodeAttribute, JSONAttribute, BooleanAttribute
+from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
 
 from models.common import OverTrackModel
+
+
+class UserIDTimestampIndex(GlobalSecondaryIndex):
+    class Meta:
+        index_name = 'user_id-timestamp-index'
+        projection = AllProjection()
+        read_capacity_units = 1
+        write_capacity_units = 1
+
+    user_id = NumberAttribute(hash_key=True)
+    timestamp = NumberAttribute(range_key=True)
 
 
 class OverwatchHeroStats(OverTrackModel):
     class Meta:
         table_name = 'overtrack-hero-stats-2'
         region = 'us-west-2'
+
+    user_id_timestamp_index = UserIDTimestampIndex()
 
     user_id = NumberAttribute(hash_key=True)
     timestamp_hero = UnicodeAttribute(range_key=True)
