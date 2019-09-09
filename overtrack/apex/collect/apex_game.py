@@ -1665,9 +1665,9 @@ class ApexGame:
 
         if match_summary_placed and squad_summary_placed:
             if match_summary_placed != squad_summary_placed:
-                self.logger.warning(f'Got match summary > placed: {match_summary_placed} != squad summary > placed: {squad_summary_placed} - using match summary')
+                self.logger.warning(f'Got match summary > placed: {match_summary_placed} != squad summary > placed: {squad_summary_placed} - using squad summary')
                 self.logger.error(f'Got match summary > placed != squad summary > placed', exc_info=True)
-                return match_summary_placed
+                return squad_summary_placed
 
         if match_summary_placed:
             self.logger.info(f'Using placed from match summary: {match_summary_placed}')
