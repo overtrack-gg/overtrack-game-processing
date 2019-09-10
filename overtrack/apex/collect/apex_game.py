@@ -1777,7 +1777,7 @@ def main() -> None:
     print(game)
     pprint(game.to_dict())
 
-    from models.apex_game_summary import ApexGameSummary
+    from overtrack_models.apex_game_summary import ApexGameSummary
 
     g = ApexGameSummary.create(game, -1)
     print(g)

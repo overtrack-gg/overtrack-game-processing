@@ -8,6 +8,8 @@ authors = ["Simon Pinfold <simon@uint8.me>"]
 python = "^3.6"
 setuptools = "^41"
 
+overtrack-models = { git = "git@gitlab.com:OverTrack/overtrack-models.git", branch = "master" }
+
 # base requirements
 requests = "^2"
 dataclasses = "*"
@@ -19,31 +21,33 @@ tqdm = "*"
 tabulate = "*"
 
 # embedded web servers
+# aiohttp = "^3.5"
 cherrypy = "^18"
 
 # ingest instance management
-python-digitalocean = { git = "https://github.com/koalalorenzo/python-digitalocean.git" }
+# python-digitalocean = { git = "https://github.com/koalalorenzo/python-digitalocean.git" }
 
 # image/data processing
 numpy = "^1"
 scipy = "^1"
 opencv-python = "^4.0"
-tensorflow = "^2.0.0-rc0"
+tensorflow = "^2.0.0-beta1"
 tesserocr = "^2.4"
 editdistance = "*"
 python-Levenshtein = "*"
+#python-Levenshtein-wheels = "*"
 
 # video/stream/vod extraction
 av = "^6"
 streamlink = { git = "https://github.com/streamlink/streamlink.git" }
 
 # storage
-pynamodb = "^4"
-boto3 = "^1"
+# pynamodb = "^4"
+# boto3 = "^1"
 
 # log+error reporting
-sentry-sdk = "^0.11"
-google-cloud-logging = "^1"
+# sentry-sdk = "^0.11"
+# google-cloud-logging = "^1"
 
 # twitch overlay
 pyjwt = "*"
