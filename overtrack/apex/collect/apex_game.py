@@ -1374,7 +1374,7 @@ class Rank:
                 self.logger.info(f'Got RP={self.rp}')
 
         if self.rp is None:
-            self.logger.error(f'Menu RP invalid')
+            self.logger.warning(f'Menu RP invalid')
 
     def _resolve_api_rank(self, player_name, stats_after, stats_before):
         self.logger.info(f'Trying to resolve RP from API stats for "{player_name}"')
@@ -1440,7 +1440,7 @@ class Rank:
                     self.rank_tier = derived_tier
 
                 if error:
-                    self.logger.error(f'Got disagreeing RP/RP change/rank from OCR and API', exc_info=True)
+                    self.logger.warning(f'Got disagreeing RP/RP change/rank from OCR and API', exc_info=True)
 
         else:
             self.logger.error(f'API stats invalid', exc_info=True)
@@ -1666,7 +1666,7 @@ class ApexGame:
         if match_summary_placed and squad_summary_placed:
             if match_summary_placed != squad_summary_placed:
                 self.logger.warning(f'Got match summary > placed: {match_summary_placed} != squad summary > placed: {squad_summary_placed} - using squad summary')
-                self.logger.error(f'Got match summary > placed != squad summary > placed', exc_info=True)
+                self.logger.warning(f'Got match summary > placed != squad summary > placed', exc_info=True)
                 return squad_summary_placed
 
         if match_summary_placed:
