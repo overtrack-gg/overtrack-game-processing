@@ -131,14 +131,15 @@ class Player:
         if is_owner:
             summaries = [f.match_summary for f in frames if 'match_summary' in f]
             self.logger.info(f'Resolving stat from {len(summaries)} match summary (XP) frames')
-            stats = self._get_mode_summary_stats(summaries)
+            summary_stats = self._make_summary_stats(summaries)
+            mode_summary_stats = self._get_mode_stats(summary_stats)
             if stats:
                 if self.stats is None:
-                    self.logger.info(f'Using stats from summary: {stats}')
-                    self.stats = stats
-                elif self.stats != stats:
-                    self.logger.warning(f'Merging squad stats {self.stats} with summary stats {stats}')
-                    self.stats.merge(stats)
+                    self.logger.info(f'Using stats from summary: {mode_summary_stats}')
+                    self.stats = mode_summary_stats
+                elif self.stats != mode_summary_stats:
+                    self.logger.warning(f'Merging squad stats {self.stats} with summary stats {mode_summary_stats}')
+                    self.stats = self._get_mode_stats(stats + summary_stats)
                 else:
                     self.logger.info(f'Squad stats and summary stats agree')
 
@@ -161,8 +162,8 @@ class Player:
             **mode
         )
 
-    def _get_mode_summary_stats(self, summaries: List[MatchSummary]) -> PlayerStats:
-        return self._get_mode_stats([
+    def _make_summary_stats(self, summaries: List[MatchSummary]) -> List[SquadSummaryStats]:
+        return [
             SquadSummaryStats(
                 name='',
                 kills=s.xp_stats.kills,
@@ -180,7 +181,7 @@ class Player:
                 players_revived=None,
                 players_respawned=None,
             ) for s in summaries if s.score_report
-        ])
+        ]
 
     def _sanity_clip(self, stats: PlayerStats) -> PlayerStats:
         def _sanity_clip(x: Optional[int], lb: int, ub: int, name: str) -> Optional[int]:
@@ -226,8 +227,8 @@ class Player:
                         self.logger.info(f'{stat_field} for {self.name} not provided by OCR, API={api_value} - using API')
                         setattr(self.stats, stat_field, api_value)
                     elif ocr_value != api_value:
-                        self.logger.info(
-                            f'{stat_field} for {self.name} from OCR does not match API: OCR={ocr_value} > API={api_value} - using OCR')
+                        self.logger.info(f'{stat_field} for {self.name} from OCR does not match API: OCR={ocr_value} > API={api_value} - using API')
+                        setattr(self.stats, stat_field, api_value)
                     else:
                         self.logger.info(f'{stat_field} for {self.name} from OCR matches stats API: {stat_field}={api_value}')
 
