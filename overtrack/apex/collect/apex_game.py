@@ -1597,6 +1597,7 @@ class ApexGame:
                          f'{len(self.match_status_frames)} match status frames')
 
         match_summary_placed: Optional[int] = None
+        match_summary_count = 0
         if len(self.match_summary_frames):
             placed_values = [s.placed for s in self.match_summary_frames]
             placed_counter = Counter(placed_values)
@@ -1614,10 +1615,12 @@ class ApexGame:
                 if count != len(self.match_summary_frames):
                     self.logger.warning(f'Got disagreeing match summary placed counts: {placed_counter}')
                 self.logger.info(f'Got match summary > placed={match_summary_placed} from summary')
+                match_summary_count = count
         if not match_summary_placed:
             self.logger.info(f'Did not get (valid) match summary placement')
 
         squad_summary_placed: Optional[int] = None
+        squad_summary_count = 0
         if len(self.squad_summary_frames) and not self.solo:
             # TODO: support solo (change crop regions and use the squad kills as placed_
             champions = np.mean([s.champions for s in self.squad_summary_frames])
@@ -1640,6 +1643,7 @@ class ApexGame:
                     if count != len(self.squad_summary_frames):
                         self.logger.warning(f'Got disagreeing squad summary placed counts: {placed_counter}')
                     self.logger.info(f'Got squad summary > placed = {squad_summary_placed}')
+                    squad_summary_count = count
         if not squad_summary_placed:
             self.logger.info(f'Did not get (valid) squad summary placement')
 
@@ -1663,17 +1667,29 @@ class ApexGame:
             plt.plot(squads_alive)
             plt.show()
 
-        if match_summary_placed and squad_summary_placed:
-            if match_summary_placed != squad_summary_placed:
-                self.logger.warning(f'Got match summary > placed: {match_summary_placed} != squad summary > placed: {squad_summary_placed} - using squad summary')
-                self.logger.warning(f'Got match summary > placed != squad summary > placed', exc_info=True)
-                return squad_summary_placed
+        if match_summary_placed and squad_summary_placed and match_summary_placed != squad_summary_placed:
+            self.logger.warning(
+                f'Got match summary > placed: {match_summary_placed} ({match_summary_count}) != '
+                f'squad summary > placed: {squad_summary_placed} ({squad_summary_count})'
+            )
 
-        if match_summary_placed:
-            self.logger.info(f'Using placed from match summary: {match_summary_placed}')
+        if match_summary_count > 3:
+            self.logger.info(f'Using placed from match summary: {match_summary_placed} ({match_summary_count})')
             return match_summary_placed
-        elif squad_summary_placed:
-            self.logger.info(f'Using placed from squad summary: {squad_summary_placed}')
+        elif squad_summary_count > 3:
+            self.logger.info(f'Using placed from squad summary: {squad_summary_placed} ({squad_summary_count})')
+            return squad_summary_placed
+        elif match_summary_count > 1:
+            self.logger.info(f'Using placed from match summary: {match_summary_placed} ({match_summary_count})')
+            return match_summary_placed
+        elif squad_summary_count > 1:
+            self.logger.info(f'Using placed from squad summary: {squad_summary_placed} ({squad_summary_count})')
+            return squad_summary_placed
+        elif match_summary_count:
+            self.logger.info(f'Using placed from match summary: {match_summary_placed} ({match_summary_count})')
+            return match_summary_placed
+        elif squad_summary_count:
+            self.logger.info(f'Using placed from squad summary: {squad_summary_placed} ({squad_summary_count})')
             return squad_summary_placed
         else:
             self.logger.info(f'Using placed from last squads alive: {last_squads_alive}')
