@@ -1635,7 +1635,9 @@ class ApexGame:
                 self.logger.info(f'Got squad_summary.placed={placed_counter}')
                 count = None
                 for e in placed_counter.most_common():
-                    if 1 <= e[0] <= self.squad_count:
+                    if e[0] == 1 and champions < 0.25:
+                        self.logger.warning(f'Ignoring squad_summary.placed=1 - champion={champions:.2f}')
+                    elif 1 <= e[0] <= self.squad_count:
                         squad_summary_placed, count = e
                         break
                     else:
