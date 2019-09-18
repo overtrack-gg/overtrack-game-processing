@@ -11,7 +11,6 @@ from overtrack.apex.game.squad_summary.models import *
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
-from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.util.textops import mmss_to_seconds
 from overtrack.util.uploadable_image import lazy_upload
@@ -24,7 +23,7 @@ def _draw_squad_summary(debug_image: Optional[np.ndarray], squad_summary: SquadS
     cv2.putText(
         debug_image,
         f'{dataclasses.replace(squad_summary, player_stats=None, image=None)}',
-        (100, 300),
+        (100, 250),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.6,
         (0, 255, 0),
@@ -105,9 +104,9 @@ class SquadSummaryProcessor(Processor):
             (90, 230, 255)
         )
         yellow = cv2.dilate(yellow, None)
-        squad_kills_image = cv2.bitwise_and(image, cv2.cvtColor(yellow, cv2.COLOR_GRAY2BGR))
-        squad_kills_image_g = np.max(squad_kills_image, axis=2)
-        squad_kills_image_g = cv2.erode(squad_kills_image_g, np.ones((2,2)))
+        yellowtext_image = cv2.bitwise_and(image, cv2.cvtColor(yellow, cv2.COLOR_GRAY2BGR))
+        yellowtext_image_g = np.max(yellowtext_image, axis=2)
+        yellowtext_image_g = cv2.erode(yellowtext_image_g, np.ones((2,2)))
 
         # from overtrack.util import  ps
         # cv2.imshow('yellow', yellow)
@@ -115,8 +114,11 @@ class SquadSummaryProcessor(Processor):
         # cv2.imshow('squad_kills_image_g', squad_kills_image_g)
         # debugops.test_tesser_engines(squad_kills_image_g, scale=4)
 
+        from overtrack.util import debugops
+        debugops.test_tesser_engines(yellowtext_image_g)
+
         text = imageops.tesser_ocr(
-            squad_kills_image_g,
+            yellowtext_image_g,
             engine=imageops.tesseract_lstm,
             scale=4,
             blur=4,
@@ -124,7 +126,7 @@ class SquadSummaryProcessor(Processor):
         )
         otext = text
         text = text.upper()
-        for s1, s2 in '|1', 'I1', 'L1', 'O0', 'S5':
+        for s1, s2 in '|1', 'I1', 'L1', 'O0', 'S5', 'B6':
             text = text.replace(s1, s2)
         for hashchar in '#H':
             text = text.replace(hashchar, '')
@@ -183,6 +185,7 @@ class SquadSummaryProcessor(Processor):
             stat_images,
             engine=ocr.tesseract_ttlakes_digits_specials,
         )
+       
         for i in range(len(stats)):
             value = stats[i]
             if value:
@@ -216,25 +219,8 @@ class SquadSummaryProcessor(Processor):
         return r
 
 
-def main() -> None:
-    config_logger('squad_summary', logging.INFO, write_to_file=False)
-
-    pipeline = SquadSummaryProcessor()
-
-    import glob
-
-    for p in (list(reversed(glob.glob("C:/Users/simon/overtrack_2/apex_images/squad_summary/*.png"))) +
-              glob.glob("C:/Users/simon/overtrack_2/apex_images/**/*.png", recursive=True)):
-        frame = Frame.create(
-            cv2.resize(cv2.imread(p), (1920, 1080)),
-            0,
-            True
-        )
-        pipeline.process(frame)
-        print(frame)
-        cv2.imshow('debug', frame.debug_image)
-        cv2.waitKey(0)
-
-
 if __name__ == '__main__':
-    main()
+    from overtrack import util
+
+    util.test_processor('squad_summary', SquadSummaryProcessor(), 'squad_summary', 'squad_summary_match', game='apex')
+

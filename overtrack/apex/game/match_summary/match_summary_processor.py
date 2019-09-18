@@ -7,14 +7,13 @@ import cv2
 import numpy as np
 from dataclasses import fields
 
+from overtrack.apex.game.match_summary.models import *
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, textops, time_processing
-from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.util.textops import mmss_to_seconds
 from overtrack.util.uploadable_image import lazy_upload
-from overtrack.apex.game.match_summary.models import *
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +287,8 @@ class MatchSummaryProcessor(Processor):
             np.array(self.PLACED_COLOUR) + 40
         )
         text = imageops.tesser_ocr(
-            orange
+            orange,
+            whitelist=string.digits + '#'
         )
         if text and text[0] == '#':
             try:
@@ -297,6 +297,7 @@ class MatchSummaryProcessor(Processor):
                 logger.warning(f'Could not parse "{text}" as number')
                 return None
             else:
+                logger.debug(f'Parsed "{text}" as {placed}')
                 if 1 <= placed <= 20:
                     return placed
                 else:
