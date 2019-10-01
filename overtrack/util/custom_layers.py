@@ -1,11 +1,12 @@
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union, Tuple
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.keras import backend
+from tensorflow.python.keras.backend import resize_images
 from tensorflow.python.keras.layers import Layer
-from tensorflow.python.ops import sparse_ops
+from tensorflow.python.ops import sparse_ops, image_ops
 from tensorflow.python.ops.gen_ctc_ops import ctc_greedy_decoder
 
 
@@ -164,6 +165,30 @@ class Pad(Layer):
         return tf.pad(inputs, paddings=self.paddings)
 
 
+class ResizeImage(Layer):
+
+    def __init__(self, size: Tuple[int, int], **kwargs):
+        super(ResizeImage, self).__init__(**kwargs)
+        self.size = size
+
+    def compute_output_shape(self, input_shape):
+        input_shape = tensor_shape.TensorShape(input_shape).as_list()
+        return tensor_shape.TensorShape((input_shape[0], self.size[0], self.size[1], input_shape[4]))
+
+    def get_config(self) -> Dict[str, any]:
+        config = {
+            'size': self.size,
+        }
+        base_config = super(ResizeImage, self).get_config()
+        # noinspection PyTypeChecker
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def call(self, inputs, training=None):
+        #return tf.image.resize(inputs, self.size)
+        #return resize_images(inputs, self.size)
+        return image_ops.resize_nearest_neighbor(inputs, self.size)
+
+
 class NormaliseByte(Layer):
 
     def __init__(self, **kwargs):
@@ -281,5 +306,6 @@ custom_objects = {
     'ExpandDims': ExpandDims,
     'Squeeze': Squeeze,
     'Pad': Pad,
-    'NormaliseByte': NormaliseByte
+    'NormaliseByte': NormaliseByte,
+    'ResizeImage': ResizeImage,
 }

@@ -1,14 +1,56 @@
 import datetime
+import dataclasses
 import logging
 import time
 from functools import wraps
+import numpy as np
 from typing import Callable, Tuple, TypeVar, TYPE_CHECKING
+
+import typing
+
 if TYPE_CHECKING:
     from overtrack.frame import Frame
 
 logger = logging.getLogger(__name__)
 
 BIG_NOODLE_DIGITSUBS = 'O0', 'D0', 'I1', 'L1', 'B8', 'A8', 'S5'
+
+
+def round_floats(_cls=None, *, precision: int = 2):
+    def wrap(cls):
+        orig__post_init__ = getattr(cls, '__post_init__', None)
+
+        def __post_init__(self, *initvars):
+            if orig__post_init__:
+                orig__post_init__(self, *initvars)
+            for field in dataclasses.fields(cls):
+                if field.type is float:
+                    object.__setattr__(self, field.name, round(float(getattr(self, field.name)), precision))
+                elif getattr(field.type, '__origin__', None) is typing.Tuple:
+                    object.__setattr__(
+                        self,
+                        field.name,
+                        tuple(
+                            round(float(e), precision) if isinstance(e, (float, np.float, np.float16, np.float32, np.float64)) else e
+                            for e in getattr(self, field.name)
+                        )
+                    )
+                elif getattr(field.type, '__origin__', None) is typing.List:
+                    object.__setattr__(
+                        self,
+                        field.name,
+                        [
+                            round(float(e), precision) if isinstance(e, (float, np.float, np.float16, np.float32, np.float64)) else e
+                            for e in getattr(self, field.name)
+                        ]
+                    )
+
+        setattr(cls, '__post_init__', __post_init__)
+        return cls
+
+    if _cls is None:
+        return wrap
+    return wrap(_cls)
 
 
 def big_noodle_digitsub(s: str) -> str:
@@ -125,6 +167,8 @@ def test_processor(directory: str, proc, *fields: str, game='overwatch', show=Tr
 
     config_logger(directory, logging.DEBUG, False)
 
+    proc.eager_load()
+
     for p in glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/{directory}/*.png") + \
              glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/*/*.png", recursive=True):
 
@@ -135,6 +179,9 @@ def test_processor(directory: str, proc, *fields: str, game='overwatch', show=Tr
         im = cv2.imread(p)
         im = cv2.resize(im, (1920, 1080))
         f = Frame.create(im, 0, debug=True)
+        if 'game_time=' in p:
+            f.game_time = float(os.path.basename(p).split('=', 1)[1].rsplit('.', 1)[0])
+
         proc.process(f)
         for n in fields:
             print(f.get(n))

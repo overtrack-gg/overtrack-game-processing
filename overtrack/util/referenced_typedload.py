@@ -44,6 +44,7 @@ import overtrack.apex.game.weapon.models
 import overtrack.apex.game.squad_summary.models
 import overtrack.apex.game.map.models
 import overtrack.apex.game.combat.models
+import overtrack.apex.game.minimap.models
 import overtrack.apex.game.apex_metadata
 
 import overtrack.util.uploadable_image
@@ -144,6 +145,7 @@ _TYPES = {
     'champion_squad': overtrack.apex.game.your_squad.models.ChampionSquad,
     'squad_summary': overtrack.apex.game.squad_summary.models.SquadSummary,
     'location': overtrack.apex.game.map.models.Location,
+    'minimap': overtrack.apex.game.minimap.models.Minimap,
     'combat_log': overtrack.apex.game.combat.models.CombatLog,
 
     'overwatch_metadata': overtrack.overwatch.game.overwatch_metadata.OverwatchClientMetadata,

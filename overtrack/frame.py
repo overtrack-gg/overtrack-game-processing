@@ -39,7 +39,7 @@ def strify(o: Any, depth: int=0) -> str:
     if isinstance(o, str):
         return "'" + o + "'"
     if isinstance(o, float):
-        return f'{ o :1.4f}'
+        return f'{ round(o, 4) }'
     elif isinstance(o, dict):
         return '{' + ', '.join(f'{repr(k)}: {strify(v, depth+1)}' for k, v in o.items()) + '}'
     elif isinstance(o, list):
@@ -164,6 +164,7 @@ class Frame(Dict[str, Any]):
         import overtrack.apex.game.map.models
         import overtrack.apex.game.combat.models
         import overtrack.apex.game.apex_metadata
+        import overtrack.apex.game.minimap.models
         from overtrack.apex.game.your_squad import YourSquad, YourSelection, ChampionSquad
         match_status: overtrack.apex.game.match_status.models.MatchStatus
         match_summary_match: float
@@ -181,6 +182,7 @@ class Frame(Dict[str, Any]):
         champion_squad = ChampionSquad
         location: overtrack.apex.game.map.models.Location
         combat_log: overtrack.apex.game.combat.models.CombatLog
+        minimap: overtrack.apex.game.minimap.models.Minimap
         apex_metadata: overtrack.apex.game.apex_metadata.ApexClientMetadata
 
         timings: Timings

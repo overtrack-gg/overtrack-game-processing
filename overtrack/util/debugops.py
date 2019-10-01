@@ -1,10 +1,60 @@
-from typing import List, Any, Callable, Optional, Tuple, Union, Sequence
+import inspect
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 import cv2
 import numpy as np
 
-from overtrack.overwatch.ocr import big_noodle
 from overtrack.util import imageops
+
+
+PREV_ARGS = {}
+def sliders(input: np.ndarray, **kwargs: Callable[[Any], np.ndarray]):
+    assert len(kwargs)
+    cv2.namedWindow('sliders')
+
+    updated = False
+    def set_updated(*_):
+        nonlocal updated
+        updated = True
+
+    for fname, function in kwargs.items():
+        args = list(inspect.signature(function).parameters)
+        assert len(args), 'Slider functions must take args'
+        for i, arg in enumerate(args[1:]):
+            name, lv, uv = arg.split('_')
+            lv, uv = int(lv), int(uv)
+            if PREV_ARGS and i < len(PREV_ARGS[fname]):
+                pv = PREV_ARGS[fname][i] - lv
+            else:
+                pv = 0
+            cv2.createTrackbar(f'{fname}.{name}', 'sliders', pv, uv - lv, set_updated)
+
+    while True:
+        steps = [input]
+        image = input.copy()
+        for fname, function in kwargs.items():
+            args = list(inspect.signature(function).parameters)
+            inargs = []
+            for arg in args[1:]:
+                name, lv, uv = arg.split('_')
+                lv, uv = int(lv), int(uv)
+                inargs.append(lv + cv2.getTrackbarPos(f'{fname}.{name}', 'sliders'))
+            PREV_ARGS[fname] = inargs
+            images = function(image, *inargs)
+            if isinstance(images, list) or isinstance(images, tuple):
+                image = images[-1]
+                steps += list(images)
+            else:
+                image = images
+                steps.append(image)
+
+        cv2.imshow('sliders', np.hstack(steps))
+        while not updated:
+            k = cv2.waitKey(10) & 0xFF
+            if k == 27:
+                cv2.destroyAllWindows()
+                return
+        updated = False
 
 
 def manual_thresh(gray_image: np.ndarray, scale: float=3., _last={}) -> int:
@@ -190,6 +240,8 @@ def inrange(image: np.ndarray, scale: float = 2, callback: Optional[Callable[[np
         updated = True
 
     cv2.namedWindow('inrange')
+    cv2.createTrackbar('b', 'inrange', 0, 100, update)
+
     cv2.createTrackbar('c1_l', 'inrange', 0, 255, update)
     cv2.createTrackbar('c1_h', 'inrange', 255, 255, update)
 
@@ -200,14 +252,21 @@ def inrange(image: np.ndarray, scale: float = 2, callback: Optional[Callable[[np
     cv2.createTrackbar('c3_h', 'inrange', 255, 255, update)
 
     while True:
+        b = cv2.getTrackbarPos('b', 'inrange') / 10.
         c1_l, c2_l, c3_l = [cv2.getTrackbarPos(f'c{i + 1}_l', 'inrange') for i in range(3)]
         c1_h, c2_h, c3_h = [cv2.getTrackbarPos(f'c{i + 1}_h', 'inrange') for i in range(3)]
 
-        result = cv2.inRange(image, (c1_l, c2_l, c3_l), (c1_h, c2_h, c3_h))
+        if b:
+            im = cv2.GaussianBlur(image, (0, 0), b)
+        else:
+            im = image
+
+        result = cv2.inRange(im, (c1_l, c2_l, c3_l), (c1_h, c2_h, c3_h))
 
         cv2.imshow('inrange', cv2.resize(
-            np.vstack((
+            np.hstack((
                 image,
+                im,
                 cv2.cvtColor(result, cv2.COLOR_GRAY2BGR),
             )),
             (0, 0),
@@ -229,6 +288,7 @@ def inrange(image: np.ndarray, scale: float = 2, callback: Optional[Callable[[np
 
 
 def show_ocr_segmentations(names: List[np.ndarray], **kwargs: Any) -> None:
+    from overtrack.overwatch.ocr import big_noodle
     cv2.imshow('names', np.vstack(names))
     segmented_names = []
     for im in names:
@@ -404,10 +464,23 @@ def hstack(images: Sequence[np.ndarray]) -> np.ndarray:
 
 
 def main() -> None:
-    im = cv2.imread("C:/Users/simon/mpv-screenshots/Untitled.png")
+    # im = cv2.imread("C:/Users/simon/mpv-screenshots/Untitled.png")
     # img = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     # manual_canny(img)
-    inrange(im)
+    # inrange(im)
+
+    im = cv2.imread('C:/tmp/intest.png')[:, :, 1]
+    cv2.imshow('input', im)
+
+    sliders(
+        im,
+        blur=lambda im, sigma_0_50: cv2.GaussianBlur(im, (0, 0), sigma_0_50 / 10) if sigma_0_50 else im,
+        filtermax=lambda im, t_0_255, h_1_15, w_1_15:
+            (
+                (cv2.dilate(im, np.ones((h_1_15, w_1_15))) == im) &
+                (im > t_0_255)
+            ).astype(np.uint8) * 255
+    )
 
 
 if __name__ == '__main__':

@@ -31,6 +31,7 @@ class ApexGameExtractor:
         self.menuframes = deque(maxlen=25)
         self.frames: List[Frame] = []
         self.last_seen_frame: Optional[Frame] = None
+        self.game_start: Optional[float] = None
 
         self.games: Optional[List[ApexGame]] = None
         if keep_games:
@@ -64,7 +65,8 @@ class ApexGameExtractor:
         self.last_seen_frame = frame
         time_since_game_start = frame.timestamp - self.frames[0].timestamp if self.have_current_game else -1
 
-        if 'your_squad' in frame:
+        if 'your_squad' in frame or not self.have_current_game:
+            self.game_start = frame.timestamp
             if time_since_game_start > 10:
                 logger.warning(
                     f'Saw YOUR SQUAD @{frame.relative_timestamp_str} '
@@ -88,9 +90,13 @@ class ApexGameExtractor:
             if self.have_current_game:
                 logger.info(f'Saw play menu @{frame.relative_timestamp_str} - emitting game')
                 self._finish_game()
+                self.game_start = None
 
         if self.have_current_game:
             self.frames.append(frame)
+
+        if self.game_start and self.game_start != frame.timestamp:
+            frame.game_time = round(frame.timestamp - self.game_start, 2)
 
     def finish(self) -> None:
         if self.have_current_game:

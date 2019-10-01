@@ -12,6 +12,8 @@ class Processor:
     def eager_load(self):
         pass
 
+    def update(self):
+        pass
 
 class OrderedProcessor(Processor):
     """
@@ -76,6 +78,9 @@ class ConditionalProcessor(Processor):
     def eager_load(self):
         self.processor.eager_load()
 
+    def update(self):
+        self.processor.update()
+
 class ShortCircuitProcessor(Processor):
     """
     Run the processors until one of them returns True
@@ -123,6 +128,10 @@ class ShortCircuitProcessor(Processor):
         for p in self.processors:
             p.eager_load()
 
+    def update(self):
+        for p in self.processors:
+            p.eager_load()
+
 class EveryN(Processor):
 
     def __init__(self, processor: Processor, n: int, return_last: bool = True, override_condition: Callable[[Frame], bool] = lambda f: False):
@@ -145,6 +154,9 @@ class EveryN(Processor):
 
     def eager_load(self):
         self.processor.eager_load()
+
+    def update(self):
+        self.processor.update()
 
 # class RepeatProcessor(Processor):
 #

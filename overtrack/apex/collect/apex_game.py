@@ -956,7 +956,7 @@ class Weapons:
 class Route:
     logger = logging.getLogger('Route')
 
-    def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, debug: Union[bool, str] = False):
+    def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, convert_coordinates: bool = False, debug: Union[bool, str] = False):
 
         alive = np.array([
             ('squad' in f or 'match_status' in f) for f in frames
@@ -982,25 +982,38 @@ class Route:
 
         self.locations = []
         recent = deque(maxlen=5)
-        for i, frame in enumerate([f for f in frames if 'location' in f]):
-            ts, location = frame.timestamp, frame.location
+
+        # map processor v1
+        for i, frame in enumerate([f for f in frames if 'location' in f or 'minimap' in f]):
+            if 'minimap' in frame:
+                ts, location = frame.timestamp, frame.minimap.location
+                coordinates = location.coordinates
+                if convert_coordinates:
+                    coordinates = (
+                        int(coordinates[0] * 0.987 + 52),
+                        int(coordinates[1] * 0.987 + 48)
+                    )
+            else:
+                ts, location = frame.timestamp, frame.location
+                coordinates = location.coordinates
+
             rts = round(ts - frames[0].timestamp, 2)
             if location.match > 0.7:
                 continue
 
             if len(recent):
                 last = np.mean(recent, axis=0)
-                dist = np.sqrt(np.sum((np.array(last) - np.array(location.coordinates)) ** 2))
+                dist = np.sqrt(np.sum((np.array(last) - np.array(coordinates)) ** 2))
                 if not alive_at[int(rts / 10)]:
                     # ignore route - not from this player
                     self.logger.debug(f'Ignoring location {i}: {location} - not alive')
                 elif dist < 250:
-                    self.locations.append((rts, location.coordinates))
+                    self.locations.append((rts, coordinates))
                 else:
                     self.logger.warning(
                         f'Ignoring location {i}: {location} - {dist:.1f} away from average {np.round(last, 1)}'
                     )
-            recent.append(location.coordinates)
+            recent.append(coordinates)
 
         self.logger.info(f'Processing route from {len(self.locations)} locations')
         if not len(self.locations):
@@ -1442,6 +1455,7 @@ class Rank:
 
                 if error:
                     self.logger.warning(f'Got disagreeing RP/RP change/rank from OCR and API', exc_info=True)
+                    #self.logger.error(f'Got disagreeing RP/RP change/rank from OCR and API', exc_info=True)
 
         else:
             self.logger.error(f'API stats invalid', exc_info=True)
@@ -1545,7 +1559,7 @@ class ApexGame:
         self.squad = Squad(self.all_frames, menu_names, config_name, stats_before, stats_after, solo=self.solo, debug=debug)
         self.combat = Combat(self.frames, self.placed, self.squad, debug=debug)
         self.weapons = Weapons(self.frames, self.combat, debug=debug)
-        self.route: Route = Route(self.frames, self.weapons, self.combat, debug=debug)
+        self.route: Route = Route(self.frames, self.weapons, self.combat, convert_coordinates=self.season <= 2, debug=debug)
         # self.stats = Stats(frames, self.squad)  # TODO: stats using match summary
 
         if self.squad.player and self.squad.player.stats and self.squad.player.stats.kills is not None:
@@ -1675,6 +1689,11 @@ class ApexGame:
                 f'Got match summary > placed: {match_summary_placed} ({match_summary_count}) != '
                 f'squad summary > placed: {squad_summary_placed} ({squad_summary_count})'
             )
+            # # self.logger.warning(f'Got match summary > placed != squad summary > placed', exc_info=True)
+            # if squad_summary_count > 3:
+            #     return squad_summary_placed
+            # elif match_summary_count > 3:
+            #     return ma
 
         if match_summary_count > 3:
             self.logger.info(f'Using placed from match summary: {match_summary_placed} ({match_summary_count})')
@@ -1734,8 +1753,6 @@ class ApexGame:
 
     @property
     def season(self) -> int:
-        if self.solo:
-            return 1002
         for season in data.seasons:
             if season.start < self.timestamp < season.end:
                 return season.index

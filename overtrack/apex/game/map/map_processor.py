@@ -392,4 +392,6 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    from overtrack import util
+    util.test_processor('minimap', MapProcessor(), 'minimap', game='apex')

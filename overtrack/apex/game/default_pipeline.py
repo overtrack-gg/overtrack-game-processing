@@ -1,5 +1,6 @@
 from overtrack.apex.game.combat.combat_processor import CombatProcessor
 from overtrack.apex.game.map.map_processor import MapProcessor
+from overtrack.apex.game.minimap.minimap_processor import MinimapProcessor
 from overtrack.apex.game.match_status.match_status_processor import MatchStatusProcessor
 from overtrack.apex.game.match_summary.match_summary_processor import MatchSummaryProcessor
 from overtrack.apex.game.menu.menu_processor import MenuProcessor
@@ -19,15 +20,16 @@ def create_pipeline(interleave_processors: bool = True) -> Processor:
             MatchSummaryProcessor(),
             SquadSummaryProcessor(),
 
-            EveryN(
-                OrderedProcessor(
-                    MatchStatusProcessor(),
-                    MapProcessor(),
+            OrderedProcessor(
+                EveryN(MatchStatusProcessor(), 4 if interleave_processors else 1),
+                ConditionalProcessor(
+                    EveryN(MinimapProcessor(), 3 if interleave_processors else 1),
+                    condition=lambda f: 'match_status' in f or 'game_time' not in f or f.game_time < 60,
+                    lookbehind=20,
+                    lookbehind_behaviour=any,
+                    default_without_history=True,
                 ),
-                3 if interleave_processors else 1,
-                return_last=False
             ),
-
             order_defined=False
         ),
 
