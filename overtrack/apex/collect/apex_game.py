@@ -981,7 +981,7 @@ class Route:
             plt.show()
 
         self.locations = []
-        recent = deque(maxlen=5)
+        recent = deque(maxlen=7)
 
         # map processor v1
         for i, frame in enumerate([f for f in frames if 'location' in f or 'minimap' in f]):
@@ -1007,7 +1007,7 @@ class Route:
                 if not alive_at[int(rts / 10)]:
                     # ignore route - not from this player
                     self.logger.debug(f'Ignoring location {i}: {location} - not alive')
-                elif dist < 250:
+                elif dist < 100:
                     self.locations.append((rts, coordinates))
                 else:
                     self.logger.warning(
@@ -1075,12 +1075,13 @@ class Route:
 
         plt.figure()
         plt.title('Location Match')
-        plt.plot([f.location.match for f in frames if 'location' in f])
+        plt.plot([f.location.match for f in frames if 'location' in f] + [f.minimap.location.match for f in frames if 'minimap' in f])
 
         import cv2
-        from overtrack.apex.game.map.map_processor import MapProcessor
         from colorsys import hsv_to_rgb
-        image = MapProcessor.MAP.copy()
+        from overtrack.apex.game.minimap.minimap_processor import MinimapProcessor
+
+        image = cv2.cvtColor(MinimapProcessor().MAP, cv2.COLOR_GRAY2BGR)
         for frame in [f for f in frames if 'location' in f]:
             h = 240 - 240 * frame.location.match
             c = np.array(hsv_to_rgb(h / 255, 1, 1))
@@ -1151,8 +1152,9 @@ class Route:
 
     def make_image(self, combat: Optional[Combat] = None) -> np.ndarray:
         import cv2
-        from overtrack.apex.game.map.map_processor import MapProcessor
-        image = MapProcessor.MAP.copy()
+        from overtrack.apex.game.minimap.minimap_processor import MinimapProcessor
+
+        image = cv2.cvtColor(MinimapProcessor().MAP, cv2.COLOR_GRAY2BGR)
 
         if len(self.locations):
             last = self.locations[self.landed_location_index][1]
