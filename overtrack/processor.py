@@ -33,6 +33,9 @@ class OrderedProcessor(Processor):
         for p in self.processors:
             p.eager_load()
 
+    def update(self):
+        for p in self.processors:
+            p.eager_load()
 
 class ConditionalProcessor(Processor):
     """

@@ -114,6 +114,8 @@ class SquadSummaryProcessor(Processor):
         # cv2.imshow('squad_kills_image_g', squad_kills_image_g)
         # debugops.test_tesser_engines(squad_kills_image_g, scale=4)
 
+        # from overtrack.util import debugops
+        # debugops.test_tesser_engines(yellowtext_image_g)
 
         text = imageops.tesser_ocr(
             yellowtext_image_g,

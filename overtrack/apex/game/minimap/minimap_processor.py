@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 import requests
 import time
 import logging
@@ -20,7 +22,7 @@ from overtrack.util.custom_layers import custom_objects
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 
-logger = logging.getLogger('MapProcessor')
+logger = logging.getLogger('MinimapProcessor')
 
 def _draw_map_location(
     debug_image: Optional[np.ndarray],
@@ -256,7 +258,7 @@ class MinimapProcessor(Processor):
         self.map_rotate_in_config = None  # TODO
         self.model: Model = load_from_saved_model(
             os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter'),
-            # "C:/Users/simon/overtrack_2/training/apex_minimap/inprog_models/v9_3",
+            # "C:/Users/simon/overtrack_2/training/apex_minimap/inprog_models/v10_1",
             custom_objects=custom_objects
         )
         # from tensorflow.python.keras.saving import export_saved_model
@@ -340,7 +342,9 @@ class MinimapProcessor(Processor):
                     50:50 + 240
                     ]
 
+        t0 = time.perf_counter()
         filtered = np.clip(self.model.predict([[map_image]], 1)[0], 0, 255).astype(np.uint8)
+        logger.debug(f'filter {(time.perf_counter() - t0) * 1000:.2f}')
 
         # location, min_loc, min_val = self._get_location(filtered[:, :, 0])
         location = None
@@ -353,23 +357,37 @@ class MinimapProcessor(Processor):
                 # round 4 closing / ring 5
                 zoom = 0.75
 
-        if self.map_rotate_in_config is True or (len(self.map_rotated) and sum(self.map_rotated) / len(self.map_rotated) > 0.75):
+        t0 = time.perf_counter()
+        if self.map_rotate_in_config or (len(self.map_rotated) and (sum(self.map_rotated) / len(self.map_rotated)) > 0.75):
             # 75% of last 10 frames said map was rotated - check rotated first
+            logger.debug(f'Checking rotated first')
             bearing = self._get_bearing(frame, frame.debug_image)
-            if bearing:
+            if bearing is not None:
                 location = self._get_location(filtered[:, :, 0], bearing, zoom=zoom)
-            if (location is None or location.match > self.THRESHOLD) and self.map_rotate_in_config is not True:
+                logger.debug(f'Got rotated location={location}')
+            if (location is None or location.match > self.THRESHOLD) and self.map_rotate_in_config is None:
                 # try unrotated
-                location, min_loc, min_val = self._get_location(filtered[:, :, 0], zoom=zoom)
+                alt_location = self._get_location(filtered[:, :, 0], zoom=zoom)
+                logger.debug(f'Got unrotated location={alt_location}')
+                if location is None or alt_location.match < location.match:
+                    location = alt_location
         else:
+            logger.debug(f'Checking unrotated first')
             location = self._get_location(filtered[:, :, 0], zoom=zoom)
-            if location.match > self.THRESHOLD and self.map_rotate_in_config is not False:
+            logger.debug(f'Got unrotated location={location}')
+            if location.match > self.THRESHOLD and self.map_rotate_in_config is None:
                 bearing = self._get_bearing(frame, frame.debug_image)
-                if bearing:
-                    location = self._get_location(filtered[:, :, 0], bearing, zoom=zoom)
+                if bearing is not None:
+                    alt_location = self._get_location(filtered[:, :, 0], bearing, zoom=zoom)
+                    logger.debug(f'Got rotated location={alt_location}')
+                    if alt_location.match < location.match:
+                        location = alt_location
+        logger.debug(f'match {(time.perf_counter() - t0) * 1000:.2f}')
 
         logger.debug(f'Got location: {location}')
         if location and location.match < self.THRESHOLD:
+            self.map_rotated.append(location.bearing is not None)
+
             blur = cv2.GaussianBlur(filtered, (0, 0), 4)
             blur[:, :, 0] = 0
             edges = self.filter_edge(blur, 80, 20, 20, 10)
@@ -421,19 +439,19 @@ class MinimapProcessor(Processor):
 
         if debug_image is not None:
             debug_image[
-            90:90 + bearing_image.shape[0],
-            1020:1020 + bearing_image.shape[1],
+                90:90 + bearing_image.shape[0],
+                1020:1020 + bearing_image.shape[1],
             ] = cv2.cvtColor(bearing_image, cv2.COLOR_GRAY2BGR)
             debug_image[
-            90:90 + bearing_image.shape[0],
-            1100:1100 + bearing_image.shape[1],
+                90:90 + bearing_image.shape[0],
+                1100:1100 + bearing_image.shape[1],
             ] = cv2.cvtColor(bearing_thresh, cv2.COLOR_GRAY2BGR)
 
         bearing = imageops.tesser_ocr(
             bearing_thresh,
             expected_type=int,
             engine=ocr.tesseract_ttlakes_digits,
-            warn_on_fail=True
+            warn_on_fail=False
         )
         if bearing is None or not 0 <= bearing <= 360:
             logger.debug(f'Got invalid bearing: {bearing}')
@@ -489,7 +507,7 @@ class MinimapProcessor(Processor):
             zoom=zoom
         )
 
-    def filter_edge(self, im: np.ndarray, thresh: float, edge_type_box_size: float, edge_type_widening: float, edge_extraction_size: float) -> np.ndarray:
+    def filter_edge(self, im: np.ndarray, thresh: int, edge_type_box_size: int, edge_type_widening: int, edge_extraction_size: int) -> np.ndarray:
         thresh = im > thresh
 
         x_edge_prominent = cv2.boxFilter(im, 0, (2, edge_type_box_size), normalize=True)
@@ -597,7 +615,7 @@ def main() -> None:
         cv2.waitKey(0)
 
 
-MinimapProcessor.load_map(os.path.join(os.path.dirname(__file__), 'data', 'target.png'))
+MinimapProcessor.load_map(os.path.join(os.path.dirname(__file__), 'data', '1.png'))
 
 
 if __name__ == '__main__':
@@ -605,7 +623,8 @@ if __name__ == '__main__':
     from overtrack import util
 
     p = MinimapProcessor()
-    # util.test_processor('minimap', p, 'minimap', game='apex')
+
+    util.test_processor('minimap', p, 'minimap', game='apex', test_all=False)
 
     p.MAP = cv2.copyMakeBorder(imageops.imread("C:/Users/simon/overtrack_2/apex_map/target.png", 0), 0, 240, 0, 240, cv2.BORDER_CONSTANT)
     p.MAP_TEMPLATE = cv2.GaussianBlur(

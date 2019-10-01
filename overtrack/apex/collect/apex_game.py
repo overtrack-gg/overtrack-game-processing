@@ -956,8 +956,8 @@ class Weapons:
 class Route:
     logger = logging.getLogger('Route')
 
-    def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, convert_coordinates: bool = False, debug: Union[bool, str] = False):
-
+    def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, season: int, debug: Union[bool, str] = False):
+        self.season = season
         alive = np.array([
             ('squad' in f or 'match_status' in f) for f in frames
         ])
@@ -988,7 +988,7 @@ class Route:
             if 'minimap' in frame:
                 ts, location = frame.timestamp, frame.minimap.location
                 coordinates = location.coordinates
-                if convert_coordinates:
+                if season <= 2:
                     coordinates = (
                         int(coordinates[0] * 0.987 + 52),
                         int(coordinates[1] * 0.987 + 48)
@@ -1051,13 +1051,20 @@ class Route:
                 axis=0
             )
             self.landed_location = int(mean_location[0]), int(mean_location[1])
-            self.landed_name = data.map_locations[self.landed_location]
+            if season <= 2:
+                self.landed_name = data.kings_canyon_locations[self.landed_location]
+            else:
+                self.landed_name = data.worlds_edge_locations[self.landed_location]
 
             self._process_locations_visited()
 
         for event in combat.events:
             event.location = self._get_location_at(event.timestamp)
-            self.logger.info(f'Found location={data.map_locations[event.location] if event.location else "???"} for {event}')
+            if season <= 2:
+                lname = data.kings_canyon_locations[event.location] if event.location else "???"
+            else:
+                lname = data.worlds_edge_locations[event.location] if event.location else "???"
+            self.logger.info(f'Found location={lname} for {event}')
 
         if debug is True or debug == self.__class__.__name__:
             self._debug(frames)
@@ -1129,7 +1136,10 @@ class Route:
         self.locations_visited = [self.landed_name]
         last_location = self.locations[self.landed_location_index][0], self.landed_name
         for ts, location in self.locations[self.landed_location_index + 1:]:
-            location_name = data.map_locations[location]
+            if self.season <= 2:
+                location_name = data.kings_canyon_locations[location]
+            else:
+                location_name = data.worlds_edge_locations[location]
             if location_name == 'Unknown':
                 continue
             if location_name == last_location[1] and ts - last_location[0] > 30:
@@ -1559,7 +1569,7 @@ class ApexGame:
         self.squad = Squad(self.all_frames, menu_names, config_name, stats_before, stats_after, solo=self.solo, debug=debug)
         self.combat = Combat(self.frames, self.placed, self.squad, debug=debug)
         self.weapons = Weapons(self.frames, self.combat, debug=debug)
-        self.route: Route = Route(self.frames, self.weapons, self.combat, convert_coordinates=self.season <= 2, debug=debug)
+        self.route: Route = Route(self.frames, self.weapons, self.combat, season=self.season, debug=debug)
         # self.stats = Stats(frames, self.squad)  # TODO: stats using match summary
 
         if self.squad.player and self.squad.player.stats and self.squad.player.stats.kills is not None:

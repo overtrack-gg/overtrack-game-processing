@@ -146,27 +146,8 @@ class SquadProcessor(Processor):
             return s
 
 
-def main() -> None:
-    import glob
-
-    config_logger('map_processor', logging.INFO, write_to_file=False)
-
-    pipeline = SquadProcessor()
-    # ps = ["C:/Users/simon/mpv-screenshots/mpv-shot0176.png"]
-    # ps += glob.glob('../../../../dev/apex_images/squad/*.png')
-    # ps += glob.glob('M:/Videos/apex/*.png')
-    ps = glob.glob("C:/Users/simon/overtrack_2/apex_images/squad/*.png")
-    for p in ps:
-        frame = Frame.create(
-            cv2.resize(cv2.imread(p), (1920, 1080)),
-            0,
-            True
-        )
-        pipeline.process(frame)
-        print(frame)
-        cv2.imshow('debug', frame.debug_image)
-        cv2.waitKey(0)
-
-
 if __name__ == '__main__':
-    main()
+    from overtrack import util
+
+    util.test_processor('squad', SquadProcessor(), 'squad', game='apex')
+

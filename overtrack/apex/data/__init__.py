@@ -27,7 +27,8 @@ champions = {
     'mirage': Champion('Mirage'),
     'caustic': Champion('Caustic'),
     'octane': Champion('Octane'),
-    'wattson': Champion('Wattson')
+    'wattson': Champion('Wattson'),
+    'crypto': Champion('Crypto')
 }
 
 
@@ -116,7 +117,8 @@ _season_2_start = datetime.datetime.strptime(
 seasons = [
     Season(0, 0, _season_1_start.timestamp()),
     Season(1, _season_1_start.timestamp(), _season_2_start.timestamp()),
-    Season(2, _season_2_start.timestamp(), float('inf')),
+    Season(2, _season_2_start.timestamp(), 1569956446),
+    Season(3, 1569956446, float('inf')),
 
     Season(1002, 0, 0, season_name='Season 2 Solo')
 ]
@@ -173,7 +175,8 @@ for placement in range(1, 21):
 
 class MapLocations:
 
-    def __init__(self):
+    def __init__(self, name: str):
+        self.name = name
         self.layers: Optional[List[str, np.ndarray]] = None
 
     def _ensure_loaded(self) -> None:
@@ -184,8 +187,8 @@ class MapLocations:
         self.layers = []
 
         # TODO: workaround for https://github.com/Miserlou/Zappa/issues/1754
-        source = os.path.join(os.path.dirname(__file__), 'map_locations.zip')
-        altsource = os.path.join(os.path.dirname(__file__), 'map_locations._zip')
+        source = os.path.join(os.path.dirname(__file__), self.name + '.zip')
+        altsource = os.path.join(os.path.dirname(__file__), self.name + '._zip')
         if not os.path.exists(source) and os.path.exists(altsource):
             source = altsource
 
@@ -216,4 +219,5 @@ class MapLocations:
         return self.get_location_name(location)
 
 
-map_locations = MapLocations()
+kings_canyon_locations = MapLocations('map_locations')
+worlds_edge_locations = MapLocations('worlds_edge_locations')
