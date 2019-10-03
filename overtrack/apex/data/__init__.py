@@ -76,6 +76,7 @@ smgs = [
 ]
 snipers = [
     Weapon('Triple Take', 'sniper', 'energy'),
+    Weapon('Charge Rifle', 'sniper', 'energy'),
     Weapon('Longbow', 'sniper', 'heavy'),
     Weapon('G7 Scout', 'sniper', 'light'),
     Weapon('Kraber', 'sniper', 'special'),
@@ -141,36 +142,37 @@ rank_tiers = [
 ]
 
 rank_rp = {
-    'bronze': (0, 120),
-    'silver': (120, 280),
-    'gold': (280, 480),
-    'platinum': (480, 720),
-    'diamond': (720, 1000),
-    'apex_predator': (1000, 10_000)
+    'bronze': (0, 1200),
+    'silver': (1200, 2800),
+    'gold': (2800, 4800),
+    'platinum': (4800, 7200),
+    'diamond': (7200, 10_000),
+    'apex_predator': (10_000, 99_999)
 }
 
 rank_entry_cost = {
     'bronze': 0,
-    'silver': 1,
-    'gold': 2,
-    'platinum': 3,
-    'diamond': 4,
-    'apex_predator': 5
+    'silver': 12,
+    'gold': 24,
+    'platinum': 36,
+    'diamond': 48,
+    'apex_predator': 60
 }
 
-rank_rewards = {}
-for placement in range(1, 21):
-    if placement == 1:
-        reward = 12
-    elif placement <= 3:
-        reward = 7
-    elif placement <= 5:
-        reward = 4
-    elif placement <= 10:
-        reward = 2
-    else:
-        reward = 0
-    rank_rewards[placement] = reward
+rank_rewards = {
+    10: 10,
+    9: 10,
+    8: 20,
+    7: 20,
+    6: 30,
+    5: 30,
+    4: 40,
+    3: 40,
+    2: 60,
+    1: 100,
+}
+for placement in range(11, 21):
+    rank_rewards[placement] = 0
 
 
 class MapLocations:
