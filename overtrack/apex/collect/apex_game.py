@@ -968,7 +968,7 @@ class Route:
         for f, a in zip(frames, alive):
             alive_at[int((f.timestamp - frames[0].timestamp) / 10)] |= (a > 2)
 
-        if debug is True or debug == self.__class__.__name__:
+        if debug is True or debug == 'Alive':
             import matplotlib.pyplot as plt
 
             plt.figure()
@@ -981,7 +981,7 @@ class Route:
             plt.show()
 
         self.locations = []
-        recent = deque(maxlen=7)
+        recent = deque(maxlen=10)
 
         ignored = 0
         for i, frame in enumerate([f for f in frames if 'location' in f or 'minimap' in f]):
@@ -998,7 +998,7 @@ class Route:
                 coordinates = location.coordinates
 
             rts = round(ts - frames[0].timestamp, 2)
-            if location.match > 0.6:
+            if location.match > 0.55:
                 ignored += 1
                 continue
 
@@ -1093,11 +1093,16 @@ class Route:
                 c * 255,
                 -1
             )
-        plt.figure()
-        plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), interpolation='none')
 
         plt.figure()
         plt.imshow(cv2.cvtColor(self.make_image(), cv2.COLOR_BGR2RGB), interpolation='none')
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        x = np.array([f.minimap.location.coordinates[0] for f in frames if 'minimap' in f])
+        y = np.array([f.minimap.location.coordinates[1] for f in frames if 'minimap' in f])
+        t = [f.minimap.location.match for f in frames if 'minimap' in f]
+        ax.scatter(x, y, t, c='green', marker='o')
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
