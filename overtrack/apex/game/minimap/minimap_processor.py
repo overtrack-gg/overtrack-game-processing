@@ -615,7 +615,8 @@ def main() -> None:
         cv2.waitKey(0)
 
 
-MinimapProcessor.load_map(os.path.join(os.path.dirname(__file__), 'data', '1.png'))
+MinimapProcessor.load_map(os.path.join(os.path.dirname(__file__), 'data', '2.png'))
+MinimapProcessor.MAP_VERSION = 2
 
 
 if __name__ == '__main__':

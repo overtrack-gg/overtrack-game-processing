@@ -983,7 +983,7 @@ class Route:
         self.locations = []
         recent = deque(maxlen=7)
 
-        # map processor v1
+        ignored = 0
         for i, frame in enumerate([f for f in frames if 'location' in f or 'minimap' in f]):
             if 'minimap' in frame:
                 ts, location = frame.timestamp, frame.minimap.location
@@ -998,7 +998,8 @@ class Route:
                 coordinates = location.coordinates
 
             rts = round(ts - frames[0].timestamp, 2)
-            if location.match > 0.7:
+            if location.match > 0.6:
+                ignored += 1
                 continue
 
             if len(recent):
@@ -1007,7 +1008,7 @@ class Route:
                 if not alive_at[int(rts / 10)]:
                     # ignore route - not from this player
                     self.logger.debug(f'Ignoring location {i}: {location} - not alive')
-                elif dist < 100:
+                elif dist < 500:
                     self.locations.append((rts, coordinates))
                 else:
                     self.logger.warning(
@@ -1015,7 +1016,7 @@ class Route:
                     )
             recent.append(coordinates)
 
-        self.logger.info(f'Processing route from {len(self.locations)} locations')
+        self.logger.info(f'Processing route from {len(self.locations)} locations (ignored {ignored} locations with bad match)')
         if not len(self.locations):
             self.logger.warning(f'Got no locations')
             self.time_landed = None
@@ -1286,6 +1287,7 @@ class Rank:
         # NOTE: score summary current RP is an animation - take the last frame and use IFF there are enough frames for it to have finished animating
 
         if self.rank:
+            # FIXME: assists
             self.rp_change = -data.rank_entry_cost[self.rank] + min(kills, 5) + data.rank_rewards[placement]
             self.logger.info(f'Got rp_change={self.rp_change:+}: rank={self.rank}, placement={placement}, kills={kills}')
             if self.rp and self.rp + self.rp_change < data.rank_rp[self.rank][0]:
