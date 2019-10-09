@@ -16,12 +16,12 @@ class Squad:
 
     @property
     def champion_name(self) -> str:
-        return list(data.champions.keys())[arrayops.argmax(self.champion)]
+        return list(data.CHAMPIONS.keys())[arrayops.argmax(self.champion)]
 
     @property
     def squadmate_champions_names(self) -> Tuple[str, str]:
         # noinspection PyTypeChecker
-        return tuple(list(data.champions.keys())[arrayops.argmax(arr)] for arr in self.squadmate_champions)
+        return tuple(list(data.CHAMPIONS.keys())[arrayops.argmax(arr)] for arr in self.squadmate_champions)
 
     def __str__(self) -> str:
         return f'Squad(' \

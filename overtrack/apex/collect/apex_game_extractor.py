@@ -61,6 +61,10 @@ class ApexGameExtractor:
         else:
             return None
 
+    def before_frame(self, frame: Frame) -> None:
+        if self.game_start and self.game_start != frame.timestamp:
+            frame.game_time = round(frame.timestamp - self.game_start, 2)
+
     def on_frame(self, frame: Frame) -> None:
         self.last_seen_frame = frame
         time_since_game_start = frame.timestamp - self.frames[0].timestamp if self.have_current_game else -1
@@ -94,9 +98,6 @@ class ApexGameExtractor:
 
         if self.have_current_game:
             self.frames.append(frame)
-
-        if self.game_start and self.game_start != frame.timestamp:
-            frame.game_time = round(frame.timestamp - self.game_start, 2)
 
     def finish(self) -> None:
         if self.have_current_game:

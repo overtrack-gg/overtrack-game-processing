@@ -24,9 +24,19 @@ class Location:
 
     zoom: Optional[float] = None
 
+    @property
+    def x(self):
+        return self.coordinates[0]
+
+    @property
+    def y(self):
+        return self.coordinates[1]
+
 
 @dataclass(frozen=True)
 class Minimap:
     location: Location
     inner_circle: Optional[Circle]
     outer_circle: Optional[Circle]
+    spectate: bool = False
+    version: int = 0

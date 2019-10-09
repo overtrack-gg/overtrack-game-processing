@@ -161,11 +161,11 @@ class Frame(Dict[str, Any]):
         import overtrack.apex.game.squad_summary.models
         import overtrack.apex.game.weapon.models
         import overtrack.apex.game.your_squad
-        import overtrack.apex.game.map.models
         import overtrack.apex.game.combat.models
         import overtrack.apex.game.apex_metadata
         import overtrack.apex.game.minimap.models
         from overtrack.apex.game.your_squad import YourSquad, YourSelection, ChampionSquad
+        game_time: float
         match_status: overtrack.apex.game.match_status.models.MatchStatus
         match_summary_match: float
         match_summary: overtrack.apex.game.match_summary.models.MatchSummary
@@ -180,7 +180,6 @@ class Frame(Dict[str, Any]):
         your_squad: YourSquad
         your_selection: YourSelection
         champion_squad = ChampionSquad
-        location: overtrack.apex.game.map.models.Location
         combat_log: overtrack.apex.game.combat.models.CombatLog
         minimap: overtrack.apex.game.minimap.models.Minimap
         apex_metadata: overtrack.apex.game.apex_metadata.ApexClientMetadata
