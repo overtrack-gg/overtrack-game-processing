@@ -137,7 +137,7 @@ class Route:
 
                 else:
                     self.logger.warning(
-                        f'Ignoring location {i} @{frame.game_time:.1f}s: {location} - {dist:.1f} away from average {np.round(last, 1)}'
+                        f'Ignoring location {i} @{frame.game_time if "game_time" in frame else 0:.1f}s: {location} - {dist:.1f} away from average {np.round(last, 1)}'
                     )
             recent.append(coordinates)
 
