@@ -11,7 +11,7 @@ from overtrack.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
 from overtrack.apex.collect.apex_game.weapons import Weapons
 from overtrack.apex.data import get_round_state, ROUNDS
-from overtrack.apex.game.minimap import Circle
+from overtrack.apex.game.minimap import Circle, Location
 from overtrack.frame import Frame
 from overtrack.util import s2ts
 
@@ -25,8 +25,8 @@ class Ring:
     end_time: float
 
 
-def reldiff(x1: float, x2: float) -> float:
-    return min(x1, x2) / max(x1, x2)
+def rel_error(x1: float, x2: float) -> float:
+    return abs(x1-x2)/abs(x2)
 
 
 class Route:
@@ -60,6 +60,47 @@ class Route:
         circles: DefaultDict[int, List[Circle]] = defaultdict(list)
         recent = deque(maxlen=10)
 
+        def add_circle(location: Location, circle: Circle, expected_radius: float, circle_index: int, closing: Optional[bool], game_time: float, name: str):
+            error = rel_error(circle.r, expected_radius)
+            if circle.points < 30 or circle.residual > 100:
+                self.logger.debug(f'Ignoring {name} {circle} | game_time={s2ts(game_time)}, round={state.round}')
+            elif error < 0.05:
+                self.logger.debug(
+                    f'Using {name} {circle} | '
+                    f'expected radius={expected_radius} for ring {circle_index} (error={error * 100:.0f}%) | '
+                    f'game time={frame.game_time:.0f}s, round={state.round}' +
+                    (f', closing={closing}' if closing is not None else '')
+                )
+
+                circles[circle_index].append(circle)
+
+            elif error < 0.2 and not closing and circle.r > 200:
+                # Use a circle with the in the same direction as the observed circle, but with the correct radius
+                # This assumes the observed circle is the correct circle, and that the center of the arc is in the correct position,
+                #   but that the radius calculation is incorrect
+                offset = np.array(circle.coordinates) - location.coordinates
+                scale = expected_radius / circle.r
+                new_center = np.array(location.coordinates) + offset * scale
+                new_circle = Circle(
+                    coordinates=(new_center[0], new_center[1]),
+                    r=expected_radius
+                )
+                self.logger.debug(
+                    f'Using {name} arc {circle} => '
+                    f'corrected to Circle(coordinates={new_circle.coordinates}, r={new_circle.r:.0f}) | '
+                    f'scaled offset/radius by {scale:.2f} for ring {circle_index} | '
+                    f'game time={frame.game_time:.0f}s, round={state.round}' +
+                    (f', closing={closing}' if closing is not None else '')
+                )
+                circles[circle_index].append(new_circle)
+            else:
+                self.logger.debug(
+                    f'Ignoring {name} {circle} | '
+                    f'expected r={expected_radius:.1f} for ring {circle_index} (error={error * 100:.0f}%) | '
+                    f'game time={frame.game_time:.0f}s, round={state.round}' +
+                    (f', closing={closing}' if closing is not None else '')
+                )
+
         ignored = 0
         final_game_time = None
         last_location_timestamp = 0
@@ -91,7 +132,11 @@ class Route:
 
             thresh_dist = 100
             if 'game_time' in frame and frame.game_time < 80:
+                # dropship speed
                 thresh_dist = 500
+            elif location.match < 0.1 and 'minimap' in frame and frame.minimap.version > 0:
+                # allow high speeds from e.g. running forwards on train, balooning if the match is good
+                thresh_dist = 250
 
             if len(recent):
                 last = np.mean(recent, axis=0)
@@ -102,34 +147,16 @@ class Route:
                 elif dist < thresh_dist:
                     if 'game_time' in frame:
                         state = get_round_state(frame.game_time)
+
                         if minimap and state.ring_radius and minimap.outer_circle:
-                            diff = reldiff(minimap.outer_circle.r, state.ring_radius)
-                            if minimap.outer_circle.points < 30 or minimap.outer_circle.residual > 100:
-                                self.logger.debug(f'Ignoring outer {minimap.outer_circle} @ {s2ts(frame.game_time)}, round={state.round}')
-                            elif diff < 0.95:
-                                self.logger.debug(f'Ignoring outer {minimap.outer_circle}, expected r={state.ring_radius} @ {frame.game_time:.0f}s, round={state.round}')
+                            if state.ring_closing:
+                                circle_index = state.round
                             else:
-                                self.logger.debug(
-                                    f'Using outer {minimap.outer_circle}, expected={state.ring_radius} for ring={state.round - 1} '
-                                    f'@ {frame.game_time:.0f}s, round={state.round}'
-                                )
-                                if state.ring_closing:
-                                    circles[state.round].append(minimap.outer_circle)
-                                else:
-                                    circles[state.round - 1].append(minimap.outer_circle)
+                                circle_index = state.round - 1
+                            add_circle(minimap.location, minimap.outer_circle, state.ring_radius, circle_index, state.ring_closing, frame.game_time, 'outer')
 
                         if minimap and state.next_ring_radius and minimap.inner_circle:
-                            diff = reldiff(minimap.inner_circle.r, state.next_ring_radius)
-                            if minimap.inner_circle.points < 30 or minimap.inner_circle.residual > 100:
-                                self.logger.debug(f'Ignoring inner {minimap.inner_circle} @ {frame.game_time:.0f}s, round={state.round}')
-                            elif diff < 0.95:
-                                self.logger.debug(f'Ignoring inner {minimap.inner_circle}, expected r={state.next_ring_radius} @ {frame.game_time:.0f}s, round={state.round}')
-                            else:
-                                self.logger.debug(
-                                    f'Using inner {minimap.inner_circle}, expected={state.next_ring_radius} for ring={state.round}'
-                                    f'@ {frame.game_time:.0f}s, round={state.round}'
-                                )
-                                circles[state.round].append(minimap.inner_circle)
+                            add_circle(minimap.location, minimap.inner_circle, state.next_ring_radius, state.round, None, frame.game_time, 'inner')
 
                     if frame.timestamp - last_location_timestamp > 2.5:
                         self.locations.append((rts, coordinates))
@@ -190,7 +217,7 @@ class Route:
                 xs, ys = [c.coordinates[0] for c in circs], [c.coordinates[1] for c in circs]
                 x, y = int(np.median(xs) + 0.5), int(np.median(ys) + 0.5)
                 std = (np.std(xs) + np.std(ys)) / 2
-                self.logger.info(f'Ring {round_.index}: center=({x}, {y}), std=({np.std(xs):.1f},{np.std(ys):.1f})->{std:.1f}, count={len(xs)}')
+                self.logger.info(f'Ring {round_.index}: center=({x}, {y}), r={round_.radius}, std=({np.std(xs):.1f}, {np.std(ys):.1f}) => {std:.1f}, count={len(xs)}')
                 self.logger.debug(f'    X={xs}')
                 self.logger.debug(f'    Y={ys}')
                 if (round_.index <= 2 and std > 20) or (round_.index > 2 and std > 7):
@@ -209,6 +236,7 @@ class Route:
                 self.rings.append(None)
 
             if final_game_time and round_.end_time > final_game_time:
+                self.logger.info(f'Final ring is {round_.index}, next round starts in {round_.end_time - final_game_time:.0f}s')
                 break
 
         if debug is True or debug == 'Rings':
@@ -419,7 +447,7 @@ class Route:
                             level = logging.DEBUG
                         else:
                             level = logging.WARNING
-                        self.logger.log(level, f'Found {loc} at {ats:.1f}s - distance {distance}s')
+                        self.logger.log(level, f'Found {loc} at {ats:.1f}s - time delta {distance:.1f}s')
                         return loc
 
         self.logger.warning(f'Could not find location for ts={timestamp:.1f}s')
