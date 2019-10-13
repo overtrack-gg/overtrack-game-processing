@@ -11,8 +11,8 @@ class Circle:
     coordinates: Tuple[float, float]
     r: float
 
-    residual: float
-    points: int
+    residual: Optional[float] = None
+    points: Optional[int] = None
 
 
 @dataclass(frozen=True)

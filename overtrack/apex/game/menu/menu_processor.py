@@ -102,11 +102,6 @@ class MenuProcessor(Processor):
                 rank_text=rank_text,
                 rp_text=rp_text,
 
-                rp_image=lazy_upload(
-                    'rp_full',
-                    self.REGIONS['rp_full'].extract_one(frame.image),
-                    frame.timestamp
-                )
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_play_menu(frame.debug_image, frame.apex_play_menu)

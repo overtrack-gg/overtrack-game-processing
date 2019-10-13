@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import string
 from typing import Optional, Tuple
 
@@ -23,8 +24,10 @@ logger = logging.getLogger(__name__)
 def _draw_status(debug_image: Optional[np.ndarray], status: MatchStatus) -> None:
     if debug_image is None:
         return
+    dstr = str(dataclasses.replace(status, rank_badge_matches=None))
+    dstr = re.sub(r'([a-zA-Z]+[a-zA-Z0-9_]*=None,? ?)', '', dstr)
     lines = [
-        str(dataclasses.replace(status, rank_badge_matches=None)).replace('rank_badge_matches=None, ', ''),
+        dstr,
         '    rank_badge_matches=' + str(status.rank_badge_matches)
     ]
 
@@ -85,18 +88,14 @@ class MatchStatusProcessor(Processor):
         _, head_thresh = cv2.threshold(head_region, 200, 255, cv2.THRESH_BINARY)
         head_match = cv2.matchTemplate(head_thresh, self.HEAD_TEMPLATE, cv2.TM_CCORR_NORMED)
         mnv, mxv, mnl, mxl = cv2.minMaxLoc(head_match)
-        logger.debug(f'match={mxv:1.2f}')
+        frame.match_status_match = round(float(mxv), 2)
         if mxv < 0.9:
             return False
 
-        # once we know the head position, derive the 'players alive' position
-        # from this derive the positions of other elements using the distances from the extraction regions
-        left = mxl[0] + self.REGIONS['head_region'].regions[0][0]
-        players_left_x = left + 20
-        squads_left_x = players_left_x - (self.REGIONS['alive'].regions[0][0] - self.REGIONS['squads_left'].regions[0][0])
-        kills_left = players_left_x - (self.REGIONS['alive'].regions[0][0] - self.REGIONS['kills'].regions[0][0])
+        # 90 for unranked, 15 for ranked
+        ranked = mxl[0] < 30
 
-        squads_left_text = self._parse_squads_left_text(y, squads_left_x)
+        squads_left_text = self._parse_squads_left_text(y, ranked)
         squads_left = self._get_squads_left(squads_left_text)
         if not squads_left:
             solos_players_left = self._get_squads_left(squads_left_text, solos=True)
@@ -108,7 +107,7 @@ class MatchStatusProcessor(Processor):
             #     streak = self._get_streak(y, left + 115)
             # else:
             #     streak = None
-            if squads_left and left < 1750:
+            if squads_left and ranked:
                 rank_badge_image = self.REGIONS['rank_badge'].extract_one(frame.image)
                 rank_badge_matches = self._get_rank_badge(rank_badge_image)
                 rank_text_image = self.REGIONS['rank_text'].extract_one(frame.image_yuv[:, :, 0])
@@ -119,18 +118,30 @@ class MatchStatusProcessor(Processor):
                     invert=True,
                     engine=imageops.tesseract_only
                 )
+                rp_text_image = self.REGIONS['ranked_rp'].extract_one(frame.image_yuv[:, :, 0])
+                rp_text = imageops.tesser_ocr(
+                    rp_text_image,
+                    whitelist=string.digits + '+-RP',
+                    scale=3,
+                    invert=True,
+                    engine=imageops.tesseract_only
+                )
             else:
                 rank_badge_matches = None
                 rank_text = None
+                rp_text = None
 
             frame.match_status = MatchStatus(
                 squads_left=squads_left,
-                players_alive=self._get_players_alive(y, players_left_x) if squads_left and squads_left > 4 else None,
-                kills=self._get_kills(y, kills_left),
+                players_alive=self._get_players_alive(y, ranked) if squads_left and squads_left > 4 else None,
+                kills=self._get_kills(y, ranked),
+                ranked=ranked,
+
                 rank_badge_matches=rank_badge_matches,
                 rank_text=rank_text,
+                rp_text=rp_text,
 
-                solos_players_left=solos_players_left
+                solos_players_left=solos_players_left,
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_status(frame.debug_image, frame.match_status)
@@ -138,21 +149,9 @@ class MatchStatusProcessor(Processor):
         else:
             return False
 
-    def _parse_squads_left_text(self, luma: np.ndarray, left_coord: int) -> str:
-        x, y, w, h = self.REGIONS['squads_left'].regions[0]
-
-        # unranked: 1640
-        # ranked: 1565
-        # solos: 1653
-        if left_coord > 1646:
-            left_coord -= 20
-            w += 10
-
-        region = luma[
-            y: y + h,
-            left_coord: left_coord + w
-        ]
-        # cv2.imshow('squads_left', region)
+    def _parse_squads_left_text(self, luma: np.ndarray, ranked: bool) -> str:
+        prefix = 'ranked_' if ranked else ''
+        region = self.REGIONS[prefix + 'squads_left'].extract_one(luma)
         squads_left_text = imageops.tesser_ocr(
             region,
             engine=imageops.tesseract_lstm,
@@ -188,13 +187,11 @@ class MatchStatusProcessor(Processor):
         else:
             return None
 
-    def _get_players_alive(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
-        x, y, w, h = self.REGIONS['alive'].regions[0]
+    def _get_players_alive(self, luma: np.ndarray, ranked: bool) -> Optional[int]:
+        prefix = 'ranked_' if ranked else ''
+        region = self.REGIONS[prefix + 'alive'].extract_one(luma)
         players_alive = imageops.tesser_ocr(
-            luma[
-                y: y + h,
-                left_coord: left_coord + w
-            ],
+            region,
             engine=ocr.tesseract_ttlakes_digits,
             scale=4,
             expected_type=int
@@ -206,21 +203,11 @@ class MatchStatusProcessor(Processor):
             logger.warning(f'Rejecting players_alive={players_alive}')
             return None
 
-    def _get_kills(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
-        x, y, w, h = self.REGIONS['kills'].regions[0]
-
-        # unranked: 1548
-        # ranked: 1473
-        # solos: 1561
-        if left_coord > 1555:
-            left_coord -= 15
-
-        kills_image = luma[
-            y: y + h,
-            left_coord: left_coord + w
-        ]
-        # cv2.imshow('kills_image', kills_image)
-        _, kills_thresh = cv2.threshold(kills_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    def _get_kills(self, luma: np.ndarray, ranked: bool) -> Optional[int]:
+        prefix = 'ranked_' if ranked else ''
+        region = self.REGIONS[prefix + 'kills'].extract_one(luma)
+        _, kills_thresh = cv2.threshold(region, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        kills_thresh = cv2.copyMakeBorder(kills_thresh, 5, 5, 0, 5, cv2.BORDER_CONSTANT, value=0)
         match = cv2.matchTemplate(
             kills_thresh,
             self.SKULL_TEMPLATE,
@@ -228,7 +215,7 @@ class MatchStatusProcessor(Processor):
         )
         mn, mx, mnloc, mxloc = cv2.minMaxLoc(match)
         if mx > 0.9:
-            kills_image = kills_image[:, mxloc[0] + self.SKULL_TEMPLATE.shape[1]:]
+            kills_image = region[:, mxloc[0] + self.SKULL_TEMPLATE.shape[1]:]
             # cv2.imshow('kills', cv2.resize(kills_image, (100, 100)))
 
             kills_text = imageops.tesser_ocr(
@@ -251,31 +238,6 @@ class MatchStatusProcessor(Processor):
                 return None
         else:
             return None
-
-    # def _get_streak(self, luma: np.ndarray, left_coord: int) -> Optional[int]:
-    #     x, y, w, h = self.REGIONS['kills'].regions[0]
-    #     streak_image = luma[
-    #         y:y + h,
-    #         left_coord:left_coord + 37
-    #     ]
-    #     streak_text = imageops.tesser_ocr(
-    #         streak_image,
-    #         engine=imageops.tesseract_lstm,
-    #         scale=2,
-    #         invert=True
-    #     ).upper().strip()
-    #     for s1, s2 in self.SUBS:
-    #         streak_text = streak_text.replace(s1, s2)
-    #     try:
-    #         streak = int(streak_text)
-    #         if 0 < streak <= 50:
-    #             return streak
-    #         else:
-    #             logger.warning(f'Rejecting streak={streak}')
-    #             return None
-    #     except ValueError:
-    #         logger.warning(f'Cannot parse "{streak_text}" as int')
-    #         return None
 
     def _get_rank_badge(self, rank_badge_image: np.ndarray) -> Tuple[float, ...]:
         matches = []

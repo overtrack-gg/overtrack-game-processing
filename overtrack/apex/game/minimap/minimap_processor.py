@@ -29,6 +29,7 @@ def _draw_map_location(
     minimap: Minimap,
 
     map_image: np.ndarray,
+    map_template: np.ndarray,
     filtered: np.ndarray,
     edges: Optional[np.ndarray],
 ) -> None:
@@ -92,6 +93,13 @@ def _draw_map_location(
     debug_image[500:500 + filtered.shape[0], 300:300 + filtered.shape[1]] = filtered
     if edges is not None:
         debug_image[500:500 + edges.shape[0], 550:550 + edges.shape[1]] = edges.astype(np.uint8) * 255
+    debug_image[500:500 + filtered.shape[0], 800:800 + filtered.shape[1]] = cv2.cvtColor(filtered[:, :, 0], cv2.COLOR_GRAY2BGR)
+    # debug_image[500:500 + filtered.shape[0], 1050:1050 + filtered.shape[1]] = cv2.cvtColor(map_template[
+    #     minimap.location.coordinates[1] - 240 // 2 + 8:
+    #     minimap.location.coordinates[1] + 240 // 2 - 8,
+    #     minimap.location.coordinates[0] - 240 // 2 + 8:
+    #     minimap.location.coordinates[0] + 240 // 2 - 8
+    # ], cv2.COLOR_GRAY2BGR)
 
     if minimap.location.bearing is None:
         # draw synthetic minimap. This should match the actual minimap, if it doesn't then something is wrong in the parsing
@@ -99,6 +107,12 @@ def _draw_map_location(
             minimap.location.coordinates[1] - 240 // 2:minimap.location.coordinates[1] + 240 // 2,
             minimap.location.coordinates[0] - 240 // 2:minimap.location.coordinates[0] + 240 // 2
         ]
+        debug_image[500:500 + filtered.shape[0], 1050:1050 + filtered.shape[1]] = cv2.cvtColor(map_template[
+            minimap.location.coordinates[1] - filtered.shape[0] // 2:
+            minimap.location.coordinates[1] + filtered.shape[0] // 2,
+            minimap.location.coordinates[0] - filtered.shape[1] // 2:
+            minimap.location.coordinates[0] + filtered.shape[1] // 2
+        ], cv2.COLOR_GRAY2BGR)
 
         # draw the circle overlay on top of the actual minimap
         if minimap.location.zoom == 1:
@@ -117,7 +131,7 @@ def _draw_map_location(
                 dst=debug_image[
                     50:50 + 240,
                     50:50 + 240
-                    ]
+                ]
             )
 
         # draw the minimap rectangle on the full map
@@ -141,35 +155,57 @@ def _draw_map_location(
             rot,
             (width, height)
         )
+        rout = cv2.resize(rout, (0, 0), fx=1/minimap.location.zoom, fy=1/minimap.location.zoom)
         debug_image[400:400 + 240, 50:50 + 240] = rout[
-            minimap.location.coordinates[1] - 240 // 2:minimap.location.coordinates[1] + 240 // 2,
-            minimap.location.coordinates[0] - 240 // 2:minimap.location.coordinates[0] + 240 // 2
+            int(minimap.location.coordinates[1] / minimap.location.zoom) - 240 // 2:
+            int(minimap.location.coordinates[1] / minimap.location.zoom) + 240 // 2,
+            int(minimap.location.coordinates[0] / minimap.location.zoom) - 240 // 2:
+            int(minimap.location.coordinates[0] / minimap.location.zoom) + 240 // 2
         ]
 
+        # draw the expected template next to the actual filtered output
+        trout = cv2.warpAffine(
+            map_template,
+            rot,
+            (width, height)
+        )
+        trout = cv2.resize(trout, (0, 0), fx=1 / minimap.location.zoom, fy=1 / minimap.location.zoom)
+        debug_image[500:500 + filtered.shape[0], 1050:1050 + filtered.shape[1]] = cv2.cvtColor(
+            trout[
+                int(minimap.location.coordinates[1] / minimap.location.zoom) - 240 // 2 + 8:
+                int(minimap.location.coordinates[1] / minimap.location.zoom) + 240 // 2 - 8,
+                int(minimap.location.coordinates[0] / minimap.location.zoom) - 240 // 2 + 8:
+                int(minimap.location.coordinates[0] / minimap.location.zoom) + 240 // 2 - 8
+            ],
+            cv2.COLOR_GRAY2BGR
+        )
+
         # rotate then draw the circles on top of the actual minimap
-        if minimap.location.zoom == 1:
-            roverlay = cv2.warpAffine(
-                overlay,
-                rot,
-                (width, height)
-            )
-            cv2.addWeighted(
-                debug_image[
-                    50:50 + 240,
-                    50:50 + 240
-                ],
-                1,
-                roverlay[
-                    minimap.location.coordinates[1] - 240 // 2:minimap.location.coordinates[1] + 240 // 2,
-                    minimap.location.coordinates[0] - 240 // 2:minimap.location.coordinates[0] + 240 // 2
-                ],
-                0.25,
-                0,
-                dst=debug_image[
-                    50:50 + 240,
-                    50:50 + 240
-                ]
-            )
+        roverlay = cv2.warpAffine(
+            overlay,
+            rot,
+            (width, height)
+        )
+        roverlay = cv2.resize(roverlay, (0, 0), fx=1 / minimap.location.zoom, fy=1 / minimap.location.zoom)
+        cv2.addWeighted(
+            debug_image[
+                50:50 + 240,
+                50:50 + 240
+            ],
+            1,
+            roverlay[
+                int(minimap.location.coordinates[1] / minimap.location.zoom) - 240 // 2:
+                int(minimap.location.coordinates[1] / minimap.location.zoom) + 240 // 2,
+                int(minimap.location.coordinates[0] / minimap.location.zoom) - 240 // 2:
+                int(minimap.location.coordinates[0] / minimap.location.zoom) + 240 // 2
+            ],
+            0.25,
+            0,
+            dst=debug_image[
+                50:50 + 240,
+                50:50 + 240
+            ]
+        )
 
         # work out the corners of the minimap, and draw these on the full map
         tl = (minimap.location.coordinates[0] - (240 * minimap.location.zoom) // 2, minimap.location.coordinates[1] - (240 * minimap.location.zoom) // 2)
@@ -218,38 +254,15 @@ template_blur_post = 2.0
 
 class MinimapProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), '..', 'data', 'regions', '16_9.zip'))
-    THRESHOLD = 0.8
+    SPECTATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'spectate.png'), 0)
+    THRESHOLD = 0.3
 
     @classmethod
     def load_map(cls, path: str):
         cls.MAP = cv2.copyMakeBorder(imageops.imread(path, 0), 0, 240, 0, 240, cv2.BORDER_CONSTANT)
-        cls.MAP_TEMPLATE = cv2.GaussianBlur(
-            cv2.Canny(
-                cv2.GaussianBlur(
-                    cls.MAP,
-                    (0, 0),
-                    template_blur_pre
-                ),
-                template_canny_t1,
-                template_canny_t2
-            ),
-            (0, 0),
-            template_blur_post
-        ).astype(np.float)
-
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.hist(MAP_TEMPLATE.flatten(), bins=256)
-        #
-        # print(np.max(MAP_TEMPLATE))
-        # print(np.max(MAP_TEMPLATE[10:-10, 10:-10]))
-        # MAP_TEMPLATE /= np.max(MAP_TEMPLATE[10:-10, 10:-10])
-        cls.MAP_TEMPLATE /= 100
-        cls.MAP_TEMPLATE *= 255
+        cls.MAP_TEMPLATE = cv2.GaussianBlur(cls.MAP, (0, 0), 1.1).astype(np.float)
+        cls.MAP_TEMPLATE *= 2
         cls.MAP_TEMPLATE = np.clip(cls.MAP_TEMPLATE, 0, 255).astype(np.uint8)
-        # plt.figure()
-        # plt.hist(MAP_TEMPLATE.flatten(), bins=256)
-        # plt.show()
 
     MAP_VERSION = 0
 
@@ -258,7 +271,7 @@ class MinimapProcessor(Processor):
         self.map_rotate_in_config = None  # TODO
         self.model: Model = load_from_saved_model(
             os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter'),
-            # "C:/Users/simon/overtrack_2/training/apex_minimap/inprog_models/v10_1",
+            # "C:/Users/simon/overtrack_2/training/apex_minimap/v3/inprog_models/v12_14_with_mini",
             custom_objects=custom_objects
         )
         # from tensorflow.python.keras.saving import export_saved_model
@@ -301,8 +314,8 @@ class MinimapProcessor(Processor):
                 return
 
             data = r.json()
-            if data['version'] == self.MAP_VERSION:
-                logger.info(f'Current version {self.MAP_VERSION} is up to date')
+            if data['version'] <= self.MAP_VERSION:
+                logger.info(f'Current version {self.MAP_VERSION} is up to date - update version is {data["version"]}')
                 return
             else:
                 maps_path = os.path.join(os.path.join(os.path.dirname(__file__), 'data', 'maps'))
@@ -337,25 +350,22 @@ class MinimapProcessor(Processor):
 
     @time_processing
     def process(self, frame: Frame):
-        map_image = frame.image[
-                    50:50 + 240,
-                    50:50 + 240
-                    ]
+        spectate_image = frame.image_yuv[40:40+30, 670:670+130, 0]
+        _, spectate_image_t = cv2.threshold(spectate_image, 220, 255, cv2.THRESH_BINARY)
+        is_spectate = np.max(cv2.matchTemplate(spectate_image_t, self.SPECTATE, cv2.TM_CCORR_NORMED)) > 0.9
+
+        if not is_spectate:
+            map_image = frame.image[50:50 + 240, 50:50 + 240]
+        else:
+            map_image = frame.image[114:114 + 240, 50:50 + 240]
 
         t0 = time.perf_counter()
         filtered = np.clip(self.model.predict([[map_image]], 1)[0], 0, 255).astype(np.uint8)
-        logger.debug(f'filter {(time.perf_counter() - t0) * 1000:.2f}')
+        logger.debug(f'predict {(time.perf_counter() - t0) * 1000:.2f}')
 
         # location, min_loc, min_val = self._get_location(filtered[:, :, 0])
         location = None
-        zoom = 1
-        if 'game_time' in frame:
-            if frame.game_time > 1100:
-                # round 5 closing / ring 6
-                zoom = 0.375
-            elif frame.game_time > 980:
-                # round 4 closing / ring 5
-                zoom = 0.75
+        zoom = self._get_zoom(frame)
 
         t0 = time.perf_counter()
         if self.map_rotate_in_config or (len(self.map_rotated) and (sum(self.map_rotated) / len(self.map_rotated)) > 0.75):
@@ -388,19 +398,35 @@ class MinimapProcessor(Processor):
         if location and location.match < self.THRESHOLD:
             self.map_rotated.append(location.bearing is not None)
 
+            # from overtrack.util.debugops import sliders
+            # filtered[:, :, 0] = 0
+            # sliders(
+            #     filtered,
+            #     blur=lambda im, b_0_100: cv2.GaussianBlur(im, (0, 0), b_0_100 / 10) if b_0_100 else im,
+            #     mul=lambda im, m_10_100: np.clip(im.astype(np.float) * (m_10_100 / 10), 0, 255).astype(np.uint8),
+            #     filter_edge=lambda im, t_0_255, p_1_70, e_1_30, k_1_30: self.filter_edge(im, t_0_255, p_1_70, e_1_30, k_1_30)
+            # )
+
+            t0 = time.perf_counter()
             blur = cv2.GaussianBlur(filtered, (0, 0), 4)
+
             blur[:, :, 0] = 0
-            edges = self.filter_edge(blur, 80, 20, 20, 10)
+            edges = self.filter_edge(blur, 50, 20, 20, 10)
             edges[:5, :] = 0
             edges[-5:, :] = 0
             edges[:, :5] = 0
             edges[:, -5:] = 0
+            logger.debug(f'filter edges {(time.perf_counter() - t0) * 1000:.2f}')
 
+            t0 = time.perf_counter()
             frame.minimap = Minimap(
                 location,
                 self._get_circle(edges[:, :, 1], location),
                 self._get_circle(edges[:, :, 2], location),
+                spectate=is_spectate,
+                version=1,
             )
+            logger.debug(f'get circles {(time.perf_counter() - t0) * 1000:.2f}')
 
             try:
                 _draw_map_location(
@@ -408,6 +434,7 @@ class MinimapProcessor(Processor):
                     frame.minimap,
 
                     self.MAP,
+                    self.MAP_TEMPLATE,
                     filtered,
                     edges
                 )
@@ -426,12 +453,24 @@ class MinimapProcessor(Processor):
                     ),
 
                     self.MAP,
+                    self.MAP_TEMPLATE,
                     filtered,
                     None
                 )
-            except:
-                pass
+            except Exception as e:
+                print(e)
         return False
+
+    def _get_zoom(self, frame):
+        zoom = 1
+        if 'game_time' in frame:
+            if frame.game_time > 1100:
+                # round 5 closing / ring 6
+                zoom = 0.375
+            elif frame.game_time > 980:
+                # round 4 closing / ring 5
+                zoom = 0.75
+        return zoom
 
     def _get_bearing(self, frame: Frame, debug_image: Optional[np.ndarray]) -> Optional[int]:
         bearing_image = self.REGIONS['bearing'].extract_one(frame.image_yuv[:, :, 0])
@@ -494,7 +533,15 @@ class MinimapProcessor(Processor):
         )
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
 
-        # coords = min_loc[0] + 240 // 2 - 8, min_loc[1] + 240 // 2 - 8
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.imshow(region, interpolation='none')
+        # plt.figure()
+        # plt.imshow(map_template, interpolation='none')
+        # plt.figure()
+        # plt.imshow(match, interpolation='none')
+        # plt.show()
+
         coords = min_loc[0] + int(240 * zoom) // 2 - 8, min_loc[1] + int(240 * zoom) // 2 - 8
         if rot is not None:
             inv = cv2.invertAffineTransform(rot)
@@ -518,6 +565,12 @@ class MinimapProcessor(Processor):
 
         w_edge = thresh & (cv2.dilate(im, np.ones((1, edge_extraction_size))) == im)
         h_edge = thresh & (cv2.dilate(im, np.ones((edge_extraction_size, 1))) == im)
+
+        # cv2.imshow('x_edge_prominent', x_edge_prominent)
+        # cv2.imshow('y_edge_prominent', y_edge_prominent)
+        # cv2.imshow('greater', greater * 255)
+        # cv2.imshow('w_edge', w_edge.astype(np.uint8) * 255)
+        # cv2.imshow('h_edge', h_edge.astype(np.uint8) * 255)
 
         edge = (w_edge * greater) + (h_edge * (1 - greater))
         return edge
@@ -625,23 +678,32 @@ if __name__ == '__main__':
 
     p = MinimapProcessor()
 
-    util.test_processor('minimap', p, 'minimap', game='apex', test_all=False)
+    # p.map_rotate_in_config = True
+    # p._check_for_rotate_setting = lambda: None
+    # p._get_zoom = lambda frame: 0.375
+    # util.test_processor(
+    #     "D:/overtrack/worlds_edge/video_frames/SEASON 3 IS HERE LETS GOOO - SPONSORED STREAM #AD-v488890432/20178.34.image.png",
+    #     p,
+    #     'minimap',
+    #     game='apex',
+    #     test_all=False
+    # )
 
-    p.MAP = cv2.copyMakeBorder(imageops.imread("C:/Users/simon/overtrack_2/apex_map/target.png", 0), 0, 240, 0, 240, cv2.BORDER_CONSTANT)
-    p.MAP_TEMPLATE = cv2.GaussianBlur(
-        cv2.Canny(
-            cv2.GaussianBlur(
-                p.MAP,
-                (0, 0),
-                template_blur_pre
-            ),
-            template_canny_t1,
-            template_canny_t2
-        ),
-        (0, 0),
-        template_blur_post
-    ).astype(np.float)
-    p.MAP_TEMPLATE /= 100
-    p.MAP_TEMPLATE *= 255
-    p.MAP_TEMPLATE = np.clip(p.MAP_TEMPLATE, 0, 255).astype(np.uint8)
+    # p.MAP = cv2.copyMakeBorder(imageops.imread("C:/Users/simon/overtrack_2/apex_map/target.png", 0), 0, 240, 0, 240, cv2.BORDER_CONSTANT)
+    # p.MAP_TEMPLATE = cv2.GaussianBlur(
+    #     cv2.Canny(
+    #         cv2.GaussianBlur(
+    #             p.MAP,
+    #             (0, 0),
+    #             template_blur_pre
+    #         ),
+    #         template_canny_t1,
+    #         template_canny_t2
+    #     ),
+    #     (0, 0),
+    #     template_blur_post
+    # ).astype(np.float)
+    # p.MAP_TEMPLATE /= 100
+    # p.MAP_TEMPLATE *= 255
+    # p.MAP_TEMPLATE = np.clip(p.MAP_TEMPLATE, 0, 255).astype(np.uint8)
     util.test_processor('minimap_s3', p, 'minimap', game='apex')
