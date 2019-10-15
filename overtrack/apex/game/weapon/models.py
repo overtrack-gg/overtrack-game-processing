@@ -10,7 +10,7 @@ from overtrack.util import arrayops
 class Weapons:
     weapon_names: List[str]
     selected_weapons: Tuple[int, int]
-    clip: Optional[int]
+    clip: Optional[int]  # oscar mike, ladies
     ammo: Optional[int]
 
     @property
