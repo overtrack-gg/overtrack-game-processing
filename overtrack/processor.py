@@ -137,12 +137,12 @@ class ShortCircuitProcessor(Processor):
 
 class EveryN(Processor):
 
-    def __init__(self, processor: Processor, n: int, return_last: bool = True, override_condition: Callable[[Frame], bool] = lambda f: False):
+    def __init__(self, processor: Processor, n: int, offset: int = 0, return_last: bool = True, override_condition: Callable[[Frame], bool] = lambda f: False):
         self.processor = processor
         self.return_last = return_last
         self.override_condition = override_condition
         self.n = n
-        self.i = -1
+        self.i = offset - 1
         self.last = False
 
     def process(self, frame: Frame) -> bool:

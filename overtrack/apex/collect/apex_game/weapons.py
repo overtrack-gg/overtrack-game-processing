@@ -25,6 +25,28 @@ class WeaponStats:
 class Weapons:
     logger = logging.getLogger('Weapons')
 
+    WEAPON_COLOURS_SELECTED = {
+        # Light
+        (454, 84, 125): True,
+        (28, 42, 60): False,
+
+        # Heavy
+        (89, 107, 56): True,
+        (42, 51, 34): False,
+
+        # Energy
+        (40, 110, 90): True,
+        (29, 55, 46): False,
+
+        # Shotgun
+        (7, 32, 107): True,
+        (10, 17, 48): False,
+
+        # Special
+        (17, 149, 178): True,
+        (39, 78, 90): False,
+    }
+
     def __init__(self, frames: List[Frame], combat: Combat, debug: Union[bool, str] = False):
         self.weapon_timestamp = [round(f.timestamp - frames[0].timestamp, 2) for f in frames if 'weapons' in f]
         self.weapon_data = [f.weapons for f in frames if 'weapons' in f]
@@ -33,18 +55,28 @@ class Weapons:
         weapon1 = self._get_weapon_map(0)
         weapon1_selected_vals = np.array([w.selected_weapons[0] for w in self.weapon_data])
         if len(weapon1_selected_vals):
-            weapon1_selected = (arrayops.medfilt(weapon1_selected_vals, 3) < 200) & np.not_equal(weapon1, -1)
+            if len(weapon1_selected_vals.shape) == 2 and weapon1_selected_vals.shape[1] == 3:
+                # v2: colours
+                weapon1_selected = np.array([wid != -1 and self._is_weapon_selected(c) for wid, c in zip(weapon1, weapon1_selected_vals)])
+            else:
+                # v1: key hint brigtness
+                weapon1_selected = (arrayops.medfilt(weapon1_selected_vals, 3) < 200) & np.not_equal(weapon1, -1)
         else:
             weapon1_selected = np.array((0,), dtype=np.bool)
-        # ammo1 = [wep.clip if sel else np.nan for sel, wep in zip(weapon1_selected, self.weapon_data)]
+        clip1 = [wep.clip if sel and wep.clip is not None else np.nan for sel, wep in zip(weapon1_selected, self.weapon_data)]
+        ammo1 = [wep.ammo if sel and wep.ammo is not None else np.nan for sel, wep in zip(weapon1_selected, self.weapon_data)]
 
         weapon2 = self._get_weapon_map(1)
         weapon2_selected_vals = np.array([w.selected_weapons[1] for w in self.weapon_data])
         if len(weapon2_selected_vals):
-            weapon2_selected = (arrayops.medfilt(weapon2_selected_vals, 3) < 200) & np.not_equal(weapon2, -1)
+            if len(weapon2_selected_vals.shape) == 2 and weapon2_selected_vals.shape[1] == 3:
+                weapon2_selected = np.array([wid != -1 and self._is_weapon_selected(c) for wid, c in zip(weapon2, weapon2_selected_vals)])
+            else:
+                weapon2_selected = (arrayops.medfilt(weapon2_selected_vals, 3) < 200) & np.not_equal(weapon2, -1)
         else:
             weapon2_selected = np.array((0,), dtype=np.bool)
-        # ammo2 = [wep.clip if sel else np.nan for sel, wep in zip(weapon2_selected, self.weapon_data)]
+        clip2 = [wep.clip if sel and wep.clip is not None else np.nan for sel, wep in zip(weapon2_selected, self.weapon_data)]
+        ammo2 = [wep.ammo if sel and wep.ammo is not None else np.nan for sel, wep in zip(weapon2_selected, self.weapon_data)]
 
         if len(weapon1) and len(weapon2):
             have_weapon = np.convolve(np.not_equal(weapon1, -1) + np.not_equal(weapon2, -1), np.ones((10,)), mode='valid')
@@ -66,20 +98,27 @@ class Weapons:
         self.logger.info(f'Resolved weapon stats: {self.weapon_stats}')
 
         if debug is True or debug == self.__class__.__name__:
-            self._debug(combat, have_weapon, weapon1, weapon1_selected, weapon1_selected_vals, weapon2, weapon2_selected, weapon2_selected_vals)
+            self._debug(combat, have_weapon, weapon1, weapon1_selected, weapon2, weapon2_selected, clip1, clip2)
 
-    def _debug(self, combat, have_weapon, weapon1, weapon1_selected, weapon1_selected_vals, weapon2, weapon2_selected, weapon2_selected_vals):
+    def _is_weapon_selected(self, colour: np.ndarray) -> bool:
+        for target, selected in self.WEAPON_COLOURS_SELECTED.items():
+            diff = np.linalg.norm(colour - target)
+            if diff < 10:
+                return selected
+        return False
+
+    def _debug(self, combat, have_weapon, weapon1, weapon1_selected, weapon2, weapon2_selected, clip1, clip2):
         import matplotlib.pyplot as plt
 
         plt.figure()
         plt.title('Selected Weapon')
-        plt.plot(self.weapon_timestamp, weapon1_selected_vals)
-        plt.plot(self.weapon_timestamp, weapon2_selected_vals)
+        plt.plot(self.weapon_timestamp, weapon1_selected.astype(np.float) * 0.9)
+        plt.plot(self.weapon_timestamp, weapon2_selected)
 
-        # plt.figure()
-        # plt.title('Ammo')
-        # plt.plot(self.weapon_timestamp, ammo1)
-        # plt.plot(self.weapon_timestamp, ammo2)
+        plt.figure()
+        plt.title('Clip')
+        plt.scatter(self.weapon_timestamp, clip1)
+        plt.scatter(self.weapon_timestamp, clip2)
 
         def make_weaponplot():
             for event in combat.events:

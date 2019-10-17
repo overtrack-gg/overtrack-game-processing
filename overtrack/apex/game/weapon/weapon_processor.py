@@ -1,34 +1,55 @@
 import logging
 import os
 import string
+import time
+from typing import Optional, cast, Tuple, List
 
 import cv2
+import numpy as np
+import shortuuid
 
 from overtrack.apex import ocr
+from overtrack.apex.game.weapon import Weapons
+from overtrack.apex.game.weapon.models import SelectedWeaponTell
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
-from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-from .models import *
+
+
+logger = logging.getLogger('WeaponProcessor')
 
 
 def _draw_weapons(debug_image: Optional[np.ndarray], weapons: Weapons) -> None:
     if debug_image is None:
         return
-    cv2.putText(
-        debug_image,
-        f'{weapons}',
-        (850, 1070),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (255, 0, 255),
-        2
-    )
+    for inner in range(2):
+        cv2.putText(
+            debug_image,
+            f'{weapons}',
+            (500, 1070),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 0, 255) if inner else (0, 0, 0),
+            1 if inner else 5
+        )
 
 
 class WeaponProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), '..', 'data', 'regions', '16_9.zip'))
+    CLIP_DIGITS = [imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'clip_digits', f'{d}.png'), 0) for d in string.digits]
+    AMMO_DIGITS = [imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'ammo_digits', f'{d}.png'), 0) for d in string.digits]
+
+    def __init__(self):
+        self.CLIP_WEIGHTS = self.AMMO_WEIGHTS = []
+        for typ in 'CLIP', 'AMMO':
+            weights = []
+            for im in getattr(self, typ + '_DIGITS'):
+                weight = np.zeros(im.shape, dtype=np.float)
+                weight[im > 0] = 1 / np.sum(im > 0)
+                weight[im == 0] = -3 / np.sum(im == 0)
+                weights.append(weight)
+            setattr(self, typ + '_WEIGHTS', weights)
 
     def eager_load(self):
         self.REGIONS.eager_load()
@@ -40,8 +61,6 @@ class WeaponProcessor(Processor):
         weapon_images = self.REGIONS['weapon_names'].extract(y)
         weapon_images = [255 - imageops.normalise(i) for i in weapon_images]
 
-        # cv2.imshow(f'weapons', np.vstack(weapon_images))
-
         weapon_names = imageops.tesser_ocr_all(
             weapon_images,
             whitelist=string.ascii_uppercase,
@@ -49,52 +68,33 @@ class WeaponProcessor(Processor):
             scale=2
         )
 
-        clip_im = self.REGIONS['clip'].extract_one(y)
-        clip_im = 255 - imageops.normalise(clip_im)
-        clip = imageops.tesser_ocr(
-            clip_im,
-            expected_type=int,
-            scale=2,
-            engine=ocr.tesseract_arame,
-            warn_on_fail=False
-        )
+        selected_weapons_regions = self.REGIONS['selected_weapon_tell'].extract(frame.image)
+        selected_weapons_colours = [np.median(r, axis=(0, 1)) for r in selected_weapons_regions]
 
-        ammo_im = self.REGIONS['ammo'].extract_one(y)
-        ammo_im = 255 - imageops.otsu_thresh_lb_fraction(ammo_im, 0.9)
-        ammo_im = cv2.resize(
-            ammo_im,
-            (0, 0),
-            fx=3,
-            fy=3,
-            interpolation=cv2.INTER_NEAREST
-        )
-        ammo_im = cv2.GaussianBlur(ammo_im, (0, 0), 3)
-        ammo_im = cv2.erode(ammo_im, None)
-        # cv2.imshow('ammo', cv2.resize(
-        #     ammo_im,
-        #     (0, 0),
-        #     fx=3,
-        #     fy=3,
-        #     interpolation=cv2.INTER_NEAREST
-        # ))
-        ammo = imageops.tesser_ocr(
-            ammo_im,
-            expected_type=int,
-            scale=3,
-            engine=ocr.tesseract_arame,
-            warn_on_fail=False
-        )
-
-        selected_weapons = [int(np.median(im)) for im in self.REGIONS['selected_weapon_tell'].extract(y)]
+        def thresh_clip(im):
+            im = np.max(im, axis=2)
+            threshim = np.tile(im[:, 0], (im.shape[1], 1)).T
+            im = cv2.subtract(im, threshim)
+            tim = im > 20
+            return tim
 
         frame.weapons = Weapons(
             weapon_names,
-            selected_weapons=(selected_weapons[0], selected_weapons[1]),
-            clip=clip,
-            ammo=ammo
+            selected_weapons=(
+                (int(selected_weapons_colours[0][0]), int(selected_weapons_colours[0][1]), int(selected_weapons_colours[0][2])),
+                (int(selected_weapons_colours[1][0]), int(selected_weapons_colours[1][1]), int(selected_weapons_colours[1][2])),
+            ),
+            clip=self._ocr_digits(
+                [im > 200 for im in self.REGIONS['clip'].extract(y)],
+                self.CLIP_WEIGHTS
+            ),
+            ammo=self._ocr_digits(
+                [thresh_clip(im) for im in self.REGIONS['ammo'].extract(frame.image)],
+                self.AMMO_WEIGHTS
+            ),
         )
 
-        self.REGIONS.draw(frame.debug_image)
+        # self.REGIONS.draw(frame.debug_image)
         _draw_weapons(
             frame.debug_image,
             frame.weapons
@@ -102,66 +102,51 @@ class WeaponProcessor(Processor):
 
         return frame.weapons.selected_weapons is not None
 
-
-def main() -> None:
-    config_logger('map_processor', logging.INFO, write_to_file=False)
-
-    frame: Optional[Frame] = Frame.create(
-        cv2.imread(
-            "C:/Users/simon/workspace/overtrack_2/dev/apex_images/mpv-shot0171.png"
-        ),
-        0,
-        True
-    )
-    assert frame
-    WeaponProcessor().process(
-        frame
-    )
-    print(frame)
-    cv2.imshow('debug', frame.debug_image)
-    cv2.waitKey(0)
-
-    pipeline = WeaponProcessor()
-    path: List[Tuple[int, int]] = []
-
-    import glob
-    for p in glob.glob('../../../../dev/apex_images/*.png') + glob.glob('../../../../dev/apex_images/**/*.png'):
-        frame = Frame.create(
-            cv2.resize(cv2.imread(p), (1920, 1080)),
-            0,
-            True
-        )
-        pipeline.process(frame)
-        cv2.imshow('debug', frame.debug_image)
-        cv2.waitKey(0)
-
-    # source = Twitch(
-    #     'https://www.twitch.tv/videos/387748639',
-    #     2,
-    #     keyframes_only=False,
-    #     seek=ts2s('5:54:30'),
-    #     debug_frames=True
-    # )
-    # del frame
-    # while True:
-    #     frame = source.get()
-    #     if frame is None:
-    #         break
-    #
-    #     if pipeline.process(frame):
-    #         location = frame.location
-    #         path.append(location)
-    #
-    #     cv2.imshow('debug', frame.debug_image)
-    #
-    #     print(frame.weapons)
-    #
-    #     # if f:
-    #     #     cv2.waitKey(0)
-    #     #     f = False
-    #
-    #     cv2.waitKey(0)
+    def _ocr_digits(self, ims: List[np.ndarray], weights: List[np.ndarray]) -> Optional[int]:
+        digits = []
+        # cv2.imshow('digits', np.hstack(ims).astype(np.uint8) * 255)
+        for i, im in enumerate(ims):
+            if np.sum(im) < 50:
+                continue
+            best = None
+            for d, w in enumerate(weights):
+                score = np.sum(np.multiply(im, w))
+                if score > 0.95:
+                    digits.append(str(d))
+                    break
+                if not best or score > best[0]:
+                    best = score, d
+            else:
+                if best[0] > 0.1:
+                    digits.append(str(best[1]))
+                else:
+                    logger.warning(f'Unable to OCR clip digit {i} - best match: {best[1]} @ {best[0]:.2f}')
+        if not digits:
+            return None
+        try:
+            return int(''.join(digits))
+        except Exception as e:
+            logger.warning(f'Unable to parse OCR of clip: {digits!r}: {e}')
+            return None
 
 
 if __name__ == '__main__':
-    main()
+    from overtrack import util
+
+    # util.test_processor('weapons', WeaponProcessor(), 'weapons', game='apex')
+    # util.test_processor("D:/overtrack/worlds_edge/lossless_frames", WeaponProcessor(), 'weapons', game='apex', wait=False)
+
+    proc = WeaponProcessor()
+
+    from overtrack.source.shmem.shmem_capture import SharedMemoryCapture
+    cap = SharedMemoryCapture(debug_frames=True)
+    cap.start()
+
+    while True:
+        frame = cap.get()
+        if frame and frame.valid:
+            proc.process(frame)
+
+            cv2.imshow('debug', frame.debug_image)
+            cv2.waitKey(1)
+

@@ -37,12 +37,14 @@ def create_pipeline(interleave_processors: bool = True) -> Processor:
             OrderedProcessor(
                 EveryN(
                     SquadProcessor(),
-                    4 if interleave_processors else 1
+                    4 if interleave_processors else 1,
+                    offset=0
                 ),
                 CombatProcessor(),
                 EveryN(
                     WeaponProcessor(),
                     4 if interleave_processors else 1,
+                    offset=1,
                     override_condition=lambda f: 'combat_log' in f
                 ),
             ),
