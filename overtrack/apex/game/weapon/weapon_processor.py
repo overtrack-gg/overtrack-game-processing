@@ -1,21 +1,16 @@
 import logging
 import os
 import string
-import time
-from typing import Optional, cast, Tuple, List
+from typing import List, Optional
 
 import cv2
 import numpy as np
-import shortuuid
 
-from overtrack.apex import ocr
 from overtrack.apex.game.weapon import Weapons
-from overtrack.apex.game.weapon.models import SelectedWeaponTell
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-
 
 logger = logging.getLogger('WeaponProcessor')
 
@@ -131,7 +126,6 @@ class WeaponProcessor(Processor):
 
 
 if __name__ == '__main__':
-    from overtrack import util
 
     # util.test_processor('weapons', WeaponProcessor(), 'weapons', game='apex')
     # util.test_processor("D:/overtrack/worlds_edge/lossless_frames", WeaponProcessor(), 'weapons', game='apex', wait=False)
