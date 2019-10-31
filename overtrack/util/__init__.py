@@ -1,4 +1,6 @@
 import datetime
+import functools
+
 import dataclasses
 import logging
 import time
@@ -51,6 +53,21 @@ def round_floats(_cls=None, *, precision: int = 2):
     if _cls is None:
         return wrap
     return wrap(_cls)
+
+
+def cached_property(f):
+    """A memoize decorator for class properties."""
+    @functools.wraps(f)
+    def get(self):
+        try:
+            return self._cache[f]
+        except AttributeError:
+            self._cache = {}
+        except KeyError:
+            pass
+        ret = self._cache[f] = f(self)
+        return ret
+    return property(get)
 
 
 def big_noodle_digitsub(s: str) -> str:
@@ -156,22 +173,32 @@ def html2bgr(hex_str: str) -> Tuple[int, int, int]:
     return int(hex_str[4:6], 16), int(hex_str[2:4], 16), int(hex_str[0:2], 16)
 
 
-def test_processor(directory: str, proc, *fields: str, game='overwatch', show=True) -> None:
+def test_processor(images: str, proc, *fields: str, game='overwatch', show=True, test_all=True, wait=True) -> None:
     import glob
     import cv2
     import os
+    import tabulate
     from pprint import pprint
     from overtrack.frame import Frame
 
     from overtrack.util.logging_config import config_logger
 
-    config_logger(directory, logging.DEBUG, False)
+    config_logger(os.path.basename(images), logging.DEBUG, False)
 
     proc.eager_load()
 
-    for p in glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/{directory}/*.png") + \
-             glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/*/*.png", recursive=True):
+    if images.endswith('.png'):
+        paths = [images]
+    elif '*' in images:
+        paths = glob.glob(images)
+    elif images[1] == ':':
+        paths = glob.glob(images + '/*.png')
+    else:
+        paths = glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/{images}/*.png")
+    if test_all:
+        paths += glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/*/*.png", recursive=True)
 
+    for p in paths:
         time.sleep(0.01)
         print('\n\n' + '-' * 32 )
         print(os.path.abspath(p))
@@ -183,11 +210,10 @@ def test_processor(directory: str, proc, *fields: str, game='overwatch', show=Tr
             f.game_time = float(os.path.basename(p).split('=', 1)[1].rsplit('.', 1)[0])
 
         proc.process(f)
-        for n in fields:
-            print(f.get(n))
+        print(tabulate.tabulate([(n, f.get(n)) for n in fields]))
         pprint(f.timings)
         if show:
             cv2.imshow('debug', f.debug_image)
-            cv2.waitKey(0)
+            cv2.waitKey(0 if wait else 1)
 
         print('-' * 32)

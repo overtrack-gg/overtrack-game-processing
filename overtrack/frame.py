@@ -126,7 +126,7 @@ class Frame(Dict[str, Any]):
         import overtrack.overwatch.game.role_select.models
         import overtrack.overwatch.game.eliminations.models
         objective: overtrack.overwatch.game.objective.Objective
-        objective2: overtrack.overwatch.game.objective_2.Objective2
+        objective2: Union[overtrack.overwatch.game.objective_2.Objective3, overtrack.overwatch.game.objective_2.Objective2]
         loading_map: overtrack.overwatch.game.loading_map.models.LoadingMap
         loading_match: float
         tab_screen: overtrack.overwatch.game.tab.models.TabScreen

@@ -118,7 +118,7 @@ class Loader(typedload.dataloader.Loader):
 
 _TYPES = {
     'objective': overtrack.overwatch.game.objective.models.Objective,
-    'objective2': overtrack.overwatch.game.objective_2.models.Objective2,
+    'objective2': Union[overtrack.overwatch.game.objective_2.Objective3, overtrack.overwatch.game.objective_2.Objective2],
     'loading_map': overtrack.overwatch.game.loading_map.models.LoadingMap,
     'tab_screen': overtrack.overwatch.game.tab.models.TabScreen,
     'main_menu': overtrack.overwatch.game.menu.models.MainMenu,
