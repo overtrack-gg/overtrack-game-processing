@@ -207,8 +207,11 @@ class Player:
         self.name_matches_api = True
 
         if before['champion'] and self.champion != before['champion'].lower():
-            self.logger.warning(f'Champion for {self.name} does not match stats API - {self.champion} > {before["champion"]}')
-            self.champion = before['champion'].lower()
+            if before['champion'].lower() != 'bangalore':
+                self.logger.warning(f'Champion for {self.name} does not match stats API - {self.champion} > {before["champion"]}')
+                self.champion = before['champion'].lower()
+            else:
+                self.logger.warning(f'Champion for {self.name} does not match stats API - {self.champion} > {before["champion"]} - ignoring bangalore')
 
         for stat_name, stat_value in before['banners'].items():
             for stat_key, stat_field in ('_KILL', 'kills'), ('_DAMAGE', 'damage_dealt'):
