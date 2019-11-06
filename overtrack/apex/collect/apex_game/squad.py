@@ -312,7 +312,7 @@ class Squad:
             self.logger.info(f'Resolving players from {len(squad_summaries)} squad summary frames')
             all_player_stats: List[List[SquadSummaryStats]] = [[], [], []]
             for summary in squad_summaries:
-                for i in range(expected_size):
+                for i in range(len([c for c in champions if c])):
                     all_player_stats[i].append(summary.player_stats[i])
 
             self.player = None
@@ -385,6 +385,10 @@ class Squad:
             )
             if solo:
                 self.squadmates = (None, None)
+            elif duos:
+                self.squadmates = (
+                    Player(names[1], champions[1], [], frames) if champions[1] else None,
+                )
             else:
                 self.squadmates = (
                     Player(names[1], champions[1], [], frames) if champions[1] else None,
@@ -467,13 +471,13 @@ class Squad:
         return name
 
     def _get_name(self, menu_names: List[str]) -> Optional[str]:
-        return self._median_name([s.name for s in self.squad if s.name] + menu_names)
+        return self._median_name([s.name.replace(' ', '') for s in self.squad if s.name] + menu_names)
 
     def _get_champion(self, debug: Union[bool, str] = False) -> Optional[str]:
         return self._get_matching_champion([s.champion for s in self.squad], debug)
 
     def _get_squadmate_name(self, index: int) -> Optional[str]:
-        return self._median_name([s.squadmate_names[index] for s in self.squad if s.squadmate_names[index]])
+        return self._median_name([s.squadmate_names[index].replace(' ', '') for s in self.squad if s.squadmate_names[index]])
 
     def _get_squadmate_champion(self, index: int, debug: Union[bool, str] = False, other_champions: Optional[List[str]] = None) -> Optional[str]:
         return self._get_matching_champion([s.squadmate_champions[index] for s in self.squad], debug, other_champions)
@@ -603,7 +607,7 @@ class Squad:
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(' \
             f'player={self.player}, ' \
-            f'squadmates=({self.squadmates[0]}, {self.squadmates[1]})' \
+            f'squadmates=({", ".join(map(str, self.squadmates))})' \
             f')'
 
     __repr__ = __str__
@@ -611,9 +615,8 @@ class Squad:
     def to_dict(self) -> Dict[str, Any]:
         return {
             'player': self.player.to_dict(),
-            'squadmates': (
-                self.squadmates[0].to_dict() if self.squadmates[0] else None,
-                self.squadmates[1].to_dict() if self.squadmates[1] else None
+            'squadmates': tuple(
+                s.to_dict() if s else None for s in self.squadmates
             ),
             'squad_kills': self.squad_kills
         }

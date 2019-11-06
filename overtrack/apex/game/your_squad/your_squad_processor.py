@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from typing import Union
 
 import cv2
@@ -31,7 +32,6 @@ def _draw_squad(debug_image: Optional[np.ndarray], squad: Union[YourSquad, Champ
 
 class YourSquadProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
-    DUOS_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'duos.png'), 0)
     TEMPLATES = {
         k: imageops.imread(os.path.join(os.path.dirname(__file__), 'data', k + '.png'), 0)
         for k in [
@@ -45,6 +45,7 @@ class YourSquadProcessor(Processor):
 
     def __init__(self):
         self.duos = False
+        self.duos_last_seen = 0
 
     def eager_load(self):
         self.REGIONS.eager_load()
@@ -66,16 +67,20 @@ class YourSquadProcessor(Processor):
         if match < self.REQUIRED_MATCH:
             return False
 
-        if key == 'your_squad':
-            mode_image = self.REGIONS['game_mode'].extract_one(frame.image_yuv[:, :, 0])
-            _, mode_thresh = cv2.threshold(mode_image, 180, 255, cv2.THRESH_BINARY)
-            frame.duos_match = np.max(cv2.matchTemplate(mode_thresh, self.DUOS_TEMPLATE, cv2.TM_CCORR_NORMED))
-            mode = None
-            if frame.duos_match > 0.75:
-                mode = 'duos'
-            self.duos = mode == 'duos'
+        name1_trios = np.min(self.REGIONS['names'].extract_one(frame.image), axis=2)
+        name1_duos = np.min(self.REGIONS['names_duos'].extract_one(frame.image), axis=2)
+        name1_thresh_value = max(np.max(name1_duos), np.max(name1_trios)) * 0.95
+        logger.debug(f'Name thresh: {name1_thresh_value}')
 
-            names_region_name = 'names' if mode != 'duos' else 'names_duos'
+        name1_trios_score = int(np.sum(name1_trios > name1_thresh_value))
+        name1_duos_score = int(np.sum(name1_duos > name1_thresh_value))
+        logger.debug(f'Trios name score: {name1_trios_score} vs duos name score: {name1_duos_score}')
+
+        self.duos = name1_duos_score and name1_duos_score > name1_trios_score
+        logger.info(f'Using duos={self.duos}')
+
+        if key == 'your_squad':
+            names_region_name = 'names_duos' if self.duos else 'names'
             names = imageops.tesser_ocr_all(
                 self.REGIONS[names_region_name].extract(y),
                 engine=imageops.tesseract_lstm,
@@ -83,7 +88,7 @@ class YourSquadProcessor(Processor):
             )
             frame.your_squad = YourSquad(
                 tuple(self._to_name(n) for n in names),
-                mode=mode,
+                mode='duos' if self.duos else None,
                 images=lazy_upload('your_squad', np.hstack(self.REGIONS[names_region_name].extract(frame.image)), frame.timestamp)
             )
             self.REGIONS.draw(frame.debug_image)
@@ -100,7 +105,7 @@ class YourSquadProcessor(Processor):
             self.REGIONS.draw(frame.debug_image)
             _draw_squad(frame.debug_image, frame.your_selection)
         elif key == 'champion_squad':
-            names_region_name = 'names' if self.duos else 'names_duos'
+            names_region_name = 'names_duos' if self.duos else 'names'
             names = imageops.tesser_ocr_all(
                 self.REGIONS[names_region_name].extract(y),
                 engine=imageops.tesseract_lstm,
@@ -108,6 +113,7 @@ class YourSquadProcessor(Processor):
             )
             frame.champion_squad = ChampionSquad(
                 tuple(self._to_name(n) for n in names),
+                mode='duos' if self.duos else None,
                 images=lazy_upload('champion_squad', np.hstack(self.REGIONS[names_region_name].extract(frame.image)), frame.timestamp)
             )
             self.REGIONS.draw(frame.debug_image)
@@ -119,10 +125,10 @@ class YourSquadProcessor(Processor):
         for s1, s2 in '[(', '{(', '])', '})':
             name_text = name_text.replace(s1, s2)
         if len(name_text) > 3 and name_text[0] == '(' and name_text[-1] == ')':
-            return name_text[1:-1].replace(' ', '')
+            return name_text[1:-1].replace(' ', '').replace('(', '').replace(')', '')
         else:
-            logger.warning(f'Got name "{name_text}" for player - rejecting')
-            return None
+            logger.warning(f'Got name "{name_text}" for player: not correctly bracketed')
+            return name_text.replace(' ', '').replace('(', '').replace(')', '')
 
 
 def main() -> None:

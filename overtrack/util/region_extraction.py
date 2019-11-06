@@ -14,8 +14,9 @@ Region = Tuple[int, int, int, int]
 
 class ExtractionRegions:
 
-    def __init__(self, name: str, image: Optional[np.ndarray], regions: List[Region] = None):
+    def __init__(self, name: str, image: Optional[np.ndarray], regions: List[Region] = None, include_when_blanking: bool = True):
         self.name = name
+        self.include_when_blanking = include_when_blanking
 
         if image is not None:
             if len(image.shape) == 3:
@@ -137,13 +138,15 @@ class ExtractionRegionsCollection:
                         continue
                     layer_props = f.rsplit('.', 1)[0].split(',')
                     layer_name = layer_props[3].replace('%002E', '.')
+                    include_when_blanking = '%002A' not in layer_name  # %002A is '*'
+                    layer_name = layer_name.replace('%002A', '')
                     if not layer_name.startswith('region.'):
                         continue
                     region_name = layer_name[len('region.'):]
                     with z.open(f, 'r') as fobj:
                         logger.debug('Loading region %s from %s', region_name, self.path)
                         layer = cv2.imdecode(np.frombuffer(fobj.read(), dtype=np.uint8), -1)
-                        regions[region_name] = ExtractionRegions(region_name, layer)
+                        regions[region_name] = ExtractionRegions(region_name, layer, include_when_blanking=include_when_blanking)
         self.regions = regions
 
     def __getitem__(self, key: str) -> ExtractionRegions:
@@ -174,7 +177,8 @@ class ExtractionRegionsCollection:
         mask = np.zeros_like(image)
         self._ensure_loaded()
         for region in self.regions.values():
-            region.fill(mask)
+            if region.include_when_blanking:
+                region.fill(mask)
         return np.bitwise_and(image, mask)
 
 if __name__ == '__main__':

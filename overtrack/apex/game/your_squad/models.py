@@ -15,6 +15,7 @@ class YourSquad:
 @dataclass(frozen=True)
 class ChampionSquad:
     names: Tuple[Optional[str], ...]
+    mode: Optional[str] = None
     images: Optional[UploadableImage] = None
 
 

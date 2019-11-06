@@ -83,7 +83,9 @@ class SquadSummaryProcessor(Processor):
             champions = key in ['champions_of_the_arena']
 
             duos_empty_area = self.REGIONS['duos_empty_area'].extract_one(frame.image_yuv[:, :, 0])
-            duos = np.sum(duos_empty_area > 50) < 100
+            duos_sum = np.sum(duos_empty_area > 100)
+            logger.debug(f'Got duos_sum={duos_sum}')
+            duos = duos_sum < 100
 
             frame.squad_summary = SquadSummary(
                 champions=champions,
@@ -188,6 +190,10 @@ class SquadSummaryProcessor(Processor):
         #     from overtrack.util import debugops
         #     debugops.test_tesser_engines(im)
 
+        # from overtrack.util import debugops
+        # cv2.imshow('stat_images', debugops.hstack(stat_images))
+        # cv2.waitKey(0)
+
         stats = imageops.tesser_ocr_all(
             stat_images,
             engine=ocr.tesseract_ttlakes_digits_specials,
@@ -197,7 +203,7 @@ class SquadSummaryProcessor(Processor):
             value = stats[i]
             if value:
                 value = value.lower().replace(' ', '')
-                for c1, c2 in 'l1', 'i1', 'o0':
+                for c1, c2 in 'l1', 'i1', 'o0', (':', ''):
                     value = value.replace(c1, c2)
             if 6 <= i <= 8:
                 # survival time

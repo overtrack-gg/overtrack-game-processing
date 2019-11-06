@@ -40,7 +40,10 @@ class ApexGame:
         if self.solo and any('your_squad' in f for f in frames):
             self.logger.error(f'Got game with both "your_selection" and "your_squad"')
 
-        self.duos = len([f for f in frames if 'your_squad' in f and f.your_squad.mode == 'duos']) > 0
+        duos_frames = len([f for f in frames if ('your_squad' in f and f.your_squad.mode == 'duos') or ('champion_squad' in f and f.champion_squad.mode == 'duos')])
+        selection_frames = len([f for f in frames if 'your_squad' in f or 'champion_squad' in f])
+        self.logger.info(f'Got {duos_frames}/{selection_frames} confirming game as duos')
+        self.duos = duos_frames > selection_frames * 0.5
 
         self.squad_count = 20
         if self.solo:
@@ -139,6 +142,14 @@ class ApexGame:
         else:
             self.rank: Optional[Rank] = None
 
+        self.mode = 'unranked'
+        if self.rank is not None:
+            self.mode = 'ranked'
+        elif self.solo:
+            self.mode = 'solo'
+        elif self.duos:
+            self.mode = 'duos'
+
         self.images = {}
         for f in frames:
             if 'your_squad' in f and f.your_squad.images:
@@ -172,7 +183,7 @@ class ApexGame:
                     count = placed_counter_dict[match_summary_placed]
                     break
                 else:
-                    self.logger.warning(f'Ignoring match_summary.placed={e[0]} - not in range')
+                    self.logger.warning(f'Ignoring match_summary.placed={e} - not in range')
             if match_summary_placed:
                 if count != len(self.match_summary_frames):
                     self.logger.warning(f'Got disagreeing match summary placed counts: {placed_counter}')
