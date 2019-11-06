@@ -103,7 +103,7 @@ class ApexGame:
                 self.player_name = config_name
                 self.logger.info(f'Got player name from config: "{config_name}"')
 
-        self.squad = Squad(self.all_frames, menu_names, config_name, stats_before, stats_after, solo=self.solo, debug=debug)
+        self.squad = Squad(self.all_frames, menu_names, config_name, stats_before, stats_after, solo=self.solo, duos=self.duos, debug=debug)
         self.combat = Combat(self.frames, self.placed, self.squad, debug=debug)
         self.weapons = Weapons(self.frames, self.combat, debug=debug)
         self.route: Route = Route(self.frames, self.weapons, self.combat, season=self.season, debug=debug)

@@ -261,6 +261,7 @@ class Squad:
             stats_before: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
             stats_after: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
             solo: bool = False,
+            duos: bool = False,
             debug: Union[bool, str] = False):
         self.squad = [f.squad for f in frames if 'squad' in f]
         self.logger.info(f'Processing squad from {len(self.squad)} squad frames')
@@ -268,10 +269,18 @@ class Squad:
         if debug is True or debug == self.__class__.__name__:
             self._debug_champions(frames)
 
+        expected_size = 3
         if solo:
             names = [
                 self._get_name(menu_names) if not config_name else config_name
             ]
+            expected_size = 1
+        elif duos:
+            names = [
+                self._get_name(menu_names) if not config_name else config_name,
+                self._get_squadmate_name(1)
+            ]
+            expected_size = 2
         else:
             names = [
                 self._get_name(menu_names) if not config_name else config_name,
@@ -283,15 +292,18 @@ class Squad:
             self._get_champion(debug)
         ]
 
-        squadmate_champion_0_valid = self._get_champion_valid_count(0)
-        squadmate_champion_1_valid = self._get_champion_valid_count(1)
+        if duos:
+            champions.append(self._get_squadmate_champion(1, debug, champions))
+        elif not solo:
+            squadmate_champion_0_valid = not duos and self._get_champion_valid_count(0)
+            squadmate_champion_1_valid = self._get_champion_valid_count(1)
 
-        if squadmate_champion_0_valid > squadmate_champion_1_valid:
-            champions.append(self._get_squadmate_champion(0, debug, champions))
-            champions.append(self._get_squadmate_champion(1, debug, champions))
-        else:
-            champions.append(self._get_squadmate_champion(1, debug, champions))
-            champions.insert(1, self._get_squadmate_champion(0, debug, champions))
+            if squadmate_champion_0_valid > squadmate_champion_1_valid:
+                champions.append(self._get_squadmate_champion(0, debug, champions))
+                champions.append(self._get_squadmate_champion(1, debug, champions))
+            else:
+                champions.append(self._get_squadmate_champion(1, debug, champions))
+                champions.insert(1, self._get_squadmate_champion(0, debug, champions))
 
         self.logger.info(f'Resolved names and champions: {list(zip(names, champions))}')
 
@@ -300,9 +312,7 @@ class Squad:
             self.logger.info(f'Resolving players from {len(squad_summaries)} squad summary frames')
             all_player_stats: List[List[SquadSummaryStats]] = [[], [], []]
             for summary in squad_summaries:
-                for i in range(3):
-                    if solo and i != 1:
-                        continue
+                for i in range(expected_size):
                     all_player_stats[i].append(summary.player_stats[i])
 
             self.player = None
@@ -316,7 +326,7 @@ class Squad:
                     else:
                         matches[-1].append(0)
 
-            table = [[names[i]] + matches[i] for i in range(3 if not solo else 1)]
+            table = [[names[i]] + matches[i] for i in range(expected_size)]
             headers = [levenshtein.median([s.name for s in stats]) for stats in all_player_stats]
             self.logger.info(f'Got name/stat matches:\n{tabulate.tabulate(table, headers=[""] + headers)}')
 
