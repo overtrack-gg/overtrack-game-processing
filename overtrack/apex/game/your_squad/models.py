@@ -7,7 +7,8 @@ from overtrack.util.uploadable_image import UploadableImage
 
 @dataclass(frozen=True)
 class YourSquad:
-    names: Tuple[Optional[str], Optional[str], Optional[str]]
+    names: Tuple[Optional[str], ...]
+    mode: Optional[str] = None
     images: Optional[UploadableImage] = None
 
 

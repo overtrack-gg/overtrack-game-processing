@@ -31,7 +31,7 @@ def _draw_squad(debug_image: Optional[np.ndarray], squad: Union[YourSquad, Champ
 
 class YourSquadProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
-
+    DUOS_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'duos.png'), 0)
     TEMPLATES = {
         k: imageops.imread(os.path.join(os.path.dirname(__file__), 'data', k + '.png'), 0)
         for k in [
@@ -64,14 +64,23 @@ class YourSquadProcessor(Processor):
             return False
 
         if key == 'your_squad':
+            mode_image = self.REGIONS['game_mode'].extract_one(frame.image_yuv[:, :, 0])
+            _, mode_thresh = cv2.threshold(mode_image, 180, 255, cv2.THRESH_BINARY)
+            duos_match = np.max(cv2.matchTemplate(mode_thresh, self.DUOS_TEMPLATE, cv2.TM_CCORR_NORMED))
+            mode = None
+            if duos_match > 0.75:
+                mode = 'duos'
+
+            names_region_name = 'names' if mode != 'duos' else 'names_duos'
             names = imageops.tesser_ocr_all(
-                self.REGIONS['names'].extract(y),
+                self.REGIONS[names_region_name].extract(y),
                 engine=imageops.tesseract_lstm,
                 invert=True
             )
             frame.your_squad = YourSquad(
-                (self._to_name(names[0]), self._to_name(names[1]), self._to_name(names[2])),
-                images=lazy_upload('your_squad', np.hstack(self.REGIONS['names'].extract(frame.image)), frame.timestamp)
+                tuple(self._to_name(n) for n in names),
+                mode=mode,
+                images=lazy_upload('your_squad', np.hstack(self.REGIONS[names_region_name].extract(frame.image)), frame.timestamp)
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_squad(frame.debug_image, frame.your_squad)
