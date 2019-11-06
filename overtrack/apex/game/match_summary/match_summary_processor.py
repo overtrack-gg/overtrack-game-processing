@@ -298,7 +298,7 @@ class MatchSummaryProcessor(Processor):
                 return None
             else:
                 logger.debug(f'Parsed "{text}" as {placed}')
-                if 1 <= placed <= 20:
+                if 1 <= placed <= 30:
                     return placed
                 else:
                     logger.warning(f'Rejected placed={placed}')
