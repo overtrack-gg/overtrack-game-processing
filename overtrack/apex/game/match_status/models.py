@@ -19,3 +19,5 @@ class MatchStatus:
     streak: Optional[int] = None
     solos_players_left: Optional[int] = None
 
+    mode: Optional[str] = None
+

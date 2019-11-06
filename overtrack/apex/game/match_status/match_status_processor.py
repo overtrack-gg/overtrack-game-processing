@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import string
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import Levenshtein as levenshtein
 import cv2
@@ -63,6 +63,13 @@ class MatchStatusProcessor(Processor):
             cv2.cvtColor(imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'ranks', rank + '.png'), -1)[:, :, 3], cv2.COLOR_GRAY2BGR)
         ) for rank in data.ranks
     ]
+    MODE_TEMPLATES = [
+        (
+            mode,
+            imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'modes', mode + '.png')),
+            cv2.cvtColor(imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'modes', mode + '.png'), -1)[:, :, 3], cv2.COLOR_GRAY2BGR)
+        ) for mode in ['duos']
+    ]
     SUBS = [
         '?2',
         'O0',
@@ -92,24 +99,37 @@ class MatchStatusProcessor(Processor):
         if mxv < 0.9:
             return False
 
-        # 90 for unranked, 15 for ranked
-        ranked = mxl[0] < 30
+        badge_image = self.REGIONS['rank_badge'].extract_one(frame.image)
+        # cv2.imshow('rank_badge_image', badge_image)
+        # print(rank_badge_matches)
 
-        squads_left_text = self._parse_squads_left_text(y, ranked)
-        squads_left = self._get_squads_left(squads_left_text)
+        # 90 for unranked, 15 for ranked
+        has_badge = mxl[0] < 30
+
+        mode = None
+        if has_badge:
+            mode_badge_matches = self._parse_badge(badge_image, self.MODE_TEMPLATES)
+            if mode_badge_matches[0] < 750:
+                mode = 'duos'
+
+        squads_left_text = self._parse_squads_left_text(y, has_badge)
+        squads_left = self._get_squads_left(squads_left_text, mode)
         if not squads_left:
-            solos_players_left = self._get_squads_left(squads_left_text, solos=True)
+            mode = 'solos'
+            solos_players_left = self._get_squads_left(squads_left_text, mode)
         else:
             solos_players_left = None
+
+        if not mode and has_badge:
+            mode = 'ranked'
 
         if squads_left or solos_players_left:
             # if left < 1750:
             #     streak = self._get_streak(y, left + 115)
             # else:
             #     streak = None
-            if squads_left and ranked:
-                rank_badge_image = self.REGIONS['rank_badge'].extract_one(frame.image)
-                rank_badge_matches = self._get_rank_badge(rank_badge_image)
+            if mode == 'ranked':
+                rank_badge_matches = self._parse_badge(badge_image, self.RANK_TEMPLATES)
                 rank_text_image = self.REGIONS['rank_text'].extract_one(frame.image_yuv[:, :, 0])
                 rank_text = imageops.tesser_ocr(
                     rank_text_image,
@@ -133,15 +153,17 @@ class MatchStatusProcessor(Processor):
 
             frame.match_status = MatchStatus(
                 squads_left=squads_left,
-                players_alive=self._get_players_alive(y, ranked) if squads_left and squads_left > 4 else None,
-                kills=self._get_kills(y, ranked),
-                ranked=ranked,
+                players_alive=self._get_players_alive(y, has_badge) if squads_left and squads_left > 4 else None,
+                kills=self._get_kills(y, mode),
+                ranked=mode == 'ranked',
 
                 rank_badge_matches=rank_badge_matches,
                 rank_text=rank_text,
                 rp_text=rp_text,
 
                 solos_players_left=solos_players_left,
+
+                mode=mode,
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_status(frame.debug_image, frame.match_status)
@@ -149,8 +171,8 @@ class MatchStatusProcessor(Processor):
         else:
             return False
 
-    def _parse_squads_left_text(self, luma: np.ndarray, ranked: bool) -> str:
-        prefix = 'ranked_' if ranked else ''
+    def _parse_squads_left_text(self, luma: np.ndarray, has_badge: bool) -> str:
+        prefix = 'ranked_' if has_badge else ''
         region = self.REGIONS[prefix + 'squads_left'].extract_one(luma)
         squads_left_text = imageops.tesser_ocr(
             region,
@@ -163,8 +185,15 @@ class MatchStatusProcessor(Processor):
         ).strip().replace('B', '6')
         return squads_left_text
 
-    def _get_squads_left(self, squads_left_text: str, solos: bool = False) -> Optional[int]:
-        expected_text = 'SQUADSLEFT' if not solos else 'PLAYERSLEFT'
+    def _get_squads_left(self, squads_left_text: str, mode: Optional[str] = None) -> Optional[int]:
+        expected_text = 'SQUADSLEFT'
+        expected_max_squads = 20
+        if mode == 'solos':
+            expected_text = 'PLAYERSLEFT'
+            expected_max_squads = 60
+        elif mode == 'duos':
+            expected_max_squads = 30
+
         text_match = levenshtein.ratio(squads_left_text[2:].replace(' ', ''), expected_text)
         if text_match > 0.8:
             number_text = squads_left_text[:3].split(' ', 1)[0]
@@ -176,7 +205,7 @@ class MatchStatusProcessor(Processor):
                 logger.warning(f'Failed to parse "{number_text}" as int - extracted from "{squads_left_text}"')
                 return None
             else:
-                if 2 <= squads_left <= (20 if not solos else 60):
+                if 2 <= squads_left <= expected_max_squads:
                     return squads_left
                 else:
                     logger.warning(f'Got squads_left={squads_left} - rejecting. Extracted from "{squads_left_text}"')
@@ -187,8 +216,8 @@ class MatchStatusProcessor(Processor):
         else:
             return None
 
-    def _get_players_alive(self, luma: np.ndarray, ranked: bool) -> Optional[int]:
-        prefix = 'ranked_' if ranked else ''
+    def _get_players_alive(self, luma: np.ndarray, has_badge: bool) -> Optional[int]:
+        prefix = 'ranked_' if has_badge else ''
         region = self.REGIONS[prefix + 'alive'].extract_one(luma)
         players_alive = imageops.tesser_ocr(
             region,
@@ -203,8 +232,8 @@ class MatchStatusProcessor(Processor):
             logger.warning(f'Rejecting players_alive={players_alive}')
             return None
 
-    def _get_kills(self, luma: np.ndarray, ranked: bool) -> Optional[int]:
-        prefix = 'ranked_' if ranked else ''
+    def _get_kills(self, luma: np.ndarray, mode: str) -> Optional[int]:
+        prefix = (mode + '_') if mode else ''
         region = self.REGIONS[prefix + 'kills'].extract_one(luma)
         _, kills_thresh = cv2.threshold(region, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         kills_thresh = cv2.copyMakeBorder(kills_thresh, 5, 5, 0, 5, cv2.BORDER_CONSTANT, value=0)
@@ -239,11 +268,11 @@ class MatchStatusProcessor(Processor):
         else:
             return None
 
-    def _get_rank_badge(self, rank_badge_image: np.ndarray) -> Tuple[float, ...]:
+    def _parse_badge(self, badge_image: np.ndarray, badges: List[Tuple[str, np.ndarray, np.ndarray]]) -> Tuple[float, ...]:
         matches = []
-        for rank, template, mask in self.RANK_TEMPLATES:
+        for rank, template, mask in badges:
             match = np.min(matchTemplate(
-                rank_badge_image,
+                badge_image,
                 template,
                 cv2.TM_SQDIFF,
                 mask=mask
