@@ -43,6 +43,9 @@ class YourSquadProcessor(Processor):
 
     REQUIRED_MATCH = 0.95
 
+    def __init__(self):
+        self.duos = False
+
     def eager_load(self):
         self.REGIONS.eager_load()
 
@@ -66,10 +69,11 @@ class YourSquadProcessor(Processor):
         if key == 'your_squad':
             mode_image = self.REGIONS['game_mode'].extract_one(frame.image_yuv[:, :, 0])
             _, mode_thresh = cv2.threshold(mode_image, 180, 255, cv2.THRESH_BINARY)
-            duos_match = np.max(cv2.matchTemplate(mode_thresh, self.DUOS_TEMPLATE, cv2.TM_CCORR_NORMED))
+            frame.duos_match = np.max(cv2.matchTemplate(mode_thresh, self.DUOS_TEMPLATE, cv2.TM_CCORR_NORMED))
             mode = None
-            if duos_match > 0.75:
+            if frame.duos_match > 0.75:
                 mode = 'duos'
+            self.duos = mode == 'duos'
 
             names_region_name = 'names' if mode != 'duos' else 'names_duos'
             names = imageops.tesser_ocr_all(
@@ -96,14 +100,15 @@ class YourSquadProcessor(Processor):
             self.REGIONS.draw(frame.debug_image)
             _draw_squad(frame.debug_image, frame.your_selection)
         elif key == 'champion_squad':
+            names_region_name = 'names' if self.duos else 'names_duos'
             names = imageops.tesser_ocr_all(
-                self.REGIONS['names'].extract(y),
+                self.REGIONS[names_region_name].extract(y),
                 engine=imageops.tesseract_lstm,
                 invert=True
             )
             frame.champion_squad = ChampionSquad(
-                (self._to_name(names[0]), self._to_name(names[1]), self._to_name(names[2])),
-                images=lazy_upload('champion_squad', np.hstack(self.REGIONS['names'].extract(frame.image)), frame.timestamp)
+                tuple(self._to_name(n) for n in names),
+                images=lazy_upload('champion_squad', np.hstack(self.REGIONS[names_region_name].extract(frame.image)), frame.timestamp)
             )
             self.REGIONS.draw(frame.debug_image)
             _draw_squad(frame.debug_image, frame.champion_squad)
@@ -123,7 +128,7 @@ class YourSquadProcessor(Processor):
 def main() -> None:
     from overtrack import util
 
-    util.test_processor('your_squad', YourSquadProcessor(), 'your_squad', 'your_selection', 'champion_squad', 'squad_match', game='apex')
+    util.test_processor('your_squad', YourSquadProcessor(), 'your_squad', 'your_selection', 'champion_squad', 'squad_match', 'duos_match', game='apex')
 
 
 if __name__ == '__main__':

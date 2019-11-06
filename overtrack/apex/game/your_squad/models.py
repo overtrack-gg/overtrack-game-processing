@@ -14,7 +14,7 @@ class YourSquad:
 
 @dataclass(frozen=True)
 class ChampionSquad:
-    names: Tuple[Optional[str], Optional[str], Optional[str]]
+    names: Tuple[Optional[str], ...]
     images: Optional[UploadableImage] = None
 
 
