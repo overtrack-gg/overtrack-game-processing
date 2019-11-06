@@ -20,11 +20,13 @@ class PlayerStats:
 class SquadSummary:
     champions: bool
     squad_kills: Optional[int]
-    player_stats: Tuple[PlayerStats, PlayerStats, PlayerStats]
+    player_stats: Tuple[PlayerStats, ...]
 
     placed: Optional[int] = None
 
+    elite: Optional[bool] = False
+    mode: Optional[str] = None
+
     image: Optional[UploadableImage] = None
 
-    elite: Optional[bool] = False
 

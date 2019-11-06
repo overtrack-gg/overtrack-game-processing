@@ -82,12 +82,17 @@ class SquadSummaryProcessor(Processor):
         if match > self.REQUIRED_MATCH:
             champions = key in ['champions_of_the_arena']
 
+            duos_empty_area = self.REGIONS['duos_empty_area'].extract_one(frame.image_yuv[:, :, 0])
+            duos = np.sum(duos_empty_area > 50) < 100
+
             frame.squad_summary = SquadSummary(
                 champions=champions,
                 placed=self._process_yellowtext(self.REGIONS['placed'].extract_one(frame.image)),
                 squad_kills=self._process_yellowtext(self.REGIONS['squad_kills'].extract_one(frame.image)),
-                player_stats=self._process_player_stats(y),
+                player_stats=self._process_player_stats(y, duos),
                 elite=False,
+                mode='duos' if duos else None,
+
                 image=lazy_upload('squad_summary', self.REGIONS.blank_out(frame.image), frame.timestamp, selection='last'),
             )
             self.REGIONS.draw(frame.debug_image)
@@ -138,9 +143,11 @@ class SquadSummaryProcessor(Processor):
             logger.warning(f'Could not parse "{text}" as int')
             return None
 
-    def _process_player_stats(self, y: np.ndarray) -> Tuple[PlayerStats, PlayerStats, PlayerStats]:
+    def _process_player_stats(self, y: np.ndarray, duos: bool = False) -> Tuple[PlayerStats, ...]:
+        prefix = 'duos_' if duos else ''
+
         names = []
-        for im in self.REGIONS['names'].extract(y):
+        for im in self.REGIONS[prefix + 'names'].extract(y):
             im = 255 - cv2.bitwise_and(
                 im,
                 cv2.dilate(
@@ -165,7 +172,7 @@ class SquadSummaryProcessor(Processor):
                 logger.info(f'Using "{name}" instead')
             names.append(name)
 
-        stat_images = self.REGIONS['stats'].extract(y)
+        stat_images = self.REGIONS[prefix + 'stats'].extract(y)
         # remove 'M' and 'S' from survived time
         # for image in stat_images[6:9]:
         #     comp_image, comps = imageops.connected_components(cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1])
@@ -214,7 +221,8 @@ class SquadSummaryProcessor(Processor):
 
         # typing: ignore
         # noinspection PyTypeChecker
-        r = tuple([PlayerStats(names[i], *stats[i::3]) for i in range(3)])
+        count = 3 if not duos else 2
+        r = tuple([PlayerStats(names[i], *stats[i::count]) for i in range(count)])
         logger.info(f'Got {pprint.pformat(r)}')
         return r
 
