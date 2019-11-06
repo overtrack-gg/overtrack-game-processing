@@ -34,5 +34,6 @@ SEASONS = [
     Season(2, _season_2_start.timestamp(), 1569956446),
     Season(3, 1569956446, float('inf')),
 
-    Season(1002, 0, 0, season_name='Season 2 Solo')
+    Season(1002, 0, 0, season_name='Season 2 Solo'),
+    Season(1003, 1569956446, float('inf'), season_name='Season 3 Duos'),
 ]

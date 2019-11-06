@@ -39,7 +39,16 @@ class ApexGame:
         self.solo = any('your_selection' in f for f in frames)
         if self.solo and any('your_squad' in f for f in frames):
             self.logger.error(f'Got game with both "your_selection" and "your_squad"')
-        self.squad_count = 20 if not self.solo else 60
+
+        self.duos = len([f for f in frames if 'your_squad' in f and f.your_squad.mode == 'duos']) > 0
+
+        self.squad_count = 20
+        if self.solo:
+            self.logger.info(f'Game is solos game')
+            self.squad_count = 60
+        elif self.duos:
+            self.logger.info(f'Game is duos game')
+            self.squad_count = 30
 
         self.menu_frames = [f.apex_play_menu for f in frames if 'apex_play_menu' in f]
         menu_names = [apex_play_menu.player_name for apex_play_menu in self.menu_frames]
