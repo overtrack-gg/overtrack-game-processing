@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import Levenshtein as levenshtein
 import numpy as np
 import shortuuid
+import typedload
+from dataclasses import dataclass
 
 from overtrack.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
@@ -17,6 +19,21 @@ from overtrack.frame import Frame
 from overtrack.util import arrayops, s2ts
 
 
+@dataclass
+class OriginUser:
+    name: str
+    ocr_name: str
+    uid: Optional[int] = None
+    valid: bool = False
+    online: bool = False
+    in_game: bool = False
+
+    ocr_name_certain: bool = False
+    # selected_legend: Optional[str] = None
+
+    stats: Optional[Dict] = None
+
+
 class ApexGame:
     logger = logging.getLogger('ApexGame')
 
@@ -24,9 +41,14 @@ class ApexGame:
             self,
             frames: List[Frame],
             key: str = None,
-            stats_before: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
-            stats_after: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
+            stats_before: Optional[List[Tuple[str, Dict[str, OriginUser]]]] = None,
+            stats_after: Optional[List[Tuple[str, Dict[str, OriginUser]]]] = None,
+            champion: Optional[OriginUser] = None,
+            scrims: Optional[str] = None,
             debug: Union[bool, str] = False):
+
+        self.scrims = scrims
+        self.champion = champion
 
         your_squad_first_index = 0
         your_squad_last_index = 0
@@ -342,6 +364,7 @@ class ApexGame:
             'duration': self.duration,
             'season': self.season,
             'solo': self.solo,
+            'scrims': self.scrims,
 
             # 'player_name': self.player_name,
             'kills': self.kills,
@@ -352,6 +375,7 @@ class ApexGame:
             'route': self.route.to_dict(),
             'weapons': self.weapons.to_dict(),
             'rank': self.rank.to_dict() if self.rank else None,
+            'champion': typedload.dump(self.champion),
 
             'images': self.images
         }
