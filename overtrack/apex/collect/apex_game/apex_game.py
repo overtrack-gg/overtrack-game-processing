@@ -49,10 +49,10 @@ class ApexGame:
             alt_match_started = rounded_match_started + (1 if match_started_offset > 30 else -1) * 60
 
             started_datetime = datetime.datetime.utcfromtimestamp(rounded_match_started)
-            self.match_id = started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name']
+            self.match_id = started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name'].upper()
             self.match_ids = [
                 self.match_id,
-                datetime.datetime.utcfromtimestamp(alt_match_started).strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name']
+                datetime.datetime.utcfromtimestamp(alt_match_started).strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name'].upper()
             ]
         else:
             self.match_id = None
