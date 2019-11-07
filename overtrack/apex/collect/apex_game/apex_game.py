@@ -46,7 +46,7 @@ class ApexGame:
             match_started_offset = self.match_started % 60
 
             rounded_match_started = int(self.match_started / 60 + 0.5) * 60
-            alt_match_started = rounded_match_started + (1 if match_started_offset > 30 else -1)
+            alt_match_started = rounded_match_started + (1 if match_started_offset > 30 else -1) * 60
 
             started_datetime = datetime.datetime.utcfromtimestamp(rounded_match_started)
             self.match_id = started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name']
@@ -373,6 +373,7 @@ class ApexGame:
             'season': self.season,
             'solo': self.solo,
             'scrims': self.scrims,
+            'match_started': self.match_started,
             'match_id': self.match_id,
             'match_ids': self.match_ids,
 

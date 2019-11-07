@@ -308,7 +308,7 @@ class Squad:
         self.logger.info(f'Resolved names and champions: {list(zip(names, champions))}')
 
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
-        if len(squad_summaries):
+        if len(squad_summaries) and any(champions):
             self.logger.info(f'Resolving players from {len(squad_summaries)} squad summary frames')
             all_player_stats: List[List[SquadSummaryStats]] = [[] for c in champions if c]
             for summary in squad_summaries:
