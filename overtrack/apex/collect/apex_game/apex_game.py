@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import logging
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -19,21 +20,6 @@ from overtrack.frame import Frame
 from overtrack.util import arrayops, s2ts
 
 
-@dataclass
-class OriginUser:
-    name: str
-    ocr_name: str
-    uid: Optional[int] = None
-    valid: bool = False
-    online: bool = False
-    in_game: bool = False
-
-    ocr_name_certain: bool = False
-    # selected_legend: Optional[str] = None
-
-    stats: Optional[Dict] = None
-
-
 class ApexGame:
     logger = logging.getLogger('ApexGame')
 
@@ -41,9 +27,9 @@ class ApexGame:
             self,
             frames: List[Frame],
             key: str = None,
-            stats_before: Optional[List[Tuple[str, Dict[str, OriginUser]]]] = None,
-            stats_after: Optional[List[Tuple[str, Dict[str, OriginUser]]]] = None,
-            champion: Optional[OriginUser] = None,
+            stats_before: Optional[List[Tuple[str, Dict[str, Dict]]]] = None,
+            stats_after: Optional[List[Tuple[str, Dict[str, Dict]]]] = None,
+            champion: Optional[Dict] = None,
             scrims: Optional[str] = None,
             debug: Union[bool, str] = False):
 
@@ -375,7 +361,8 @@ class ApexGame:
             'route': self.route.to_dict(),
             'weapons': self.weapons.to_dict(),
             'rank': self.rank.to_dict() if self.rank else None,
-            'champion': typedload.dump(self.champion),
+
+            'champion': self.champion,
 
             'images': self.images
         }
