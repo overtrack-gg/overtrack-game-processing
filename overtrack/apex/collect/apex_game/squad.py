@@ -392,6 +392,7 @@ class Squad:
             elif duos:
                 self.squadmates = (
                     Player(names[1], champions[1], [], frames) if champions[1] else None,
+                    None,
                 )
             else:
                 self.squadmates = (
