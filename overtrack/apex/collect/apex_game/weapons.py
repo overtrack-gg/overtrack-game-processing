@@ -27,7 +27,7 @@ class Weapons:
 
     WEAPON_COLOURS_SELECTED = {
         # Light
-        (454, 84, 125): True,
+        (45, 84, 125): True,
         (28, 42, 60): False,
 
         # Heavy
