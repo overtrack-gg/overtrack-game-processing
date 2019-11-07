@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import logging
+import math
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -35,6 +36,27 @@ class ApexGame:
 
         self.scrims = scrims
         self.champion = champion
+
+        game_times = [f for f in frames if 'game_time' in f]
+        if len(game_times):
+            self.match_started = int(game_times[0].timestamp)
+        else:
+            self.match_started = int(frames[0].timestamp + 180)
+        if self.champion:
+            match_started_offset = self.match_started % 60
+
+            rounded_match_started = int(self.match_started / 60 + 0.5) * 60
+            alt_match_started = rounded_match_started + (1 if match_started_offset > 30 else -1)
+
+            started_datetime = datetime.datetime.utcfromtimestamp(rounded_match_started)
+            self.match_id = started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name']
+            self.match_ids = [
+                self.match_id,
+                datetime.datetime.utcfromtimestamp(alt_match_started).strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name']
+            ]
+        else:
+            self.match_id = None
+            self.match_ids = [None, None]
 
         your_squad_first_index = 0
         your_squad_last_index = 0
@@ -351,6 +373,8 @@ class ApexGame:
             'season': self.season,
             'solo': self.solo,
             'scrims': self.scrims,
+            'match_id': self.match_id,
+            'match_ids': self.match_ids,
 
             # 'player_name': self.player_name,
             'kills': self.kills,
@@ -364,7 +388,7 @@ class ApexGame:
 
             'champion': self.champion,
 
-            'images': self.images
+            'images': self.images,
         }
 
 
