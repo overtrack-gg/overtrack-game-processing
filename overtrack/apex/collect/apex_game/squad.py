@@ -310,10 +310,14 @@ class Squad:
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
         if len(squad_summaries):
             self.logger.info(f'Resolving players from {len(squad_summaries)} squad summary frames')
-            all_player_stats: List[List[SquadSummaryStats]] = [[], [], []]
+            all_player_stats: List[List[SquadSummaryStats]] = [[] for c in champions if c]
             for summary in squad_summaries:
-                for i in range(len([c for c in champions if c])):
-                    all_player_stats[i].append(summary.player_stats[i])
+                for i, stats in enumerate(all_player_stats):
+                    try:
+                        all_player_stats[i].append(summary.player_stats[i])
+                    except IndexError:
+                        # if frame.summary incorrectly assumed the wrong number of players
+                        break
 
             self.player = None
             self.squadmates = (None, None)
