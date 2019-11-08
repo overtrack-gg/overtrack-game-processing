@@ -160,7 +160,6 @@ class SquadSummaryProcessor(Processor):
         name_images = self.REGIONS[prefix + 'names'].shunt(x=shunt).extract(y)
         names = []
         for im in name_images:
-            self._mask_components_touching_edges(im)
             im = 255 - cv2.bitwise_and(
                 im,
                 cv2.dilate(
@@ -189,8 +188,6 @@ class SquadSummaryProcessor(Processor):
 
         stat_images = self.REGIONS[prefix + 'stats'].shunt(x=shunt).extract(y)
 
-        for im in stat_images:
-            self._mask_components_touching_edges(im)
 
         stats = imageops.tesser_ocr_all(
             stat_images,
