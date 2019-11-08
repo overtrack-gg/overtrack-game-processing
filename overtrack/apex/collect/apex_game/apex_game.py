@@ -37,27 +37,6 @@ class ApexGame:
         self.scrims = scrims
         self.champion = champion
 
-        game_times = [f for f in frames if 'game_time' in f]
-        if len(game_times):
-            self.match_started = int(game_times[0].timestamp)
-        else:
-            self.match_started = int(frames[0].timestamp + 180)
-        if self.champion:
-            match_started_offset = self.match_started % 60
-
-            rounded_match_started = int(self.match_started / 60 + 0.5) * 60
-            alt_match_started = rounded_match_started + (1 if match_started_offset > 30 else -1) * 60
-
-            started_datetime = datetime.datetime.utcfromtimestamp(rounded_match_started)
-            self.match_id = started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name'].upper()
-            self.match_ids = [
-                self.match_id,
-                datetime.datetime.utcfromtimestamp(alt_match_started).strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name'].upper()
-            ]
-        else:
-            self.match_id = None
-            self.match_ids = [None, None]
-
         your_squad_first_index = 0
         your_squad_last_index = 0
         for i, f in enumerate(frames):
@@ -70,10 +49,10 @@ class ApexGame:
         if self.solo and any('your_squad' in f for f in frames):
             self.logger.error(f'Got game with both "your_selection" and "your_squad"')
 
-        duos_frames = len([f for f in frames if ('your_squad' in f and f.your_squad.mode == 'duos') or ('champion_squad' in f and f.champion_squad.mode == 'duos')])
-        selection_frames = len([f for f in frames if 'your_squad' in f or 'champion_squad' in f])
-        self.logger.info(f'Got {duos_frames}/{selection_frames} confirming game as duos')
-        self.duos = duos_frames > selection_frames * 0.5
+        duos_frames = [f for f in frames if ('your_squad' in f and f.your_squad.mode == 'duos') or ('champion_squad' in f and f.champion_squad.mode == 'duos')]
+        selection_frames = [f for f in frames if 'your_squad' in f or 'champion_squad' in f]
+        self.logger.info(f'Got {len(duos_frames)}/{len(selection_frames)} confirming game as duos')
+        self.duos = len(duos_frames) > len(selection_frames) * 0.5
 
         self.squad_count = 20
         if self.solo:
@@ -82,6 +61,36 @@ class ApexGame:
         elif self.duos:
             self.logger.info(f'Game is duos game')
             self.squad_count = 30
+
+        self.logger.info(
+            f'Match start from selection frame ({"your_squad" if "your_squad" in selection_frames[-1] else "your_champion"}) => '
+            f'{selection_frames[-1].timestamp_str}'
+        )
+        self.match_started = int(selection_frames[-1].timestamp)
+        if self.champion:
+            rounded_match_started = int(self.match_started / 60 + 0.5) * 60
+            match_started_offset = self.match_started - rounded_match_started
+            alt_match_started = rounded_match_started + (1 if match_started_offset > 0 else -1) * 60
+
+            started_datetime = datetime.datetime.utcfromtimestamp(rounded_match_started)
+            alt_started_datetime = datetime.datetime.utcfromtimestamp(alt_match_started)
+
+            self.logger.info(
+                f'Start time is {datetime.datetime.utcfromtimestamp(self.match_started)} -> '
+                f'{started_datetime} with offset={match_started_offset:.0f} ({("positive" if match_started_offset > 0 else "negative")}), '
+                f'alt start={alt_started_datetime}'
+            )
+
+            self.match_ids = [
+                started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name'].upper(),
+                alt_started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name'].upper()
+            ]
+            self.match_id = self.match_ids[0]
+            self.logger.info(f'Match IDs: {self.match_ids}')
+        else:
+            self.logger.warning(f'Match does not have champion - not setting match ID')
+            self.match_id = None
+            self.match_ids = [None, None]
 
         self.menu_frames = [f.apex_play_menu for f in frames if 'apex_play_menu' in f]
         menu_names = [apex_play_menu.player_name for apex_play_menu in self.menu_frames]
