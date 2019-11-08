@@ -314,7 +314,8 @@ class Squad:
             for summary in squad_summaries:
                 for i, stats in enumerate(all_player_stats):
                     try:
-                        all_player_stats[i].append(summary.player_stats[i])
+                        if len(summary.player_stats[i].name) >= 3:
+                            stats.append(summary.player_stats[i])
                     except IndexError:
                         # if frame.summary incorrectly assumed the wrong number of players
                         break
@@ -335,7 +336,7 @@ class Squad:
             self.logger.info(f'Got name/stat matches:\n{tabulate.tabulate(table, headers=[""] + headers)}')
 
             matches = np.array(matches)
-            for i in range(3 if not solo else 1):
+            for i in range(expected_size):
                 names_index, stats_index = np.unravel_index(np.argmax(matches), matches.shape)
                 match = matches[names_index, stats_index]
                 name = names[names_index]
@@ -372,10 +373,13 @@ class Squad:
                     player = None
                 if names_index == 0:
                     self.player = player
-                elif names_index == 1:
-                    self.squadmates = (player, self.squadmates[1])
+                elif duos:
+                    self.squadmates = (player, None)
                 else:
-                    self.squadmates = (self.squadmates[0], player)
+                    if names_index == 1:
+                        self.squadmates = (player, self.squadmates[1])
+                    else:
+                        self.squadmates = (self.squadmates[0], player)
         else:
             self.logger.info(f'Did not get any squad summary frames')
 

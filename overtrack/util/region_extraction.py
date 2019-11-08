@@ -44,6 +44,16 @@ class ExtractionRegions:
         else:
             self.regions = regions
 
+    def shunt(self, x=0, y=0) -> 'ExtractionRegions':
+        return ExtractionRegions(
+            self.name,
+            None,
+            [
+                (r[0] + x, r[1] + y, r[2], r[3]) for r in self.regions
+            ],
+            include_when_blanking=self.include_when_blanking
+        )
+
     def extract(self, image: np.ndarray) -> List[np.ndarray]:
         image_regions = []
         for x, y, w, h in self.regions:
