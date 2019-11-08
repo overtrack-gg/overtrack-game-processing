@@ -23,7 +23,7 @@ def _draw_squad_summary(debug_image: Optional[np.ndarray], squad_summary: SquadS
     cv2.putText(
         debug_image,
         f'{dataclasses.replace(squad_summary, player_stats=None, image=None)}',
-        (100, 250),
+        (100, 210),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.6,
         (0, 255, 0),
@@ -84,14 +84,23 @@ class SquadSummaryProcessor(Processor):
 
             duos_empty_area = self.REGIONS['duos_empty_area'].extract_one(frame.image_yuv[:, :, 0])
             duos_sum = np.sum(duos_empty_area > 100)
-            logger.debug(f'Got duos_sum={duos_sum}')
             duos = duos_sum < 100
+            logger.debug(f'Got duos_sum={duos_sum} => duos={duos}')
+
+            shunt = 0
+            if duos:
+                duos_shunt_area = self.REGIONS['duos_shunt_area'].extract_one(frame.image_yuv[:, :, 0])
+                duos_shunt_sum = np.sum(duos_shunt_area > 100)
+                duos_shunt = duos_shunt_sum < 100
+                logger.debug(f'Got duos_shunt_sum={duos_shunt_sum} => duos_shunt={duos_shunt}')
+                if duos_shunt:
+                    shunt = 50
 
             frame.squad_summary = SquadSummary(
                 champions=champions,
                 placed=self._process_yellowtext(self.REGIONS['placed'].extract_one(frame.image)),
                 squad_kills=self._process_yellowtext(self.REGIONS['squad_kills'].extract_one(frame.image)),
-                player_stats=self._process_player_stats(y, duos),
+                player_stats=self._process_player_stats(y, duos, shunt),
                 elite=False,
                 mode='duos' if duos else None,
 
@@ -145,11 +154,13 @@ class SquadSummaryProcessor(Processor):
             logger.warning(f'Could not parse "{text}" as int')
             return None
 
-    def _process_player_stats(self, y: np.ndarray, duos: bool = False) -> Tuple[PlayerStats, ...]:
+    def _process_player_stats(self, y: np.ndarray, duos: bool = False, shunt: int = 0) -> Tuple[PlayerStats, ...]:
         prefix = 'duos_' if duos else ''
 
+        name_images = self.REGIONS[prefix + 'names'].shunt(x=shunt).extract(y)
         names = []
-        for im in self.REGIONS[prefix + 'names'].extract(y):
+        for im in name_images:
+            self._mask_components_touching_edges(im)
             im = 255 - cv2.bitwise_and(
                 im,
                 cv2.dilate(
@@ -160,6 +171,8 @@ class SquadSummaryProcessor(Processor):
             im = cv2.resize(im, (0, 0), fx=2, fy=2)
             im = cv2.GaussianBlur(im, (0, 0), 1)
 
+            # cv2.imshow('name', im)
+            # cv2.waitKey(0)
             name = imageops.tesser_ocr(
                 im,
                 engine=imageops.tesseract_lstm,
@@ -174,31 +187,16 @@ class SquadSummaryProcessor(Processor):
                 logger.info(f'Using "{name}" instead')
             names.append(name)
 
-        stat_images = self.REGIONS[prefix + 'stats'].extract(y)
-        # remove 'M' and 'S' from survived time
-        # for image in stat_images[6:9]:
-        #     comp_image, comps = imageops.connected_components(cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1])
-        #     for component in comps:
-        #         # MS chars are 17 px high
-        #         if 14 < component.h < 19:
-        #             # mask out those components
-        #             mask = (comp_image == component.label).astype(np.uint8) * 255
-        #             mask = cv2.dilate(mask, None)
-        #             image[:] = cv2.bitwise_and(255 - mask, image)
+        stat_images = self.REGIONS[prefix + 'stats'].shunt(x=shunt).extract(y)
 
-        # for im in stat_images:
-        #     from overtrack.util import debugops
-        #     debugops.test_tesser_engines(im)
-
-        # from overtrack.util import debugops
-        # cv2.imshow('stat_images', debugops.hstack(stat_images))
-        # cv2.waitKey(0)
+        for im in stat_images:
+            self._mask_components_touching_edges(im)
 
         stats = imageops.tesser_ocr_all(
             stat_images,
             engine=ocr.tesseract_ttlakes_digits_specials,
         )
-       
+
         for i in range(len(stats)):
             value = stats[i]
             if value:
@@ -231,6 +229,19 @@ class SquadSummaryProcessor(Processor):
         r = tuple([PlayerStats(names[i], *stats[i::count]) for i in range(count)])
         logger.info(f'Got {pprint.pformat(r)}')
         return r
+
+    def _mask_components_touching_edges(self, im: np.ndarray, threshold=100) -> bool:
+        masked = False
+        _, t = cv2.threshold(im, threshold, 255, cv2.THRESH_BINARY)
+        mask, components = imageops.connected_components(t)
+        for c in components[1:]:
+            if c.y <= 1 or c.y + c.h >= im.shape[0] - 1:
+                print(c)
+                mask = (mask != c.label).astype(np.uint8) * 255
+                mask = cv2.erode(mask, None)
+                im[:] = cv2.bitwise_and(im, mask)
+                masked = c.area > 50
+        return masked
 
 
 if __name__ == '__main__':
