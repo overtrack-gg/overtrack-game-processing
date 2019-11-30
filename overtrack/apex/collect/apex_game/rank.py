@@ -6,6 +6,7 @@ import numpy as np
 import tabulate
 
 from overtrack.apex import data
+from overtrack.apex.collect.apex_game.squad import APIOriginUser
 from overtrack.apex.game.match_status import MatchStatus
 from overtrack.apex.game.menu import PlayMenu
 from overtrack.util import arrayops, textops
@@ -44,8 +45,8 @@ class Rank:
             placement: int,
             kills: int,
             player_name: str,
-            stats_before: Optional[List[Tuple[str, Dict[str, Any]]]],
-            stats_after: Optional[List[Tuple[str, Dict[str, Any]]]],
+            players_before: Optional[List[Optional[APIOriginUser]]],
+            players_after: Optional[List[Optional[APIOriginUser]]],
             debug: bool = False):
 
         self.rank: Optional[str] = None
@@ -67,8 +68,8 @@ class Rank:
         else:
             self.rp_change = None
 
-        if stats_before and stats_after:
-            self._resolve_api_rank(player_name, stats_after, stats_before)
+        if players_before and players_after:
+            self._resolve_api_rank(player_name, players_before, players_after)
 
     def _resolve_match_status_rank(self, match_status_frames: List[MatchStatus], debug: bool = False) -> None:
         rank_matches = np.array([
@@ -173,10 +174,10 @@ class Rank:
         if self.rp is None:
             self.logger.warning(f'Menu RP invalid')
 
-    def _resolve_api_rank(self, player_name, stats_after, stats_before):
+    def _resolve_api_rank(self, player_name: str, players_before: List[Optional[APIOriginUser]], players_after: List[Optional[APIOriginUser]]):
         self.logger.info(f'Trying to resolve RP from API stats for "{player_name}"')
-        player_stats_before_l = [n_s[1] for n_s in stats_before if n_s and n_s[0] == player_name and n_s[1]]
-        player_stats_after_l = [n_s[1] for n_s in stats_after if n_s and n_s[0] == player_name and n_s[1]]
+        player_stats_before_l = [p['stats'] for p in players_before if p and p['name'] == player_name and p['stats']]
+        player_stats_after_l = [p['stats'] for p in players_after if p and p['name'] == player_name and p['stats']]
         if len(player_stats_before_l) == 1 and len(player_stats_after_l) == 1:
             player_stats_before = player_stats_before_l[0]
             player_stats_after = player_stats_after_l[0]

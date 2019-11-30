@@ -124,7 +124,7 @@ class Route:
 
             rts = round(ts - frames[0].timestamp, 2)
             thresh = 0.55
-            if frame.minimap.version == 1:
+            if 'minimap' in frame and frame.minimap.version == 1:
                 thresh = 0.2
             if location.match > thresh:
                 ignored += 1

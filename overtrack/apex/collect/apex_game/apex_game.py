@@ -1,21 +1,17 @@
 import datetime
-import hashlib
 import logging
-import math
 from collections import Counter
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import Levenshtein as levenshtein
 import numpy as np
 import shortuuid
-import typedload
-from dataclasses import dataclass
 
 from overtrack.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
 from overtrack.apex.collect.apex_game.rank import Rank
 from overtrack.apex.collect.apex_game.route import Route
-from overtrack.apex.collect.apex_game.squad import Squad
+from overtrack.apex.collect.apex_game.squad import APIOriginUser, Squad
 from overtrack.apex.collect.apex_game.weapons import Weapons
 from overtrack.frame import Frame
 from overtrack.util import arrayops, s2ts
@@ -28,9 +24,9 @@ class ApexGame:
             self,
             frames: List[Frame],
             key: str = None,
-            stats_before: Optional[List[Tuple[str, Dict[str, Dict]]]] = None,
-            stats_after: Optional[List[Tuple[str, Dict[str, Dict]]]] = None,
-            champion: Optional[Dict] = None,
+            squad_before: Optional[List[Optional[APIOriginUser]]] = None,
+            squad_after: Optional[List[Optional[APIOriginUser]]] = None,
+            champion: Optional[APIOriginUser] = None,
             scrims: Optional[str] = None,
             debug: Union[bool, str] = False):
 
@@ -145,7 +141,7 @@ class ApexGame:
                 self.player_name = config_name
                 self.logger.info(f'Got player name from config: "{config_name}"')
 
-        self.squad = Squad(self.all_frames, menu_names, config_name, stats_before, stats_after, solo=self.solo, duos=self.duos, debug=debug)
+        self.squad = Squad(self.all_frames, menu_names, config_name, squad_before, squad_after, solo=self.solo, duos=self.duos, debug=debug)
         self.combat = Combat(self.frames, self.placed, self.squad, debug=debug)
         self.weapons = Weapons(self.frames, self.combat, debug=debug)
         self.route: Route = Route(self.frames, self.weapons, self.combat, season=self.season, debug=debug)
@@ -174,8 +170,8 @@ class ApexGame:
                 self.placed,
                 self.kills,
                 self.squad.player.name,
-                stats_before,
-                stats_after,
+                squad_before,
+                squad_after,
                 debug=debug
             )
         else:
