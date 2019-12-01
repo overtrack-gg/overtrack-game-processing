@@ -50,6 +50,7 @@ if TYPE_CHECKING:
         }
     )
 else:
+    APIStats = Dict[str, int]
     APIOriginUser = Dict[str, Any]
 
 

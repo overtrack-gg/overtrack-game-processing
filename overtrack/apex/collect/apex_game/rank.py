@@ -6,7 +6,7 @@ import numpy as np
 import tabulate
 
 from overtrack.apex import data
-from overtrack.apex.collect.apex_game.squad import APIOriginUser
+from overtrack.apex.collect.apex_game.squad import APIOriginUser, APIStats
 from overtrack.apex.game.match_status import MatchStatus
 from overtrack.apex.game.menu import PlayMenu
 from overtrack.util import arrayops, textops
@@ -176,8 +176,8 @@ class Rank:
 
     def _resolve_api_rank(self, player_name: str, players_before: List[Optional[APIOriginUser]], players_after: List[Optional[APIOriginUser]]):
         self.logger.info(f'Trying to resolve RP from API stats for "{player_name}"')
-        player_stats_before_l = [p['stats'] for p in players_before if p and p['name'] == player_name and p['stats']]
-        player_stats_after_l = [p['stats'] for p in players_after if p and p['name'] == player_name and p['stats']]
+        player_stats_before_l: List[APIStats] = [p['stats'] for p in players_before if p and p['name'] == player_name and p.get('stats')]
+        player_stats_after_l: List[APIStats] = [p['stats'] for p in players_after if p and p['name'] == player_name and p.get('stats')]
         if len(player_stats_before_l) == 1 and len(player_stats_after_l) == 1:
             player_stats_before = player_stats_before_l[0]
             player_stats_after = player_stats_after_l[0]
