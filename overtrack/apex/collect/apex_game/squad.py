@@ -286,7 +286,7 @@ class Player:
                         self.logger.info(f'{stat_field} for {self.name} from OCR does not match API: OCR={ocr_value} > API={api_value} - using API')
                         setattr(self.stats, stat_field, api_value)
                     else:
-                        self.logger.info(f'{stat_field} for {self.name} from OCR matches stats API: {stat_field}={api_value}')
+                        self.logger.info(f'{stat_field} (banner) for {self.name} from OCR matches stats API: {stat_field}={api_value}')
 
         for stat_key, stat_field in [
             ('kills', 'kills'),
