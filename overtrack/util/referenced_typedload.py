@@ -1,7 +1,7 @@
 import logging
 
 import itertools
-from typing import Any, Dict, Optional, Type, TypeVar, List, Union, cast, Tuple, NamedTuple
+from typing import Any, Dict, Optional, Type, TypeVar, List, Union, cast
 
 # noinspection PyUnresolvedReferences
 import dataclasses
@@ -20,7 +20,6 @@ from overtrack.source.stream import TSSource
 
 import overtrack.overwatch.game.objective.models
 import overtrack.overwatch.game.objective_2.models
-import overtrack.overwatch.game.killfeed.models
 import overtrack.overwatch.game.killfeed_2.models
 import overtrack.overwatch.game.tab.models
 import overtrack.overwatch.game.loading_map.models
@@ -123,7 +122,6 @@ _TYPES = {
     'tab_screen': overtrack.overwatch.game.tab.models.TabScreen,
     'main_menu': overtrack.overwatch.game.menu.models.MainMenu,
     'play_menu': overtrack.overwatch.game.menu.models.PlayMenu,
-    'killfeed': overtrack.overwatch.game.killfeed.models.Killfeed,
     'killfeed_2': overtrack.overwatch.game.killfeed_2.models.Killfeed2,
     'spectator_bar': overtrack.overwatch.game.spectator.models.SpectatorBar,
     'score_screen': overtrack.overwatch.game.score.models.ScoreScreen,

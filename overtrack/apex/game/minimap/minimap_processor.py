@@ -1,26 +1,24 @@
-from functools import lru_cache
-
-import requests
-import time
 import logging
 import os
 from collections import deque
-from typing import Optional, Tuple
+from typing import Optional
 
 import cv2
 import numpy as np
-from tensorflow.python.keras import Model
-from tensorflow.python.keras.saving import load_from_saved_model
-
+import requests
+import time
 from scipy import optimize
+from tensorflow.python.keras import Model
+from tensorflow.python.keras.saving import export_saved_model
+
 from overtrack.apex import ocr
 from overtrack.apex.game.minimap.models import Circle, Location, Minimap
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
-from overtrack.util.custom_layers import custom_objects
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
+from overtrack.util.tf import load_model
 
 logger = logging.getLogger('MinimapProcessor')
 
@@ -269,10 +267,9 @@ class MinimapProcessor(Processor):
     def __init__(self):
         self.map_rotated = deque(maxlen=10)
         self.map_rotate_in_config = None  # TODO
-        self.model: Model = load_from_saved_model(
-            os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter'),
-            # "C:/Users/simon/overtrack_2/training/apex_minimap/v3/inprog_models/v12_14_with_mini",
-            custom_objects=custom_objects
+        self.model: Model = load_model(
+            os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter')
+            # "C:/Users/simon/overtrack_2/training/apex_minimap/v3/inprog_models/v12_14_with_mini"
         )
         # from tensorflow.python.keras.saving import export_saved_model
         # export_saved_model(self.model, os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter'), serving_only=True)
@@ -628,7 +625,6 @@ class MinimapProcessor(Processor):
 
 def main() -> None:
     import glob
-    import random
 
     config_logger('map_processor', logging.DEBUG, write_to_file=False)
 

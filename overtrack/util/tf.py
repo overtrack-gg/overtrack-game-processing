@@ -1,12 +1,13 @@
-from typing import Any, Dict, List, Optional, Sequence, Union, Tuple
+import json
+import os
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.framework import tensor_shape
-from tensorflow.python.keras import backend
-from tensorflow.python.keras.backend import resize_images
-from tensorflow.python.keras.layers import Layer
-from tensorflow.python.ops import sparse_ops, image_ops
+from tensorflow.python.keras import Model, backend
+from tensorflow.python.keras.layers import Layer, deserialize
+from tensorflow.python.ops import image_ops, sparse_ops
 from tensorflow.python.ops.gen_ctc_ops import ctc_greedy_decoder
 
 
@@ -269,7 +270,9 @@ def make_ctc_decoder(inputs):
     r = sparse_ops.sparse_to_dense(decoded.indices, decoded.dense_shape, decoded.values, default_value=-1)
     return [r, log_prob]
 
-def _decode_ctc(logits: Union[list, np.ndarray], merge_repeated=True, alphabet: Optional[np.ndarray] = None, seq_lens: Optional[List[int]] = None):
+def decode_ctc(logits: Union[list, np.ndarray], merge_repeated=True, alphabet: Optional[np.ndarray] = None, seq_lens: Optional[List[int]] = None):
+    if alphabet is not None and isinstance(alphabet, list):
+        alphabet = np.array(alphabet)
     if isinstance(logits, list):
         logits = np.array(logits)
     decoded_ix, decoded_val, decoded_shape, log_probabilities = ctc_greedy_decoder(
@@ -301,11 +304,58 @@ def _decoded_to_rows(idx, val, shape, alphabet=None, aslist=False):
     return outputs
 
 
-custom_objects = {
+all_custom_objects = {
     'MaxAlongDims': MaxAlongDims,
     'ExpandDims': ExpandDims,
     'Squeeze': Squeeze,
     'Pad': Pad,
     'NormaliseByte': NormaliseByte,
     'ResizeImage': ResizeImage,
+    'BGR2RGB': BGR2RGB,
+    'ByteToFloat': ByteToFloat,
 }
+
+
+def load_model(path: str, custom_objects: Optional[Dict[str, object]] = None):
+    if not custom_objects:
+        custom_objects = all_custom_objects
+    else:
+        custom_objects = {**all_custom_objects, **custom_objects}
+
+    with open(path + '/assets/saved_model.json') as f:
+        model_config = json.load(f)
+    try:
+        del model_config['config']['layers'][0]['config']['ragged']
+    except KeyError:
+        pass
+
+    model: Model = deserialize(model_config, custom_objects=custom_objects)
+    model.load_weights(path + '/variables/variables')
+    return model
+
+
+def save_model(model: Model, path: str, include_optimizer: bool = False, meta: Optional[Dict[str, object]] = None):
+    if not meta:
+        meta = {}
+    meta['include_optimizer'] = include_optimizer
+
+    os.makedirs(path + '/assets', exist_ok=True)
+    with open(f'{path}/assets/saved_model.json', 'w') as f:
+        json.dump(json.loads(model.to_json()), f, indent=2)
+    with open(f'{path}/meta.json', 'w') as f:
+        json.dump(meta, f, indent=2)
+
+    model.save(path, include_optimizer=include_optimizer)
+
+
+def save_ctc_model(model: Model, outputs: List, path: str, include_optimizer: bool = False, meta: Optional[Dict[str, object]] = None):
+    save_model(model, path, include_optimizer=include_optimizer, meta=meta)
+    with open(f'{path}/outputs.json', 'w') as f:
+        json.dump({
+            'outputs': [
+                {
+                    'name': output.name,
+                    'values': output.values,
+                } for output in outputs
+            ]
+        }, f, indent=2)
