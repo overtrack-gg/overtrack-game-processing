@@ -31,6 +31,7 @@ class ApexGame:
             debug: Union[bool, str] = False):
 
         self.scrims = scrims
+        self.valid = True
 
         your_squad_first_index = 0
         your_squad_last_index = 0
@@ -43,9 +44,17 @@ class ApexGame:
         self.solo = any('your_selection' in f for f in frames)
         if self.solo and any('your_squad' in f for f in frames):
             self.logger.error(f'Got game with both "your_selection" and "your_squad"')
+            self.valid = False
+
+        squad_frames = sum('squad' in f for f in frames)
+        match_status_frames = sum('match_status' in f for f in frames)
+        if squad_frames == 0 and match_status_frames == 0:
+            self.logger.warning(f'Match had 0 squad/match status frames - detecting as invalid')
+            self.valid = False
+        else:
+            self.logger.info(f'Match had {squad_frames} squad frames and {match_status_frames} match status frames')
 
         selection_frames = [f for f in frames if 'your_squad' in f or 'champion_squad' in f]
-
         self.duos = self._get_is_duos(frames, selection_frames)
 
         self.squad_count = 20
@@ -381,7 +390,7 @@ class ApexGame:
         for season in data.SEASONS:
             if season.start < self.timestamp < season.end:
                 return season.index
-        self.logger.error(f'Could not get season for {self.timestamp} - using {len(data.SEASONS)}', exc_info=True)
+        self.logger.error(f'Could not get season for {self.timestamp} (valid={self.valid}) - using {len(data.SEASONS)}', exc_info=True)
         return len(data.SEASONS)
 
     def __str__(self) -> str:
