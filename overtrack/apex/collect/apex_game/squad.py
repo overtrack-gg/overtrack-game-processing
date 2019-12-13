@@ -1,6 +1,6 @@
 import logging
 from collections import Counter
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
+from typing import Any, Dict, List, Optional, TypedDict, Union, Tuple
 
 import Levenshtein as levenshtein
 import itertools
@@ -15,54 +15,31 @@ from overtrack.apex.game.squad_summary.models import PlayerStats as SquadSummary
 from overtrack.frame import Frame
 from overtrack.util import arrayops, textops
 
-if TYPE_CHECKING:
-    from typing_extensions import TypedDict
 
-    APIStats = TypedDict(
-        'APIStats',
-        {
-            'champion_id': int,
-            'champion': str,
-            'banner_ids': Dict[int, int],
-            'banners': Dict[str, int],
-            'kills': int,
-            'wins': int,
-            'shotsFired': int,
-            'shotsHit': int,
-            'damage': int,
-            'damageTaken': int,
-            'allyRevives': int,
-            'matches': int,
-        },
-        total=False
-    )
-    APIOriginUser = TypedDict(
-        'APIOriginUser',
-        {
-            'name': str,
-            'ocr_name': str,
-            'uid': Optional[int],
-            'valid': bool,
-            'online': bool,
-            'in_game': Optional[bool],
-            'ocr_name_certain': bool,
-            'stats': Optional[APIStats],
-        }
-    )
-else:
-    APIStats = Dict[str, int]
-    APIOriginUser = Dict[str, Any]
+class APIStats(TypedDict):
+    champion_id: int
+    champion: str
+    banner_ids: Dict[int, int]
+    banners: Dict[str, int]
+    rank_score: int
+    kills: int
+    wins: int
+    shotsFired: int
+    shotsHit: int
+    damage: int
+    damageTaken: int
+    allyRevives: int
+    matches: int
 
-
-def norm_name(s: str) -> str:
-    rs = s
-    for c1, c2 in '0O', 'DO', 'lI', '1I':
-        rs = rs.replace(c1, c2)
-    for dc in '_-':
-        while dc * 2 in rs:
-            rs = rs.replace(dc * 2, dc)
-    return rs
-
+class APIOriginUser(TypedDict):
+    name: str
+    ocr_name: str
+    uid: Optional[int]
+    valid: bool
+    online: bool
+    in_game: Optional[bool]
+    ocr_name_certain: bool
+    stats: Optional[APIStats]
 
 @dataclass
 class PlayerStats:
@@ -77,6 +54,9 @@ class PlayerStats:
     shots_hit: Optional[int] = None
     damage_taken: Optional[int] = None
 
+    rp: Optional[int] = None
+    rp_change: Optional[int] = None
+
     def merge(self, other: 'PlayerStats'):
         for f in fields(self):
             name = f.name
@@ -86,6 +66,15 @@ class PlayerStats:
                 setattr(self, name, other_value)
             elif own_value is not None and other_value is not None and own_value != other_value:
                 logging.getLogger('PlayerStats').warning(f'Got PlayerStats.{name} {own_value} != {other_value}')
+
+def norm_name(s: str) -> str:
+    rs = s
+    for c1, c2 in '0O', 'DO', 'lI', '1I':
+        rs = rs.replace(c1, c2)
+    for dc in '_-':
+        while dc * 2 in rs:
+            rs = rs.replace(dc * 2, dc)
+    return rs
 
 
 class Player:
@@ -137,6 +126,7 @@ class Player:
                  champion: str,
                  stats: List[SquadSummaryStats],
                  frames: List[Frame],
+                 ranked: bool,
                  is_owner: bool = False,
                  name_from_config: bool = False):
 
@@ -249,12 +239,21 @@ class Player:
             players_respawned=_sanity_clip(stats.players_respawned, 0, 10, 'players_respawned'),
         )
 
-    def update_from_api(self, name: str, user_before: APIOriginUser, user_after: APIOriginUser) -> None:
-        stats_before = user_before.get('stats')
-        stats_after = user_after.get('stats')
+    API_STAT_NAMES_TO_FIELDS = {
+        'kills': 'kills',
+        'damage': 'damage_dealt',
+        'ally_revives': 'players_revived',
+        'shots_fired': 'shots_fired',
+        'shots_hit': 'shots_hit',
+        'damage_taken': 'damage_taken',
+    }
 
-        if not stats_before or not stats_after:
+    def update_from_api(self, name: str, user_before: APIOriginUser, user_after: APIOriginUser, ranked: bool) -> None:
+        if not user_before.get('stats') or not user_after.get('stats'):
             return
+
+        stats_before: APIStats = user_before['stats']
+        stats_after: APIStats = user_after['stats']
 
         self.logger.info(f'Matched {name} {stats_before["champion"]} for {self}')
         self.logger.info(f'Stats before: {stats_before}')
@@ -279,6 +278,8 @@ class Player:
                     if self.stats is None:
                         self.stats = PlayerStats()
                     ocr_value = getattr(self.stats, stat_field)
+                    d = stats_after['banners']
+                    a = d[banner_name]
                     api_value = stats_after['banners'][banner_name] - stats_before['banners'][banner_name]
                     if ocr_value is None:
                         self.logger.info(f'{stat_field} for {self.name} not provided by OCR, API={api_value} - using API')
@@ -289,29 +290,28 @@ class Player:
                     else:
                         self.logger.info(f'{stat_field} (banner) for {self.name} from OCR matches stats API: {stat_field}={api_value}')
 
-        for stat_key, stat_field in [
-            ('kills', 'kills'),
-            ('damage', 'damage_dealt'),
-            ('ally_revives', 'players_revived'),
-            ('shots_fired', 'shots_fired'),
-            ('shots_hit', 'shots_hit'),
-            ('damage_taken', 'damage_taken')
-        ]:
-            if stats_before.get(stat_key) and stats_after.get(stat_key):
-                if self.stats is None:
-                    self.stats = PlayerStats()
-                ocr_value = getattr(self.stats, stat_field)
-                api_value = stats_after[stat_key] - stats_before[stat_key]
-                if not api_value:
-                    self.logger.info(f'{stat_field} from secret API was {api_value} - ignoring')
-                elif ocr_value is None:
-                    self.logger.info(f'{stat_field} for {self.name} not provided by OCR, API={api_value} - using API')
-                    setattr(self.stats, stat_field, api_value)
-                elif ocr_value != api_value:
-                    self.logger.info(f'{stat_field} for {self.name} from OCR/banners does not match API: OCR={ocr_value} > API={api_value} - using API')
-                    setattr(self.stats, stat_field, api_value)
-                else:
-                    self.logger.info(f'{stat_field} for {self.name} from OCR matches stats API: {stat_field}={api_value}')
+        api_stats_valid = any(stats_after[stat_key] - stats_before[stat_key] for stat_key in self.API_STAT_NAMES_TO_FIELDS)
+        if api_stats_valid:
+            for stat_key, stat_field in self.API_STAT_NAMES_TO_FIELDS.items():
+                if stats_before.get(stat_key) and stats_after.get(stat_key):
+                    if self.stats is None:
+                        self.stats = PlayerStats()
+                    ocr_value = getattr(self.stats, stat_field)
+                    api_value = stats_after[stat_key] - stats_before[stat_key]
+                    if ocr_value is None:
+                        self.logger.info(f'{stat_field} for {self.name} not provided by OCR, API={api_value} - using API')
+                        setattr(self.stats, stat_field, api_value)
+                    elif ocr_value != api_value:
+                        self.logger.info(f'{stat_field} for {self.name} from OCR/banners does not match API: OCR={ocr_value} > API={api_value} - using API')
+                        setattr(self.stats, stat_field, api_value)
+                    else:
+                        self.logger.info(f'{stat_field} for {self.name} from OCR matches stats API: {stat_field}={api_value}')
+        else:
+            self.logger.warning(f'All API stats had delta = 0 - ignoring new API stats')
+
+        if ranked:
+            self.stats.rp = stats_after['rank_score']
+            self.stats.rp_change = stats_after['rank_score'] - stats_before['rank_score']
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(' \
@@ -341,6 +341,7 @@ class Squad:
             frames: List[Frame],
             menu_names: List[str],
             config_name: Optional[str],
+            ranked: bool,
             squad_before: Optional[List[Optional[APIOriginUser]]] = None,
             squad_after: Optional[List[Optional[APIOriginUser]]] = None,
             solo: bool = False,
@@ -449,6 +450,7 @@ class Squad:
                         champion,
                         stats,
                         frames,
+                        ranked,
                         is_owner=bool(names_index == 0),
                         name_from_config=bool(names_index == 0 and config_name is not None)
                     )
@@ -471,6 +473,7 @@ class Squad:
                 champions[0],
                 [],
                 frames,
+                ranked,
                 is_owner=True,
                 name_from_config=config_name is not None
             )
@@ -478,17 +481,17 @@ class Squad:
                 self.squadmates = (None, None)
             elif duos:
                 self.squadmates = (
-                    Player(names[1], champions[1], [], frames) if champions[1] else None,
+                    Player(names[1], champions[1], [], frames, ranked) if champions[1] else None,
                     None,
                 )
             else:
                 self.squadmates = (
-                    Player(names[1], champions[1], [], frames) if champions[1] else None,
-                    Player(names[2], champions[2], [], frames) if champions[2] else None,
+                    Player(names[1], champions[1], [], frames, ranked) if champions[1] else None,
+                    Player(names[2], champions[2], [], frames, ranked) if champions[2] else None,
                 )
 
         if squad_before and squad_after:
-            self._update_players_stats_from_api(squad_before, squad_after)
+            self._update_players_stats_from_api(squad_before, squad_after, ranked)
 
         if not solo:
             self.squad_kills = self._get_squad_kills(frames)
@@ -496,11 +499,12 @@ class Squad:
             self.squad_kills = None
 
     def _update_players_stats_from_api(
-            self,
-            stats_before: List[Optional[APIOriginUser]] = None,
-            stats_after: List[Optional[APIOriginUser]] = None):
-
-        stats = [(sb['name'], sb, sa) if sb and sa else None for sb, sa in zip(stats_before, stats_after)]
+        self,
+        stats_before: List[Optional[APIOriginUser]],
+        stats_after: List[Optional[APIOriginUser]],
+        ranked: bool,
+    ):
+        stats: List[Tuple[str, Optional[APIOriginUser], Optional[APIOriginUser]]] = [(sb['name'], sb, sa) if sb and sa else None for sb, sa in zip(stats_before, stats_after)]
         squadnames = [s[0] for s in stats if s]
         if not len(squadnames):
             return None
@@ -522,7 +526,8 @@ class Squad:
                 )
                 if best:
                     stats.remove(best)
-                    player.update_from_api(*best)
+                    name, sb, sa = best
+                    player.update_from_api(name, sb, sa, ranked)
 
     def _get_champion_valid_count(self, squadmate_index: int) -> int:
         arr = np.array([s.squadmate_champions[squadmate_index] for s in self.squad])
