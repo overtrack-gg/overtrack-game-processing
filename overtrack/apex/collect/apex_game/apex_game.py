@@ -31,7 +31,6 @@ class ApexGame:
             debug: Union[bool, str] = False):
 
         self.scrims = scrims
-        self.champion = champion
 
         your_squad_first_index = 0
         your_squad_last_index = 0
@@ -156,6 +155,20 @@ class ApexGame:
                 len(self.combat.eliminations),
             )
 
+        if champion:
+            self.champion = {
+                'name': champion['name'],
+                'ocr_name': champion['ocr_name'],
+
+                'champion': champion['stats'].get('champion'),
+
+                'kills': champion['stats'].get('kills'),
+                'wins': champion['stats'].get('wins'),
+            }
+            if self.mode == 'ranked':
+                self.champion['rp'] = champion['stats'].get('rank_score')
+        else:
+            self.champion = None
         if len(self.match_status_frames):
             rank_matches = sum(match_status.rank_text is not None for match_status in self.match_status_frames)
             rank_matches_p = rank_matches / len(self.match_status_frames)
