@@ -130,16 +130,19 @@ class ApexGame:
                 len(self.combat.eliminations),
             )
 
-        self.rank = Rank(
-            self.menu_frames,
-            self.match_status_frames,
-            self.placed,
-            self.kills,
-            self.squad.player.name,
-            squad_before,
-            squad_after,
-            debug=debug
-        )
+        if self.mode == 'ranked':
+            self.rank = Rank(
+                self.menu_frames,
+                self.match_status_frames,
+                self.placed,
+                self.kills,
+                self.squad.player.name,
+                squad_before,
+                squad_after,
+                debug=debug
+            )
+        else:
+            self.rank = None
 
         self.images = {}
         for f in frames:
