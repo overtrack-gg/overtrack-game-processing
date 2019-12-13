@@ -162,13 +162,13 @@ class ApexGame:
                 'name': champion['name'],
                 'ocr_name': champion['ocr_name'],
 
-                'champion': champion['stats'].get('champion'),
+                'champion': champion.get('stats', {}).get('champion'),
 
-                'kills': champion['stats'].get('kills'),
-                'wins': champion['stats'].get('wins'),
+                'kills': champion.get('stats', {}).get('kills'),
+                'wins': champion.get('stats', {}).get('wins'),
             }
             if self.mode == 'ranked':
-                self.champion['rp'] = champion['stats'].get('rank_score')
+                self.champion['rp'] = champion.get('stats', {}).get('rank_score')
         else:
             self.champion = None
 
