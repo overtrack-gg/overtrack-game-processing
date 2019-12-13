@@ -174,10 +174,10 @@ class Player:
 
         if is_owner:
             summaries = [f.match_summary for f in frames if 'match_summary' in f]
-            self.logger.info(f'Resolving stat from {len(summaries)} match summary (XP) frames')
-            summary_stats = self._make_summary_stats(summaries)
-            mode_summary_stats = self._get_mode_stats(summary_stats)
-            if stats:
+            if len(summaries):
+                self.logger.info(f'Resolving stat from {len(summaries)} match summary (XP) frames')
+                summary_stats = self._make_summary_stats(summaries)
+                mode_summary_stats = self._get_mode_stats(summary_stats)
                 if self.stats is None:
                     self.logger.info(f'Using stats from summary: {mode_summary_stats}')
                     self.stats = mode_summary_stats
@@ -284,15 +284,16 @@ class Player:
                     if self.stats is None:
                         self.stats = PlayerStats()
                     ocr_value = getattr(self.stats, stat_field)
-                    d = stats_after['banners']
-                    a = d[banner_name]
                     api_value = stats_after['banners'][banner_name] - stats_before['banners'][banner_name]
                     if ocr_value is None:
                         self.logger.info(f'{stat_field} for {self.name} not provided by OCR, API={api_value} - using API')
                         setattr(self.stats, stat_field, api_value)
                     elif ocr_value != api_value:
-                        self.logger.info(f'{stat_field} for {self.name} from OCR does not match API: OCR={ocr_value} > API={api_value} - using API')
-                        setattr(self.stats, stat_field, api_value)
+                        if api_value:
+                            self.logger.info(f'{stat_field} for {self.name} from OCR does not match API: OCR={ocr_value}, API={api_value} - using API')
+                            setattr(self.stats, stat_field, api_value)
+                        else:
+                            self.logger.info(f'{stat_field} for {self.name} from OCR does not match API: OCR={ocr_value}, API={api_value}, but API value is 0 - using OCR')
                     else:
                         self.logger.info(f'{stat_field} (banner) for {self.name} from OCR matches stats API: {stat_field}={api_value}')
 
@@ -330,7 +331,7 @@ class Player:
                 else:
                     self.logger.info(f'{stat_field} for {self.name} from OCR matches stats API: {stat_field}={api_value}')
         else:
-            self.logger.warning(f'API did not pass valid test - not using')
+            self.logger.warning(f'API stats did not pass validity test - not using')
 
         if ranked and stats_after.get('rank_score'):
             if self.stats is None:
