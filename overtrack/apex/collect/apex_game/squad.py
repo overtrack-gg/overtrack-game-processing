@@ -296,7 +296,11 @@ class Player:
                     else:
                         self.logger.info(f'{stat_field} (banner) for {self.name} from OCR matches stats API: {stat_field}={api_value}')
 
-        api_stats_valid = any(stats_after[stat_key] - stats_before[stat_key] for stat_key in self.API_STAT_NAMES_TO_FIELDS)
+        api_stats_valid = any(
+            stats_after[stat_key] - stats_before[stat_key]
+            for stat_key in self.API_STAT_NAMES_TO_FIELDS
+            if stat_key in stats_before and stat_key in stats_after
+        )
         if api_stats_valid:
             for stat_key, stat_field in self.API_STAT_NAMES_TO_FIELDS.items():
                 if stats_before.get(stat_key) and stats_after.get(stat_key):
