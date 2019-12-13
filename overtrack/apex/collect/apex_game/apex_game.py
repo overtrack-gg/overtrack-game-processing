@@ -1,7 +1,7 @@
 import datetime
 import logging
 from collections import Counter
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import Levenshtein as levenshtein
 import numpy as np
@@ -44,10 +44,9 @@ class ApexGame:
         if self.solo and any('your_squad' in f for f in frames):
             self.logger.error(f'Got game with both "your_selection" and "your_squad"')
 
-        duos_frames = [f for f in frames if ('your_squad' in f and f.your_squad.mode == 'duos') or ('champion_squad' in f and f.champion_squad.mode == 'duos')]
         selection_frames = [f for f in frames if 'your_squad' in f or 'champion_squad' in f]
-        self.logger.info(f'Got {len(duos_frames)}/{len(selection_frames)} confirming game as duos')
-        self.duos = len(duos_frames) > len(selection_frames) * 0.5
+
+        self.duos = self._get_is_duos(frames, selection_frames)
 
         self.squad_count = 20
         if self.solo:
@@ -62,30 +61,9 @@ class ApexGame:
             f'{selection_frames[-1].timestamp_str}'
         )
         self.match_started = int(selection_frames[-1].timestamp)
-        if self.champion:
-            rounded_match_started = int(self.match_started / 60 + 0.5) * 60
-            match_started_offset = self.match_started - rounded_match_started
-            alt_match_started = rounded_match_started + (1 if match_started_offset > 0 else -1) * 60
 
-            started_datetime = datetime.datetime.utcfromtimestamp(rounded_match_started)
-            alt_started_datetime = datetime.datetime.utcfromtimestamp(alt_match_started)
-
-            self.logger.info(
-                f'Start time is {datetime.datetime.utcfromtimestamp(self.match_started)} -> '
-                f'{started_datetime} with offset={match_started_offset:.0f} ({("positive" if match_started_offset > 0 else "negative")}), '
-                f'alt start={alt_started_datetime}'
-            )
-
-            self.match_ids = [
-                started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name'].upper(),
-                alt_started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + self.champion['ocr_name'].upper()
-            ]
-            self.match_id = self.match_ids[0]
-            self.logger.info(f'Match IDs: {self.match_ids}')
-        else:
-            self.logger.warning(f'Match does not have champion - not setting match ID')
-            self.match_id = None
-            self.match_ids = [None, None]
+        self.match_ids = self._generate_match_id(champion)
+        self.match_id = self.match_ids[0]
 
         self.menu_frames = [f.apex_play_menu for f in frames if 'apex_play_menu' in f]
         menu_names = [apex_play_menu.player_name for apex_play_menu in self.menu_frames]
@@ -94,18 +72,7 @@ class ApexGame:
         self.player_name = levenshtein.median(menu_names)
         self.logger.info(f'Resolved player name={repr(self.player_name)} from menu frames')
 
-        game_end_index = len(frames) - 1
-        for i in range(game_end_index, 0, -1):
-            if 'match_status' in frames[i]:
-                self.logger.info(
-                    f'Found last match_status at {i} -> {s2ts(frames[i].timestamp - frames[your_squad_first_index].timestamp)}: '
-                    f'pulling end back from {game_end_index} -> {s2ts(frames[-1].timestamp - frames[your_squad_first_index].timestamp)}. '
-                    f'{(game_end_index + 10) - i} frames dropped'
-                )
-                game_end_index = i
-                break
-        else:
-            self.logger.warning(f'Did not see match_status - not trimming')
+        game_end_index = self._get_end_index(frames, your_squad_first_index)
 
         self.frames = frames[your_squad_first_index:game_end_index]
         self.all_frames = frames[your_squad_first_index:]
@@ -133,6 +100,14 @@ class ApexGame:
 
         self.placed = self._get_placed(debug)
 
+        self.mode = 'unranked'
+        if self._get_is_ranked(squad_before, squad_after, debug):
+            self.mode = 'ranked'
+        elif self.solo:
+            self.mode = 'solo'
+        elif self.duos:
+            self.mode = 'duos'
+
         config_name: Optional[str] = None
         for frame in self.frames:
             if 'apex_metadata' in frame:
@@ -155,6 +130,30 @@ class ApexGame:
                 len(self.combat.eliminations),
             )
 
+        self.rank = Rank(
+            self.menu_frames,
+            self.match_status_frames,
+            self.placed,
+            self.kills,
+            self.squad.player.name,
+            squad_before,
+            squad_after,
+            debug=debug
+        )
+
+        self.images = {}
+        for f in frames:
+            if 'your_squad' in f and f.your_squad.images:
+                self.images['your_squad'] = f.your_squad.images.url
+            if 'your_selection' in f and f.your_selection.image:
+                self.images['your_selection'] = f.your_selection.image.url
+            if 'champion_squad' in f and f.champion_squad.images:
+                self.images['champion_squad'] = f.champion_squad.images.url
+            if 'match_summary' in f and f.match_summary.image:
+                self.images['match_summary'] = f.match_summary.image.url
+            if 'squad_summary' in f and f.squad_summary.image:
+                self.images['squad_summary'] = f.squad_summary.image.url
+
         if champion:
             self.champion = {
                 'name': champion['name'],
@@ -169,6 +168,13 @@ class ApexGame:
                 self.champion['rp'] = champion['stats'].get('rank_score')
         else:
             self.champion = None
+
+    def _get_is_duos(self, frames: List[Frame], selection_frames: List[Frame]) -> bool:
+        duos_frames = [f for f in frames if ('your_squad' in f and f.your_squad.mode == 'duos') or ('champion_squad' in f and f.champion_squad.mode == 'duos')]
+        self.logger.info(f'Got {len(duos_frames)}/{len(selection_frames)} confirming game as duos')
+        return len(duos_frames) > len(selection_frames) * 0.5
+
+    def _get_is_ranked(self, squad_before: Optional[List[Optional[APIOriginUser]]], squad_after: Optional[List[Optional[APIOriginUser]]], debug: bool) -> Optional[Rank]:
         if len(self.match_status_frames):
             rank_matches = sum(match_status.rank_text is not None for match_status in self.match_status_frames)
             rank_matches_p = rank_matches / len(self.match_status_frames)
@@ -176,40 +182,48 @@ class ApexGame:
             rank_matches = 0
             rank_matches_p = 0
         self.logger.info(f'Got {rank_matches_p * 100:.0f}% ({rank_matches}/{len(self.match_status_frames)}) of match status frames claiming ranked')
-        if rank_matches_p > 0.8 and rank_matches > 10:
-            self.rank: Optional[Rank] = Rank(
-                self.menu_frames,
-                self.match_status_frames,
-                self.placed,
-                self.kills,
-                self.squad.player.name,
-                squad_before,
-                squad_after,
-                debug=debug
+
+        return rank_matches_p > 0.8 and rank_matches > 10
+
+    def _generate_match_id(self, champion: Optional[APIOriginUser]) -> List[Optional[str]]:
+        if champion:
+            rounded_match_started = int(self.match_started / 60 + 0.5) * 60
+            match_started_offset = self.match_started - rounded_match_started
+            alt_match_started = rounded_match_started + (1 if match_started_offset > 0 else -1) * 60
+
+            started_datetime = datetime.datetime.utcfromtimestamp(rounded_match_started)
+            alt_started_datetime = datetime.datetime.utcfromtimestamp(alt_match_started)
+
+            self.logger.info(
+                f'Start time is {datetime.datetime.utcfromtimestamp(self.match_started)} -> '
+                f'{started_datetime} with offset={match_started_offset:.0f} ({("positive" if match_started_offset > 0 else "negative")}), '
+                f'alt start={alt_started_datetime}'
             )
+
+            match_ids = [
+                started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + champion['ocr_name'].upper(),
+                alt_started_datetime.strftime('%Y-%m-%d-%H-%M') + '/' + champion['ocr_name'].upper()
+            ]
+            self.logger.info(f'Match IDs: {match_ids}')
+            return match_ids
         else:
-            self.rank: Optional[Rank] = None
+            self.logger.warning(f'Match does not have champion - not setting match ID')
+            return [None, None]
 
-        self.mode = 'unranked'
-        if self.rank is not None:
-            self.mode = 'ranked'
-        elif self.solo:
-            self.mode = 'solo'
-        elif self.duos:
-            self.mode = 'duos'
-
-        self.images = {}
-        for f in frames:
-            if 'your_squad' in f and f.your_squad.images:
-                self.images['your_squad'] = f.your_squad.images.url
-            if 'your_selection' in f and f.your_selection.image:
-                self.images['your_selection'] = f.your_selection.image.url
-            if 'champion_squad' in f and f.champion_squad.images:
-                self.images['champion_squad'] = f.champion_squad.images.url
-            if 'match_summary' in f and f.match_summary.image:
-                self.images['match_summary'] = f.match_summary.image.url
-            if 'squad_summary' in f and f.squad_summary.image:
-                self.images['squad_summary'] = f.squad_summary.image.url
+    def _get_end_index(self, frames: List[Frame], your_squad_first_index: int) -> int:
+        game_end_index = len(frames) - 1
+        for i in range(game_end_index, 0, -1):
+            if 'match_status' in frames[i]:
+                self.logger.info(
+                    f'Found last match_status at {i} -> {s2ts(frames[i].timestamp - frames[your_squad_first_index].timestamp)}: '
+                    f'pulling end back from {game_end_index} -> {s2ts(frames[-1].timestamp - frames[your_squad_first_index].timestamp)}. '
+                    f'{(game_end_index + 10) - i} frames dropped'
+                )
+                game_end_index = i
+                break
+        else:
+            self.logger.warning(f'Did not see match_status - not trimming')
+        return game_end_index
 
     def _get_placed(self, debug: Union[bool, str] = False) -> int:
         self.logger.info(f'Getting squad placement from '

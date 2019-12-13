@@ -1,6 +1,6 @@
 import logging
 from collections import Counter
-from typing import Any, Dict, List, Optional, TypedDict, Union, Tuple
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import Levenshtein as levenshtein
 import itertools
@@ -15,6 +15,11 @@ from overtrack.apex.game.squad_summary.models import PlayerStats as SquadSummary
 from overtrack.frame import Frame
 from overtrack.util import arrayops, textops
 
+
+try:
+    from typing import TypedDict
+except ImportError:
+    TypedDict = Dict
 
 class APIStats(TypedDict):
     champion_id: int
@@ -40,6 +45,7 @@ class APIOriginUser(TypedDict):
     in_game: Optional[bool]
     ocr_name_certain: bool
     stats: Optional[APIStats]
+
 
 @dataclass
 class PlayerStats:
