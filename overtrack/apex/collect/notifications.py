@@ -82,7 +82,7 @@ class DiscordMessage:
                 json={
                     'embed': self.game_embed
                 },
-                timeout=10
+                timeout=5
             )
             create_message = create_message_r.json()
             print(f'Create message: {create_message_r.status_code} -> ')
@@ -109,7 +109,7 @@ class DiscordMessage:
                     'avatar_url': 'https://overtrack.gg/assets/images/OT_logo.png',
                     'embeds': embeds
                 },
-                timeout=10
+                timeout=5
             )
             print(f'Create message: {create_message_r.status_code} -> ')
             pprint(create_message_r.content)
