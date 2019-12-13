@@ -296,30 +296,45 @@ class Player:
                     else:
                         self.logger.info(f'{stat_field} (banner) for {self.name} from OCR matches stats API: {stat_field}={api_value}')
 
-        api_stats_valid = any(
+        api_stats_before_valid = all(
+            stats_before.get(stat_key)
+            for stat_key in self.API_STAT_NAMES_TO_FIELDS
+        )
+        self.logger.info(f'Stats before: {"valid" if api_stats_before_valid else "invalid"}')
+
+        api_stats_after_valid = all(
+            stats_after.get(stat_key)
+            for stat_key in self.API_STAT_NAMES_TO_FIELDS
+        )
+        self.logger.info(f'Stats after: {"valid" if api_stats_after_valid else "invalid"}')
+
+        api_stats_have_valid_delta = any(
             stats_after[stat_key] - stats_before[stat_key]
             for stat_key in self.API_STAT_NAMES_TO_FIELDS
             if stat_key in stats_before and stat_key in stats_after
         )
-        if api_stats_valid:
-            for stat_key, stat_field in self.API_STAT_NAMES_TO_FIELDS.items():
-                if stats_before.get(stat_key) and stats_after.get(stat_key):
-                    if self.stats is None:
-                        self.stats = PlayerStats()
-                    ocr_value = getattr(self.stats, stat_field)
-                    api_value = stats_after[stat_key] - stats_before[stat_key]
-                    if ocr_value is None:
-                        self.logger.info(f'{stat_field} for {self.name} not provided by OCR, API={api_value} - using API')
-                        setattr(self.stats, stat_field, api_value)
-                    elif ocr_value != api_value:
-                        self.logger.info(f'{stat_field} for {self.name} from OCR/banners does not match API: OCR={ocr_value} > API={api_value} - using API')
-                        setattr(self.stats, stat_field, api_value)
-                    else:
-                        self.logger.info(f'{stat_field} for {self.name} from OCR matches stats API: {stat_field}={api_value}')
-        else:
-            self.logger.warning(f'All API stats had delta = 0 - ignoring new API stats')
+        self.logger.info(f'Stat deltas: {"valid" if api_stats_have_valid_delta else "invalid"}')
 
-        if ranked:
+        if api_stats_before_valid and api_stats_after_valid and api_stats_have_valid_delta:
+            for stat_key, stat_field in self.API_STAT_NAMES_TO_FIELDS.items():
+                if self.stats is None:
+                    self.stats = PlayerStats()
+                ocr_value = getattr(self.stats, stat_field)
+                api_value = stats_after[stat_key] - stats_before[stat_key]
+                if ocr_value is None:
+                    self.logger.info(f'{stat_field} for {self.name} not provided by OCR, API={api_value} - using API')
+                    setattr(self.stats, stat_field, api_value)
+                elif ocr_value != api_value:
+                    self.logger.info(f'{stat_field} for {self.name} from OCR/banners does not match API: OCR={ocr_value} > API={api_value} - using API')
+                    setattr(self.stats, stat_field, api_value)
+                else:
+                    self.logger.info(f'{stat_field} for {self.name} from OCR matches stats API: {stat_field}={api_value}')
+        else:
+            self.logger.warning(f'API did not pass valid test - not using')
+
+        if ranked and stats_after.get('rank_score'):
+            if self.stats is None:
+                self.stats = PlayerStats()
             self.stats.rp = stats_after['rank_score']
             self.stats.rp_change = stats_after['rank_score'] - stats_before['rank_score']
 
