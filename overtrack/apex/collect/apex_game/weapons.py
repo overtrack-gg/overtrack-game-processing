@@ -121,7 +121,6 @@ class Weapons:
             np.repeat(np.expand_dims(weapon1_selected_vals, 0), 30, 0),
             np.repeat(np.expand_dims(weapon2_selected_vals, 0), 30, 0),
         ]).astype(np.uint8)
-        print(im.shape, im.dtype)
         plt.imshow(cv2.cvtColor(im, cv2.COLOR_BGR2RGB), interpolation='none')
 
         plt.figure()

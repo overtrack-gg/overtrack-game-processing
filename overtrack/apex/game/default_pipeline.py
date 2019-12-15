@@ -92,27 +92,9 @@ def create_lightweight_pipeline() -> Processor:
 
 
 def main() -> None:
-    from overtrack.util.logging_config import config_logger
-    import logging
+    from overtrack import util
 
-    config_logger('map_processor', logging.INFO, write_to_file=False)
-
-    pipeline = create_pipeline()
-
-    import glob
-    from overtrack.frame import Frame
-    import cv2
-
-    for p in glob.glob('../../../dev/apex_images/squad/*.png') + glob.glob('../../../dev/apex_images/**/*.png'):
-        frame = Frame.create(
-            cv2.resize(cv2.imread(p), (1920, 1080)),
-            0,
-            True
-        )
-        pipeline.process(frame)
-        print(frame)
-        cv2.imshow('debug', frame.debug_image)
-        cv2.waitKey(0)
+    util.test_processor('squad', create_pipeline(), 'frame', 'minimap', game='apex')
 
 
 if __name__ == '__main__':

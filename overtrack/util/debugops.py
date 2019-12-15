@@ -70,7 +70,8 @@ def manual_thresh(gray_image: np.ndarray, scale: float=3., _last={}) -> int:
             )),
             (0, 0),
             fx=scale,
-            fy=scale
+            fy=scale,
+            interpolation=cv2.INTER_NEAREST,
         ))
         k = cv2.waitKey(1) & 0xFF
         if k == 27:

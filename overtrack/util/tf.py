@@ -229,7 +229,6 @@ class CTCDecoder(Layer):
         input_shape = tensor_shape.TensorShape(input_shape).as_list()
         newdims = list(input_shape)
         newdims.pop(1)
-        print(newdims)
         return tensor_shape.TensorShape(newdims)
 
     def get_config(self):

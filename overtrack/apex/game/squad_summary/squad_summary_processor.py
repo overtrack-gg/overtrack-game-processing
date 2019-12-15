@@ -233,7 +233,6 @@ class SquadSummaryProcessor(Processor):
         mask, components = imageops.connected_components(t)
         for c in components[1:]:
             if c.y <= 1 or c.y + c.h >= im.shape[0] - 1:
-                print(c)
                 mask = (mask != c.label).astype(np.uint8) * 255
                 mask = cv2.erode(mask, None)
                 im[:] = cv2.bitwise_and(im, mask)
