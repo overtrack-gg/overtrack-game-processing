@@ -27,25 +27,26 @@ class Weapons:
 
     WEAPON_COLOURS_SELECTED = {
         # Light
-        (45, 84, 125): True,
-        (28, 42, 60): False,
+        (45, 84, 125): (True, 'Light'),
+        (28, 42, 60): (False, 'Light'),
 
         # Heavy
-        (89, 107, 56): True,
-        (42, 51, 34): False,
+        (89, 107, 56): (True, 'Heavy'),
+        (42, 51, 34): (False, 'Heavy'),
 
         # Energy
-        (40, 110, 90): True,
-        (29, 55, 46): False,
+        (40, 110, 90): (True, 'Energy'),
+        (29, 55, 46): (False, 'Energy'),
 
         # Shotgun
-        (7, 32, 107): True,
-        (10, 17, 48): False,
+        (7, 32, 107): (True, 'Shotgun'),
+        (10, 17, 48): (False, 'Shotgun'),
 
         # Special
-        (17, 149, 178): True,
-        (39, 78, 90): False,
+        (17, 149, 178): (True, 'Special'),
+        (39, 78, 90): (False, 'Special'),
     }
+    WEAPON_COLOUR_MATCH_THRESHOLD = 30
 
     def __init__(self, frames: List[Frame], combat: Combat, debug: Union[bool, str] = False):
         self.weapon_timestamp = [round(f.timestamp - frames[0].timestamp, 2) for f in frames if 'weapons' in f]
@@ -91,28 +92,41 @@ class Weapons:
         self._add_weapon_stats(weapon2, weapon2_selected)
         self._add_combat_weaponstats(combat)
         self.weapon_stats = sorted(self.weapon_stats, key=lambda stat: (stat.knockdowns, stat.time_active), reverse=True)
-        self.weapon_stats = [w for w in self.weapon_stats if w.time_held > 15 or w.knockdowns > 0]
         for w in self.weapon_stats:
             w.time_active = round(w.time_active, 1)
             w.time_held = round(w.time_held, 1)
         self.logger.info(f'Resolved weapon stats: {self.weapon_stats}')
 
         if debug is True or debug == self.__class__.__name__:
-            self._debug(combat, have_weapon, weapon1, weapon1_selected, weapon2, weapon2_selected, clip1, clip2)
+            self._debug(combat, have_weapon, weapon1, weapon1_selected_vals, weapon1_selected, weapon2, weapon2_selected_vals, weapon2_selected, clip1, clip2)
 
     def _is_weapon_selected(self, colour: np.ndarray) -> bool:
-        for target, selected in self.WEAPON_COLOURS_SELECTED.items():
+        best = None
+        for target, (selected, ammo_type) in self.WEAPON_COLOURS_SELECTED.items():
             diff = np.linalg.norm(colour - target)
-            if diff < 10:
+            if best is None or best[0] > diff:
+                best = diff, target, selected, ammo_type
+            if diff < self.WEAPON_COLOUR_MATCH_THRESHOLD:
                 return selected
+        self.logger.debug(f'Could not resolve weapon colour={tuple(colour)}, best={best[1]}, diff={best[0]:.2f}, weapon={best[3]}, selected={best[2]}')
         return False
 
-    def _debug(self, combat, have_weapon, weapon1, weapon1_selected, weapon2, weapon2_selected, clip1, clip2):
+    def _debug(self, combat, have_weapon, weapon1, weapon1_selected_vals, weapon1_selected, weapon2, weapon2_selected_vals, weapon2_selected, clip1, clip2):
         import matplotlib.pyplot as plt
+        import cv2
+
+        plt.figure()
+        plt.title('Weapon Cols')
+        im = np.vstack([
+            np.repeat(np.expand_dims(weapon1_selected_vals, 0), 30, 0),
+            np.repeat(np.expand_dims(weapon2_selected_vals, 0), 30, 0),
+        ]).astype(np.uint8)
+        print(im.shape, im.dtype)
+        plt.imshow(cv2.cvtColor(im, cv2.COLOR_BGR2RGB), interpolation='none')
 
         plt.figure()
         plt.title('Selected Weapon')
-        plt.plot(self.weapon_timestamp, weapon1_selected.astype(np.float) * 0.9)
+        plt.plot(self.weapon_timestamp, weapon1_selected.astype(np.float) + 0.1)
         plt.plot(self.weapon_timestamp, weapon2_selected)
 
         plt.figure()
