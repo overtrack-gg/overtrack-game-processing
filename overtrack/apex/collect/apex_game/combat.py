@@ -1,15 +1,16 @@
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 import typedload
 from dataclasses import dataclass
 
 from overtrack.apex.collect.apex_game.squad import Squad
 from overtrack.frame import Frame
-from overtrack.util import s2ts
+from overtrack.util import s2ts, validate_fields, round_floats
 
 
 @dataclass
+@round_floats
 class CombatEvent:
     timestamp: float
     type: str
@@ -30,8 +31,15 @@ class CombatEvent:
     __repr__ = __str__
 
 
+@dataclass
+@validate_fields
 class Combat:
-    logger = logging.getLogger('Combat')
+    eliminations: List[CombatEvent]
+    knockdowns: List[CombatEvent]
+    elimination_assists: List[CombatEvent]
+    knockdown_assists: List[CombatEvent]
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def __init__(self, frames: List[Frame], placed: int, squad: Squad, debug: Union[bool, str] = False):
         self.combat_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'combat_log' in f]

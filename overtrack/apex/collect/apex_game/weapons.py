@@ -1,19 +1,19 @@
 import bisect
 import logging
 import string
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import ClassVar, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-import typedload
 from dataclasses import dataclass
 
 from overtrack.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
 from overtrack.frame import Frame
-from overtrack.util import arrayops, s2ts, textops
+from overtrack.util import arrayops, s2ts, textops, validate_fields, round_floats
 
 
 @dataclass
+@round_floats
 class WeaponStats:
     weapon: str
     time_held: float = 0
@@ -22,8 +22,12 @@ class WeaponStats:
     knockdowns: int = 0
 
 
+@dataclass
+@validate_fields
 class Weapons:
-    logger = logging.getLogger('Weapons')
+    weapon_stats: List[WeaponStats]
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     WEAPON_COLOURS_SELECTED = {
         # Light
@@ -260,9 +264,3 @@ class Weapons:
                             return stat
 
         self.logger.warning(f'Could not find weapon for ts={timestamp:.1f}s')
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'weapon_stats': typedload.dump(self.weapon_stats, hidedefault=False)
-        }
-

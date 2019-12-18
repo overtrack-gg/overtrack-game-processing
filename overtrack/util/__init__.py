@@ -5,7 +5,6 @@ import dataclasses
 import logging
 import time
 from functools import wraps
-import numpy as np
 from typing import Callable, Tuple, TypeVar, TYPE_CHECKING
 
 import typing
@@ -19,6 +18,7 @@ BIG_NOODLE_DIGITSUBS = 'O0', 'D0', 'I1', 'L1', 'B8', 'A8', 'S5'
 
 
 def round_floats(_cls=None, *, precision: int = 2):
+    import numpy as np
     def wrap(cls):
         orig__post_init__ = getattr(cls, '__post_init__', None)
 
@@ -70,6 +70,20 @@ def cached_property(f):
     return property(get)
 
 
+def validate_fields(a):
+    __init__ = a.__init__
+
+    @wraps(__init__)
+    def _check_init(self, *args, **kwargs):
+        __init__(self, *args, **kwargs)
+        for f in dataclasses.fields(self):
+            if not hasattr(self, f.name):
+                raise AttributeError(f"Construction of dataclass '{self.__class__.__qualname__}' incomplete: field '{f.name}' not defined")
+
+    a.__init__ = _check_init
+    return a
+
+
 def big_noodle_digitsub(s: str) -> str:
     for c1, c2 in BIG_NOODLE_DIGITSUBS:
         s = s.replace(c1, c2)
@@ -88,7 +102,7 @@ def humansize(nbytes: float, suffixes: Tuple[str, ...]=('B', 'KB', 'MB', 'GB', '
     return '%s %s' % (f, suffixes[i])
 
 
-def s2ts(s: float, ms: bool=False, zpad: bool=True, sign=False) -> str:
+def s2ts(s: float, ms: bool = False, zpad: bool = True, sign: bool = False) -> str:
     prepend = ''
     if s < 0:
         prepend = '-'

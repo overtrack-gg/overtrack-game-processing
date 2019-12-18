@@ -1,11 +1,12 @@
 import datetime
 import logging
 from collections import Counter
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, ClassVar, Dict, List, Optional, Union
 
 import Levenshtein as levenshtein
 import numpy as np
 import shortuuid
+from dataclasses import dataclass
 
 from overtrack.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
@@ -14,21 +15,51 @@ from overtrack.apex.collect.apex_game.route import Route
 from overtrack.apex.collect.apex_game.squad import APIOriginUser, Squad
 from overtrack.apex.collect.apex_game.weapons import Weapons
 from overtrack.frame import Frame
-from overtrack.util import arrayops, s2ts
+from overtrack.util import arrayops, s2ts, validate_fields, typedload
 
 
+@dataclass
+@validate_fields
 class ApexGame:
-    logger = logging.getLogger('ApexGame')
+    key: str
+    timestamp: float
+
+    duration: float
+    season: int
+    match_started: float
+    valid: bool
+
+    solo: bool
+    scrims: Optional[str]
+
+    match_id: Optional[str]
+    match_ids: List[Optional[str]]
+
+    kills: int
+    placed: int
+
+    squad: Squad
+    combat: Combat
+    route: Route
+    weapons: Weapons
+    rank: Optional[Rank]
+
+    player_name: str
+    champion: Optional[Dict]
+    images: Dict[str, str]
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def __init__(
-            self,
-            frames: List[Frame],
-            key: str = None,
-            squad_before: Optional[List[Optional[APIOriginUser]]] = None,
-            squad_after: Optional[List[Optional[APIOriginUser]]] = None,
-            champion: Optional[APIOriginUser] = None,
-            scrims: Optional[str] = None,
-            debug: Union[bool, str] = False):
+        self,
+        frames: List[Frame],
+        key: str = None,
+        squad_before: Optional[List[Optional[APIOriginUser]]] = None,
+        squad_after: Optional[List[Optional[APIOriginUser]]] = None,
+        champion: Optional[APIOriginUser] = None,
+        scrims: Optional[str] = None,
+        debug: Union[bool, str] = False
+    ):
 
         self.scrims = scrims
         self.valid = True
@@ -69,7 +100,7 @@ class ApexGame:
             f'Match start from selection frame ({"your_squad" if "your_squad" in selection_frames[-1] else "your_champion"}) => '
             f'{selection_frames[-1].timestamp_str}'
         )
-        self.match_started = int(selection_frames[-1].timestamp)
+        self.match_started = round(selection_frames[-1].timestamp, 2)
 
         self.match_ids = self._generate_match_id(champion)
         self.match_id = self.match_ids[0]
@@ -116,6 +147,8 @@ class ApexGame:
             self.mode = 'solo'
         elif self.duos:
             self.mode = 'duos'
+
+        self.season = self._get_season()
 
         config_name: Optional[str] = None
         for frame in self.frames:
@@ -377,6 +410,13 @@ class ApexGame:
 
         return last_killcount
 
+    def _get_season(self) -> int:
+        for season in data.SEASONS:
+            if season.start < self.timestamp < season.end:
+                return season.index
+        self.logger.error(f'Could not get season for {self.timestamp} (valid={self.valid}) - using {len(data.SEASONS)}', exc_info=True)
+        return len(data.SEASONS)
+
     @property
     def time(self) -> datetime.datetime:
         return datetime.datetime.utcfromtimestamp(self.timestamp)
@@ -385,78 +425,55 @@ class ApexGame:
     def won(self) -> bool:
         return self.placed == 1
 
-    @property
-    def season(self) -> int:
-        for season in data.SEASONS:
-            if season.start < self.timestamp < season.end:
-                return season.index
-        self.logger.error(f'Could not get season for {self.timestamp} (valid={self.valid}) - using {len(data.SEASONS)}', exc_info=True)
-        return len(data.SEASONS)
-
-    def __str__(self) -> str:
-        return f'{self.__class__.__name__}(' \
-            f'key={self.key}, ' \
-            f'season={self.season}, ' \
-            f'solo={self.solo}, ' \
-            f'duration={s2ts(self.duration)}, ' \
-            f'frames={len(self.frames)}, ' \
-            f'squad={self.squad}, ' \
-            f'landed={self.route.landed_name}, ' \
-            f'placed={self.placed}, ' \
-            f'kills={self.kills}' \
-            f'rank={self.rank}' \
-            f')'
-
-    __repr__ = __str__
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'key': self.key,
-            'timestamp': self.timestamp,
-            'duration': self.duration,
-            'season': self.season,
-            'solo': self.solo,
-            'scrims': self.scrims,
-            'match_started': self.match_started,
-            'match_id': self.match_id,
-            'match_ids': self.match_ids,
-
-            # 'player_name': self.player_name,
-            'kills': self.kills,
-            'placed': self.placed,
-
-            'squad': self.squad.to_dict(),
-            'combat': self.combat.to_dict(),
-            'route': self.route.to_dict(),
-            'weapons': self.weapons.to_dict(),
-            'rank': self.rank.to_dict() if self.rank else None,
-
-            'champion': self.champion,
-
-            'images': self.images,
-        }
+    def asdict(self) -> Dict[str, Any]:
+        return typedload.dump(self, ignore_default=False)
 
 
 def main() -> None:
     import json
-    from pprint import pprint
-    from overtrack.util import referenced_typedload
+    # from overtrack.util import __referenced_typedload
+    from overtrack.util.typedload import frameload
     from overtrack.util.logging_config import config_logger
+    from overtrack.util.prettyprint import pprint
+    import time
 
     config_logger('apex_game', logging.INFO, False)
 
-    # data = requests.get('https://overtrack-games.sfo2.digitaloceanspaces.com/EeveeA-1716/2019-03-20-00-40-apex-8vSqu2.frames.json')
-    with open('../../../dev/ERRORS/EeveeA-1716_2019-03-20-02-58-apex-ntTJtP.frames.json') as f:
-        frames = referenced_typedload.load(json.load(f), List[Frame])
+    with open("C:/Users/simon/AppData/Local/Temp/mendokusaii_2019-12_15-01-32-PF4QC4tKg4sy6JgmAEwJW4.frames.json") as f:
+        data = json.load(f)
+
+    t0 = time.perf_counter()
+    frames = frameload.frames_load(data, List[Frame])
+    print(f'Loaded {len(frames)} in {time.perf_counter()-t0}s')
+    t0 = time.perf_counter()
+    frames_ = __referenced_typedload.load(data, List[Frame])
+    print(f'Loaded {len(frames_)} in {time.perf_counter() - t0}s')
 
     game = ApexGame(frames)
     print(game)
-    pprint(game.to_dict())
 
-    from overtrack_models.apex_game_summary import ApexGameSummary
+    # data = game.asdict()
+    # # data['route']['locations'][6] = 'a'
+    # game2 = typedload.load(data, ApexGame)
+    #
+    # pprint(game)
+    # pprint(game2)
+    #
+    # print(game == game2)
+    #
+    # from overtrack.util.typedload import referenced_typedload
+    #
+    # t0 = time.perf_counter()
+    # frames_data = frameload.frames_dump(frames)
+    # print(time.perf_counter() - t0)
+    #
+    # t0 = time.perf_counter()
+    # frames_data = __referenced_typedload.dump(frames)
+    # print(time.perf_counter() - t0)
 
-    g = ApexGameSummary.create(game, -1)
-    print(g)
+    #
+    # frames2 = frameload.frames_load(frames_data, List[Frame])
+    # pprint(frames2)
 
 
 if __name__ == '__main__':

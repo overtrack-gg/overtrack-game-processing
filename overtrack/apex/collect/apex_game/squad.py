@@ -1,25 +1,24 @@
 import logging
 from collections import Counter
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import ClassVar, Dict, List, Optional, Tuple, Union
 
 import Levenshtein as levenshtein
 import itertools
 import numpy as np
 import tabulate
-import typedload
 from dataclasses import dataclass, fields
 
 from overtrack.apex import data
 from overtrack.apex.game.match_summary.models import MatchSummary
 from overtrack.apex.game.squad_summary.models import PlayerStats as SquadSummaryStats
 from overtrack.frame import Frame
-from overtrack.util import arrayops, textops
-
+from overtrack.util import arrayops, textops, validate_fields
 
 try:
     from typing import TypedDict
 except ImportError:
     TypedDict = Dict
+
 
 class APIStats(TypedDict):
     champion_id: int
@@ -35,6 +34,7 @@ class APIStats(TypedDict):
     damageTaken: int
     allyRevives: int
     matches: int
+
 
 class APIOriginUser(TypedDict):
     name: str
@@ -73,16 +73,9 @@ class PlayerStats:
             elif own_value is not None and other_value is not None and own_value != other_value:
                 logging.getLogger('PlayerStats').warning(f'Got PlayerStats.{name} {own_value} != {other_value}')
 
-def norm_name(s: str) -> str:
-    rs = s
-    for c1, c2 in '0O', 'DO', 'lI', '1I':
-        rs = rs.replace(c1, c2)
-    for dc in '_-':
-        while dc * 2 in rs:
-            rs = rs.replace(dc * 2, dc)
-    return rs
 
-
+@dataclass
+@validate_fields
 class Player:
     """
     A Player from a Squad.
@@ -125,7 +118,14 @@ class Player:
         Whether `name` is provided ahead of time from *config* (instead of OCR).
     """
 
-    logger = logging.getLogger('Player')
+    name: str
+    champion: str
+    stats: Optional[PlayerStats]
+    is_owner: bool
+    name_from_config: bool
+    name_matches_api: bool
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def __init__(self,
                  name: Optional[str],
@@ -208,24 +208,24 @@ class Player:
 
     def _make_summary_stats(self, summaries: List[MatchSummary]) -> List[SquadSummaryStats]:
         return [
-                   SquadSummaryStats(
-                       name='',
-                       kills=s.xp_stats.kills,
-                       damage_dealt=s.xp_stats.damage_done,
-                       survival_time=s.xp_stats.time_survived,
-                       players_revived=s.xp_stats.revive_ally,
-                       players_respawned=s.xp_stats.respawn_ally,
-                   ) for s in summaries if s.xp_stats
-               ] + [
-                   SquadSummaryStats(
-                       name='',
-                       kills=s.score_report.kills,
-                       damage_dealt=None,
-                       survival_time=None,
-                       players_revived=None,
-                       players_respawned=None,
-                   ) for s in summaries if s.score_report
-               ]
+           SquadSummaryStats(
+               name='',
+               kills=s.xp_stats.kills,
+               damage_dealt=s.xp_stats.damage_done,
+               survival_time=s.xp_stats.time_survived,
+               players_revived=s.xp_stats.revive_ally,
+               players_respawned=s.xp_stats.respawn_ally,
+           ) for s in summaries if s.xp_stats
+        ] + [
+           SquadSummaryStats(
+               name='',
+               kills=s.score_report.kills,
+               damage_dealt=None,
+               survival_time=None,
+               players_revived=None,
+               players_respawned=None,
+           ) for s in summaries if s.score_report
+        ]
 
     def _sanity_clip(self, stats: PlayerStats) -> PlayerStats:
         def _sanity_clip(x: Optional[int], lb: int, ub: int, name: str) -> Optional[int]:
@@ -339,28 +339,16 @@ class Player:
             self.stats.rp = stats_after['rank_score']
             self.stats.rp_change = stats_after['rank_score'] - stats_before['rank_score']
 
-    def __str__(self) -> str:
-        return f'{self.__class__.__name__}(' \
-            f'name={repr(self.name)}, ' \
-            f'champion={self.champion}, ' \
-            f'stats={self.stats}' \
-            f')'
 
-    __repr__ = __str__
-
-    def to_dict(self) -> Dict[str, Any]:
-        stats = None
-        if self.stats:
-            stats = typedload.dump(self.stats, hidedefault=False)
-        return {
-            'name': self.name,
-            'champion': self.champion,
-            'stats': stats,
-            'name_from_config': self.name_from_config
-        }
-
+@dataclass
+@validate_fields
 class Squad:
-    logger = logging.getLogger('Squad')
+    player: Player
+    squadmates: Tuple[Optional[Player], Optional[Player]]
+
+    squad_kills: Optional[int]
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def __init__(
             self,
@@ -373,6 +361,7 @@ class Squad:
             solo: bool = False,
             duos: bool = False,
             debug: Union[bool, str] = False):
+
         self.squad = [f.squad for f in frames if 'squad' in f]
         self.logger.info(f'Processing squad from {len(self.squad)} squad frames')
 
@@ -430,7 +419,6 @@ class Squad:
                         # if frame.summary incorrectly assumed the wrong number of players
                         break
 
-            self.player = None
             self.squadmates = (None, None)
             all_player_stats_names = [levenshtein.median([norm_name(s.name) for s in stats]) for stats in all_player_stats]
             matches = []
@@ -727,19 +715,12 @@ class Squad:
                 return derived_squad_kills
             return squad_kills
 
-    def __str__(self) -> str:
-        return f'{self.__class__.__name__}(' \
-            f'player={self.player}, ' \
-            f'squadmates=({", ".join(map(str, self.squadmates))})' \
-            f')'
 
-    __repr__ = __str__
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'player': self.player.to_dict(),
-            'squadmates': tuple(
-                s.to_dict() if s else None for s in self.squadmates
-            ),
-            'squad_kills': self.squad_kills
-        }
+def norm_name(s: str) -> str:
+    rs = s
+    for c1, c2 in '0O', 'DO', 'lI', '1I':
+        rs = rs.replace(c1, c2)
+    for dc in '_-':
+        while dc * 2 in rs:
+            rs = rs.replace(dc * 2, dc)
+    return rs

@@ -1,36 +1,52 @@
 import bisect
 import logging
-from collections import deque, defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Union, DefaultDict
+from collections import defaultdict, deque
+from typing import Any, ClassVar, DefaultDict, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
-import typedload
 from dataclasses import dataclass
 
 from overtrack.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
 from overtrack.apex.collect.apex_game.weapons import Weapons
-from overtrack.apex.data import get_round_state, ROUNDS
-from overtrack.apex.game.minimap import Circle, Location
+from overtrack.apex.data import ROUNDS, get_round_state
+from overtrack.apex.game.minimap import Circle as FrameCircle, Location as FrameLocation
 from overtrack.frame import Frame
-from overtrack.util import s2ts
+from overtrack.util import s2ts, validate_fields
+
+Coordinates = Tuple[int, int]
 
 
 @dataclass(frozen=True)
 class Ring:
     round: int
-    center: Tuple[int, int]
+    center: Coordinates
     radius: int
     start_time: float
     end_time: float
+
+
+class Location(NamedTuple):
+    timestamp: float
+    coordinates: Coordinates
 
 
 def rel_error(x1: float, x2: float) -> float:
     return abs(x1-x2)/abs(x2)
 
 
+@dataclass
+@validate_fields
 class Route:
-    logger = logging.getLogger('Route')
+    locations: List[Location]
+    time_landed: float
+    landed_location_index: int
+    landed_location: Coordinates
+    landed_name: str
+    locations_visited: List[str]
+    rings = Any
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, season: int, debug: Union[bool, str] = False):
         self.season = season
@@ -57,10 +73,10 @@ class Route:
             plt.show()
 
         self.locations = []
-        circles: DefaultDict[int, List[Circle]] = defaultdict(list)
+        circles: DefaultDict[int, List[FrameCircle]] = defaultdict(list)
         recent = deque(maxlen=10)
 
-        def add_circle(location: Location, circle: Circle, expected_radius: float, circle_index: int, closing: Optional[bool], game_time: float, name: str):
+        def add_circle(location: FrameLocation, circle: FrameCircle, expected_radius: float, circle_index: int, closing: Optional[bool], game_time: float, name: str):
             error = rel_error(circle.r, expected_radius)
             if circle.points < 30 or circle.residual > 100:
                 self.logger.debug(f'Ignoring {name} {circle} | game_time={s2ts(game_time)}, round={state.round}')
@@ -81,7 +97,7 @@ class Route:
                 offset = np.array(circle.coordinates) - location.coordinates
                 scale = expected_radius / circle.r
                 new_center = np.array(location.coordinates) + offset * scale
-                new_circle = Circle(
+                new_circle = FrameCircle(
                     coordinates=(new_center[0], new_center[1]),
                     r=expected_radius
                 )
@@ -104,29 +120,22 @@ class Route:
         ignored = 0
         final_game_time = None
         last_location_timestamp = 0
-        for i, frame in enumerate([f for f in frames if 'location' in f or 'minimap' in f]):
+        for i, frame in enumerate([f for f in frames if 'minimap' in f]):
             if 'game_time' in frame:
                 final_game_time = frame.game_time
 
-            minimap = None
-            if 'minimap' in frame:
-                ts, location = frame.timestamp, frame.minimap.location
-                minimap = frame.minimap
-                coordinates = location.coordinates
-                if season <= 2:
-                    coordinates = (
-                        int(coordinates[0] * 0.987 + 52),
-                        int(coordinates[1] * 0.987 + 48)
-                    )
-            else:
-                ts, location = frame.timestamp, frame.location
-                coordinates = location.coordinates
+            coordinates = frame.minimap.location.coordinates
+            if season <= 2:
+                coordinates = (
+                    int(coordinates[0] * 0.987 + 52),
+                    int(coordinates[1] * 0.987 + 48)
+                )
 
-            rts = round(ts - frames[0].timestamp, 2)
+            rts = round(frame.timestamp - frames[0].timestamp, 2)
             thresh = 0.55
             if 'minimap' in frame and frame.minimap.version == 1:
                 thresh = 0.2
-            if location.match > thresh:
+            if frame.minimap.location.match > thresh:
                 ignored += 1
                 continue
 
@@ -134,7 +143,7 @@ class Route:
             if 'game_time' in frame and frame.game_time < 80:
                 # dropship speed
                 thresh_dist = 500
-            elif location.match < 0.1 and 'minimap' in frame and frame.minimap.version > 0:
+            elif frame.minimap.location.match < 0.1 and 'minimap' in frame and frame.minimap.version > 0:
                 # allow high speeds from e.g. running forwards on train, balooning if the match is good
                 thresh_dist = 250
 
@@ -143,39 +152,50 @@ class Route:
                 dist = np.sqrt(np.sum((np.array(last) - np.array(coordinates)) ** 2))
                 if not alive_at[int(rts / 10)]:
                     # ignore route - not from this player
-                    self.logger.debug(f'Ignoring location {i}: {location} - not alive')
+                    self.logger.debug(f'Ignoring location {i}: {frame.minimap.location} - not alive')
                 elif dist < thresh_dist:
                     if 'game_time' in frame:
                         state = get_round_state(frame.game_time)
 
-                        if minimap and state.ring_radius and minimap.outer_circle:
+                        if state.ring_radius and frame.minimap.outer_circle:
                             if state.ring_closing:
                                 circle_index = state.round
                             else:
                                 circle_index = state.round - 1
-                            add_circle(minimap.location, minimap.outer_circle, state.ring_radius, circle_index, state.ring_closing, frame.game_time, 'outer')
+                            add_circle(
+                                frame.minimap.location,
+                                frame.minimap.outer_circle,
+                                state.ring_radius,
+                                circle_index,
+                                state.ring_closing,
+                                frame.game_time,
+                                'outer'
+                            )
 
-                        if minimap and state.next_ring_radius and minimap.inner_circle:
-                            add_circle(minimap.location, minimap.inner_circle, state.next_ring_radius, state.round, None, frame.game_time, 'inner')
+                        if state.next_ring_radius and frame.minimap.inner_circle:
+                            add_circle(
+                                frame.minimap.location,
+                                frame.minimap.inner_circle,
+                                state.next_ring_radius,
+                                state.round,
+                                None,
+                                frame.game_time,
+                                'inner'
+                            )
 
                     if frame.timestamp - last_location_timestamp > 2.5:
-                        self.locations.append((rts, coordinates))
+                        self.locations.append(Location(rts, coordinates))
                         last_location_timestamp = frame.timestamp
 
                 else:
                     self.logger.warning(
-                        f'Ignoring location {i} @{frame.game_time if "game_time" in frame else 0:.1f}s: {location} - {dist:.1f} away from average {np.round(last, 1)}'
+                        f'Ignoring location {i} @{frame.game_time if "game_time" in frame else 0:.1f}s: {frame.minimap.location} - {dist:.1f} away from average {np.round(last, 1)}'
                     )
             recent.append(coordinates)
 
         self.logger.info(f'Processing route from {len(self.locations)} locations (ignored {ignored} locations with bad match)')
         if not len(self.locations):
-            self.logger.warning(f'Got no locations')
-            self.time_landed = None
-            self.landed_location_index = None
-            self.landed_location = None
-            self.landed_name = None
-            self.locations_visited = []
+            raise ValueError(f'Got no locations')
         else:
             x = np.array([l[1][0] for l in self.locations])
             y = np.array([l[1][1] for l in self.locations])
@@ -452,17 +472,3 @@ class Route:
 
         self.logger.warning(f'Could not find location for ts={timestamp:.1f}s')
         return None
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'locations': self.locations,
-
-            'time_landed': self.time_landed,
-            'landed_location_index': self.landed_location_index,
-            'landed_location': self.landed_location,
-            'landed_name': self.landed_name,
-            'locations_visited': self.locations_visited,
-
-            'rings': typedload.dump(self.rings)
-        }
-

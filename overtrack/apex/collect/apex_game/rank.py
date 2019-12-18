@@ -1,31 +1,23 @@
 import logging
 from collections import Counter
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, ClassVar, Dict, List, Optional
 
 import numpy as np
 import tabulate
+from dataclasses import dataclass
 
 from overtrack.apex import data
 from overtrack.apex.collect.apex_game.squad import APIOriginUser, APIStats
 from overtrack.apex.game.match_status import MatchStatus
 from overtrack.apex.game.menu import PlayMenu
-from overtrack.util import arrayops, textops
+from overtrack.util import arrayops, textops, validate_fields
 
 
+@dataclass
+@validate_fields
 class Rank:
     """
     Ranked data for a game.
-
-    Attributes
-    -----------
-    rank: Optional[str]
-        The rank if known
-    rank_tier: Optional[str]
-        The rank tier if known, and if not Apex Predator
-    rp: Optional[int]
-        The amount of RP before and during the game
-    rp_change: Optional[int]
-        The RP change from this match, computed from entry cost, placement, and kills
 
     Parameters
     ----------
@@ -36,7 +28,12 @@ class Rank:
     :param debug:
     """
 
-    logger = logging.getLogger(__qualname__)
+    rank: Optional[str]
+    rank_tier: Optional[str]
+    rp: Optional[int]
+    rp_change: Optional[int]
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def __init__(
             self,
@@ -98,9 +95,6 @@ class Rank:
 
         if debug is True or debug == self.__class__.__name__:
             import matplotlib.pyplot as plt
-
-            # plt.figure()
-            # plt.imshow(rank_matches)
 
             plt.figure()
             plt.title('Rank Badges')
@@ -243,21 +237,3 @@ class Rank:
 
         else:
             self.logger.error(f'API stats invalid', exc_info=True)
-
-    def __str__(self) -> str:
-        return f'{self.__class__.__name__}(' \
-            f'rank={self.rank}, ' \
-            f'rank_tier={self.rank_tier}, ' \
-            f'rp={self.rp}' \
-            f'rp_change={self.rp_change}' \
-            f')'
-
-    __repr__ = __str__
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'rank': self.rank,
-            'rank_tier': self.rank_tier,
-            'rp': self.rp,
-            'rp_change': self.rp_change
-        }

@@ -5,7 +5,7 @@ from typing import Callable, List, Optional
 
 from overtrack.apex.collect.apex_game import ApexGame
 from overtrack.frame import Frame
-from overtrack.util import referenced_typedload
+from overtrack.util.typedload import referenced_typedload
 from overtrack.util.logging_config import config_logger
 
 logger = logging.getLogger(__name__)
@@ -162,7 +162,7 @@ def main() -> None:
         print(game.frames[0].relative_timestamp_str)
         print(game)
         print(' -> '.join(game.route.locations_visited))
-        pprint(game.to_dict())
+        pprint(game.asdict())
 
         # game.route.show()
 
