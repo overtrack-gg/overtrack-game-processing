@@ -17,7 +17,7 @@ def dictify(dic: Any) -> Any:
     elif isinstance(dic, list):
         return [dictify(e) for e in dic]
     elif callable(getattr(dic, 'to_dict', None)):
-        return dictify(dic.to_dict())
+        return dictify(dic.asdict())
     elif callable(getattr(dic, '_asdict', None)):
         # noinspection PyProtectedMember
         return dictify(dic._asdict())

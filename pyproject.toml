@@ -15,7 +15,6 @@ requests = "^2"
 dataclasses = "*"
 python-dateutil = "^2.7"
 shortuuid = "*"
-typedload = "*"
 
 tqdm = "*"
 tabulate = "*"
