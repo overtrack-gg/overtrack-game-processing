@@ -1,8 +1,8 @@
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple, Type, TypeVar
+from typing import Any, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
 
 import itertools
-from dataclasses import dataclass, fields, is_dataclass, _MISSING_TYPE
+from dataclasses import dataclass, fields, is_dataclass, _MISSING_TYPE, field
 
 from overtrack.util.typedload import Dumper, Loader
 
@@ -33,23 +33,20 @@ class _DepthCount:
     value: int
 
 
+@dataclass
+class Pointer:
+    to: Any
+    key: Union[str, int]
+    from_: Union[dict, list]
+    trace: List[Union[str, int]] = field(default_factory=list)
+
+
 class ReferencedDumper(Dumper):
 
     def __init__(self, equality_is_identity: bool = True, **kwargs: Any):
         super().__init__(**kwargs)
-        self.equality_is_identity = equality_is_identity
 
-        self.referenced: Dict[int, Dict] = {}
-        self.ref_to_id: Dict[int, int] = {}
-        self.ids_referenced_to: Set[int] = set()
-
-        self.visited = set()
-
-        self._to_resolve: List[Dict] = []
-
-        self.equal: Dict[int, List[Tuple[Dict, int]]] = defaultdict(list)
-
-        self.idgen = iter(itertools.count())
+        self.pointers: Dict[id, Pointer] = {}
 
     def _dicthash(self, o) -> int:
         if isinstance(o, dict):
@@ -62,61 +59,37 @@ class ReferencedDumper(Dumper):
         else:
             return hash(o)
 
-    def dump(self, value: Any, _depth=_DepthCount(0)) -> Any:
-        _depth.value += 1
-
-        ref = id(value)
-        if ref in self.ref_to_id:
-            self.ids_referenced_to.add(ref)
-            result = {'_ref': self.ref_to_id[ref]}
-        else:
-            if ref in self.visited and self._is_dataclass(value):
-                # `value` has already been visited, but may not have finished serializing (i.e. may be further up the call stack).
-                # add a "recursive ref" that needs to be resolved to an ID once it has finished serializing
-                self.ids_referenced_to.add(ref)
-                result = {'_recursive_ref': ref}
-                self._to_resolve.append(result)
+    def dump(self, value: Any, *args) -> Any:
+        outer_result = {}
+        queue = [Pointer(value, 'return', outer_result)]
+        dumped: Dict[int, dict] = {}
+        ids = itertools.count()
+        dumper = Dumper()
+        while queue:
+            pointer = queue.pop(0)
+            if id(pointer.to) in dumped:
+                existing_dump = dumped[id(pointer.to)]
+                if '_id' not in existing_dump:
+                    existing_dump['_id'] = next(ids)
+                pointer.from_[pointer.key] = {'_ref': existing_dump['_id']}
+            elif is_dataclass(pointer.to):
+                result = {}
+                dumped[id(pointer.to)] = result
+                for f in fields(pointer.to):
+                    queue.append(Pointer(getattr(pointer.to, f.name), f.name, result, pointer.trace + [f.name]))
+                pointer.from_[pointer.key] = result
+            elif self._is_basic_type(pointer.to):
+                # have to do strings before sequences
+                pointer.from_[pointer.key] = dumper.dump(pointer.to, *args)
+            elif self._is_sequence(pointer.to):
+                result = [None for _ in pointer.to]
+                for i, v in enumerate(pointer.to):
+                    queue.append(Pointer(v, i, result, pointer.trace + [i]))
+                pointer.from_[pointer.key] = result
             else:
-                self.visited.add(ref)
-                result = super().dump(value)
+                pointer.from_[pointer.key] = dumper.dump(pointer.to, *args)
 
-                if isinstance(result, dict):
-                    if self.equality_is_identity:
-                        result_hash = self._dicthash(result)
-                        if result_hash in self.equal:
-                            bucket = self.equal[result_hash]
-                            # bucket contains a list of (dump(value), id(value)) for all previously dumpy values
-                            # where _dicthash(dump(value)) == _dicthash(dump(previously_dumped_value))
-                            for previously_dumped_result, ref in bucket:
-                                if previously_dumped_result == result:
-                                    # we have found the ref (and the dump(other_value)) of an other_value that dumps to the same as value
-                                    self.ids_referenced_to.add(ref)
-                                    result = {'_ref': self.ref_to_id[ref]}
-                                    break
-                        else:
-                            self.equal[result_hash].append((result, ref))
-
-                    if '_ref' not in result:
-                        self.ref_to_id[ref] = next(self.idgen)
-                        self.referenced[ref] = result
-
-        _depth.value -= 1
-
-        if _depth.value == 0:
-
-            for referred_result in self._to_resolve:
-                recursive_ref: int = referred_result['_recursive_ref']
-                referred_result.clear()
-                referred_result['_ref'] = self.ref_to_id[recursive_ref]
-
-            # add '_id's for items that have been 'ref'd to
-            for ref in self.ids_referenced_to:
-                referenced = self.referenced[ref]
-                if not isinstance(referenced, dict):
-                    raise ValueError(f'Cannot dump a {type(referenced)}, id={id(referenced)} containing itself ({referenced})')
-                referenced['_id'] = self.ref_to_id[ref]
-
-        return result
+        return outer_result['return']
 
 
 class ReferencedLoader(Loader):
@@ -203,13 +176,13 @@ if __name__ == '__main__':
     bar2.bars.append(bar2)
     bar.bars = [bar2, bar2, bar]
 
-    print(bar)
-    print(bar.bars[1])
+    # print(bar)
+    # print(bar.bars[1])
 
     bardata = referenced_dump(bar)
     print(bardata)
-
-    dbar = referenced_load(bardata, Bar)
-    print(dbar)
-    print(dbar.bars[1])
+    #
+    # dbar = referenced_load(bardata, Bar)
+    # print(dbar)
+    # print(dbar.bars[1])
 

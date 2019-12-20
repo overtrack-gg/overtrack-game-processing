@@ -21,35 +21,29 @@ tabulate = "*"
 
 # embedded web servers
 # aiohttp = "^3.5"
-cherrypy = "^18"
-
-# ingest instance management
-# python-digitalocean = { git = "https://github.com/koalalorenzo/python-digitalocean.git" }
+# cherrypy = "^18"  # pulls functools??
 
 # image/data processing
 numpy = "^1"
 scipy = "^1"
 opencv-python = "^4.0"
-tensorflow = "^2.0.0-beta1"
-tesserocr = "^2.4"
+# tensorflow = "==2.0.0"
+# tesserocr = "^2.4"
+# tesserocr = { url = "https://github.com/simonflueckiger/tesserocr-windows_build/releases/download/tesserocr-v2.4.0-tesseract-4.0.0/tesserocr-2.4.0-cp36-cp36m-win_amd64.whl", version="2.4" }
 editdistance = "*"
-python-Levenshtein = "*"
-#python-Levenshtein-wheels = "*"
+# python-Levenshtein = "*"
+# python-Levenshtein-wheels = "*"
 
 # video/stream/vod extraction
-av = "^6"
+# av = "^6"  # extra dependency that is not required, but gives useful data sometimes
 streamlink = { git = "https://github.com/streamlink/streamlink.git" }
 
-# storage
+# extras used in some sub projects
 # pynamodb = "^4"
 # boto3 = "^1"
-
-# log+error reporting
 # sentry-sdk = "^0.11"
 # google-cloud-logging = "^1"
-
-# twitch overlay
-pyjwt = "*"
+# pyjwt = "*"
 
 [tool.poetry.dev-dependencies]
 

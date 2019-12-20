@@ -34,16 +34,24 @@ class Dumper:
         self.ignore_default = ignore_default
         self.numpy_support = numpy_support
 
-    def dump(self, value) -> Dict[str, Any]:
+    def dump(self, value, push_key: Optional[str] = None, _stack=[]) -> Dict[str, Any]:
         for check_value, dump_value in self._dispatch:
             if check_value(self, value):
-                return dump_value(self, value)
+                if push_key:
+                    _stack.append(push_key)
+                try:
+                    return dump_value(self, value)
+                finally:
+                    if push_key:
+                        _stack.pop()
         else:
-            raise TypedDumpError(f"Don't know how to dump {type(value)}")
+            if push_key:
+                _stack.append(push_key)
+            raise TypedDumpError(f"Don't know how to dump {type(value)}\nField trace: {''.join(_stack)}")
 
-    def dump_dict(self, value: Dict[Any, Any], field_defaults: Optional[Dict[str, Any]] = None) -> Dict[Any, Any]:
+    def dump_dict(self, value: Dict[Any, Any], field_defaults: Optional[Dict[str, Any]] = None, field_format: str = '[%r]') -> Dict[Any, Any]:
         return {
-            self.dump(k): self.dump(v)
+            self.dump(k): self.dump(v, field_format % k)
             for k, v in value.items()
             if not self.ignore_default or not field_defaults or k not in field_defaults or field_defaults[k] != v
         }
@@ -117,7 +125,8 @@ class Dumper:
                 f.name: getattr(value, f.name)
                 for f in fields(value)
             },
-            field_defaults
+            field_defaults,
+            field_format='.%s',
         )
     _dispatch.append((
         _is_dataclass,

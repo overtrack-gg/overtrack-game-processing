@@ -209,6 +209,9 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
         paths = glob.glob(images + '/*.png')
     else:
         paths = glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/{images}/*.png")
+
+    paths.sort(key=lambda p: os.path.getctime(p), reverse=True)
+
     if test_all:
         paths += glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/*/*.png", recursive=True)
 
