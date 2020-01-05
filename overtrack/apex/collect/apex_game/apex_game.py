@@ -158,7 +158,7 @@ class ApexGame:
             if 'apex_metadata' in frame:
                 config_name = frame.apex_metadata.player_config_name
                 self.player_name = config_name
-                self.logger.info(f'Got player name from config: "{config_name}"')
+                self.logger.info(f'Got player name from config: {config_name!r}')
 
         self.squad = Squad(self.all_frames, menu_names, config_name, self.mode == 'ranked', squad_before, squad_after, solo=self.solo, duos=self.duos, debug=debug)
         self.combat = Combat(self.frames, self.placed, self.squad, debug=debug)

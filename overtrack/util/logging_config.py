@@ -287,7 +287,7 @@ def config_logger(
         logger.info('')
     logger.info(f'Command: "{" ".join(sys.argv)}", pid={os.getpid()}, name={name}')
     if use_stackdriver:
-        logger.info(f'Connected to google cloud logging. Using name="{name}". Logging class: {logging.getLoggerClass()}')
+        logger.info(f'Connected to google cloud logging. Using name={name!r}. Logging class: {logging.getLoggerClass()}')
 
     upload_logs_settings['write_to_file'] = write_to_file
     if write_to_file and upload_func and upload_frequency:

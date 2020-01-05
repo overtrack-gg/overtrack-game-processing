@@ -139,7 +139,7 @@ class Player:
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
 
         self.logger.info(
-            f'Resolving player with estimated name="{name}", champion={champion} '
+            f'Resolving player with estimated name={name!r}, champion={champion} '
             f'from {len(squad_summaries)} squad summary frames | '
             f'use_match_summary={is_owner}, name_from_config={name_from_config}'
         )
@@ -165,7 +165,7 @@ class Player:
             stats_seem_valid = sum([_stats_seem_valid(s) for s in stats]) >= 2
             if stats_seem_valid:
                 if not name_from_config and len(names) > 3 and own_stats_name != self.name and len(own_stats_name) > 3:
-                    self.logger.warning(f'Updating name from game name to stats name: "{self.name}" -> "{own_stats_name}"')
+                    self.logger.warning(f'Updating name from game name to stats name: {self.name!r} -> {own_stats_name!r}')
                     self.name = own_stats_name
 
                 self.stats = self._get_mode_stats(stats)

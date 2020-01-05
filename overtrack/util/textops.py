@@ -183,6 +183,6 @@ def best_match(
         if not disable_log:
             logger.warning(
                 f'Failed to find match for "{text if isinstance(text, str) else Counter(text)}" in {options} - '
-                f'closest="{options[index]}" with match={match} - using default="{default}"'
+                f'closest="{options[index]}" with match={match} - using default={default!r}'
             )
         return default

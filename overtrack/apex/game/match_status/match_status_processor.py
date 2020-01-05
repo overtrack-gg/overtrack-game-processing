@@ -202,13 +202,13 @@ class MatchStatusProcessor(Processor):
             try:
                 squads_left = int(number_text)
             except ValueError:
-                logger.warning(f'Failed to parse "{number_text}" as int - extracted from "{squads_left_text}"')
+                logger.warning(f'Failed to parse {number_text!r} as int - extracted from {squads_left_text!r}')
                 return None
             else:
                 if 2 <= squads_left <= expected_max_squads:
                     return squads_left
                 else:
-                    logger.warning(f'Got squads_left={squads_left} - rejecting. Extracted from "{squads_left_text}"')
+                    logger.warning(f'Got squads_left={squads_left} - rejecting. Extracted from {squads_left_text!r}')
                     return None
         elif text_match > 0.6:
             logger.warning(f'Refusing to parse "{squads_left_text} as squads left - match={text_match}')
@@ -263,7 +263,7 @@ class MatchStatusProcessor(Processor):
                     logger.warning(f'Rejecting kills={kills}')
                     return None
             except ValueError:
-                logger.warning(f'Cannot parse kills="{kills_text}" as int')
+                logger.warning(f'Cannot parse kills={kills_text!r} as int')
                 return None
         else:
             return None

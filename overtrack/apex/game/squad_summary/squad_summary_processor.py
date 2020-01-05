@@ -151,7 +151,7 @@ class SquadSummaryProcessor(Processor):
         try:
             return int(text)
         except ValueError:
-            logger.warning(f'Could not parse "{text}" as int')
+            logger.warning(f'Could not parse {text!r} as int')
             return None
 
     def _process_player_stats(self, y: np.ndarray, duos: bool = False, shunt: int = 0) -> Tuple[PlayerStats, ...]:
@@ -160,6 +160,7 @@ class SquadSummaryProcessor(Processor):
         name_images = self.REGIONS[prefix + 'names'].shunt(x=shunt).extract(y)
         names = []
         for im in name_images:
+            # self._mask_components_touching_edges(im)
             im = 255 - cv2.bitwise_and(
                 im,
                 cv2.dilate(
@@ -177,17 +178,19 @@ class SquadSummaryProcessor(Processor):
                 engine=imageops.tesseract_lstm,
             ).replace(' ', '')
             match = np.mean(imageops.tesseract_lstm.AllWordConfidences())
-            logger.info(f'Got name "{name}" ~ {match:1.2f}')
+            logger.info(f'Got name {name!r} ~ {match:1.2f}')
             if match < 0.75:
                 name = imageops.tesser_ocr(
                     im,
                     engine=imageops.tesseract_only,
                 )
-                logger.info(f'Using "{name}" instead')
+                logger.info(f'Using {name!r} instead')
             names.append(name)
 
         stat_images = self.REGIONS[prefix + 'stats'].shunt(x=shunt).extract(y)
 
+        # for im in stat_images:
+        #     self._mask_components_touching_edges(im)
 
         stats = imageops.tesser_ocr_all(
             stat_images,
@@ -217,7 +220,7 @@ class SquadSummaryProcessor(Processor):
                 try:
                     stats[i] = int(value)
                 except ValueError as e:
-                    logger.warning(f'Could not parse "{value}" as int" {e}')
+                    logger.warning(f'Could not parse {value!r} as int" {e}')
                     stats[i] = None
 
         # typing: ignore

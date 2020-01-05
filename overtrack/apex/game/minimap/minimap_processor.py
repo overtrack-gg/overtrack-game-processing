@@ -291,7 +291,7 @@ class MinimapProcessor(Processor):
                         value = line.split()[1].strip().replace('"', '')
             if value:
                 pvalue = value.lower() in ['1', 'true']
-                logger.info(f'Extracted hud_setting_minimapRotate: "{value}" from {config_path} - setting rotate to {pvalue}')
+                logger.info(f'Extracted hud_setting_minimapRotate: {value!r} from {config_path} - setting rotate to {pvalue}')
                 self.map_rotate_in_config = pvalue
             else:
                 logger.info(f'Could not find hud_setting_minimapRotate in {config_path} - setting rotate to autodetect')
@@ -305,7 +305,7 @@ class MinimapProcessor(Processor):
         logger.info('Checking for map updates')
         try:
             r = requests.get('https://overtrack-client-2.s3-us-west-2.amazonaws.com/dynamic/apex-map/current.json')
-            logger.info(f'Checking for map update: {r} "{r.content}"')
+            logger.info(f'Checking for map update: {r} {r.content!r}')
             if r.status_code == 404:
                 logger.info('Map updates not enabled')
                 return

@@ -127,7 +127,7 @@ class YourSquadProcessor(Processor):
         if len(name_text) > 3 and name_text[0] == '(' and name_text[-1] == ')':
             return name_text[1:-1].replace(' ', '').replace('(', '').replace(')', '')
         else:
-            logger.warning(f'Got name "{name_text}" for player: not correctly bracketed')
+            logger.warning(f'Got name {name_text!r} for player: not correctly bracketed')
             return name_text.replace(' ', '').replace('(', '').replace(')', '')
 
 

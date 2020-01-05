@@ -100,7 +100,7 @@ class ExtractionRegions:
                 )
 
     def __str__(self) -> str:
-        return f'{self.__class__.__name__}(name="{self.name}", {len(self.regions)} regions)'
+        return f'{self.__class__.__name__}(name={self.name!r}, {len(self.regions)} regions)'
 
     __repr__ = __str__
 

@@ -192,7 +192,7 @@ class MatchSummaryProcessor(Processor):
                     try:
                         score_report.kills = int(stat_value.replace('o', '0'))
                     except ValueError:
-                        logger.warning(f'Could not parse Score Report > kills: "{stat_value}"" as int')
+                        logger.warning(f'Could not parse Score Report > kills: {stat_value!r}" as int')
                     else:
                         valid = True
                 elif stat_name == 'matchplacement':
@@ -200,11 +200,11 @@ class MatchSummaryProcessor(Processor):
                     try:
                         score_report.placement = int(stat_value.replace('o', '0').split('/', 1)[0])
                     except ValueError:
-                        logger.warning(f'Could not parse Score Report > placement: "{stat_value}"" as placement')
+                        logger.warning(f'Could not parse Score Report > placement: {stat_value!r}" as placement')
                     else:
                         valid = True
             if not valid:
-                logger.warning(f'Unknown line in score report: "{line}"')
+                logger.warning(f'Unknown line in score report: {line!r}')
 
         score_adjustment_image = self.REGIONS['score_adjustment'].extract_one(y)
         score_adjustment_text = imageops.tesser_ocr(
@@ -217,7 +217,7 @@ class MatchSummaryProcessor(Processor):
         try:
             score_report.rp_adjustment = int(score_adjustment_text_strip)
         except ValueError:
-            logger.warning(f'Could not parse Score Report > score adjustment: "{score_adjustment_text}"" as valid adjustment')
+            logger.warning(f'Could not parse Score Report > score adjustment: {score_adjustment_text!r}" as valid adjustment')
 
         current_rp_image = self.REGIONS['current_rp'].extract_one(y)
         current_rp_text = imageops.tesser_ocr(
@@ -230,7 +230,7 @@ class MatchSummaryProcessor(Processor):
         try:
             score_report.current_rp = int(current_rp_text_strip)
         except ValueError:
-            logger.warning(f'Could not parse Score Report > current RP: "{current_rp_text}"" as valid RP')
+            logger.warning(f'Could not parse Score Report > current RP: {current_rp_text!r}" as valid RP')
 
         return score_report
 
@@ -247,18 +247,18 @@ class MatchSummaryProcessor(Processor):
                 if stat_value_s:
                     stat_value = self._parse_stat_number(stat_value_s)
                     if stat_value is not None:
-                        logger.info(f'Parsed {stat_name}={stat_value} ("{line}" ~ {match:1.2f})')
+                        logger.info(f'Parsed {stat_name}={stat_value} ({line!r} ~ {match:1.2f})')
                         return stat_name, stat_value
                     else:
-                        logger.info(f'Unable to parse value for {stat_name} ("{line}" ~ {match:1.2f})')
+                        logger.info(f'Unable to parse value for {stat_name} ({line!r} ~ {match:1.2f})')
                         return stat_name, None
                 else:
                     return stat_name, None
             else:
-                logger.warning(f'Don\'t know how to parse stat "{line}"')
+                logger.warning(f'Don\'t know how to parse stat {line!r}')
                 return None, None
         elif line:
-            logger.warning(f'Ignoring stat "{line}" - too short')
+            logger.warning(f'Ignoring stat {line!r} - too short')
             return None, None
         else:
             return None, None
@@ -294,16 +294,16 @@ class MatchSummaryProcessor(Processor):
             try:
                 placed = int(text[1:])
             except ValueError:
-                logger.warning(f'Could not parse "{text}" as number')
+                logger.warning(f'Could not parse {text!r} as number')
                 return None
             else:
-                logger.debug(f'Parsed "{text}" as {placed}')
+                logger.debug(f'Parsed {text!r} as {placed}')
                 if 1 <= placed <= 30:
                     return placed
                 else:
                     logger.warning(f'Rejected placed={placed}')
         else:
-            logger.warning(f'Rejected placed text "{text}" - did not get "#"')
+            logger.warning(f'Rejected placed text {text!r} - did not get "#"')
             return None
 
 
