@@ -48,6 +48,8 @@ class ApexGame:
     champion: Optional[Dict]
     images: Dict[str, str]
 
+    frames_count: int
+
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def __init__(
@@ -115,6 +117,7 @@ class ApexGame:
         game_end_index = self._get_end_index(frames, your_squad_first_index)
 
         self.frames = frames[your_squad_first_index:game_end_index]
+        self.frames_count = len(self.frames)
         self.all_frames = frames[your_squad_first_index:]
         self.timestamp = round(frames[your_squad_last_index].timestamp, 2) + 10.  # CHAMPION SQUAD takes 10s after YOUR SQUAD, then dropship launches
         self.duration = round(self.frames[-1].timestamp - self.frames[0].timestamp, 2)
