@@ -98,18 +98,24 @@ class ApexGame:
             self.logger.info(f'Game is duos game')
             self.squad_count = 30
 
-        self.logger.info(
-            f'Match start from selection frame ({"your_squad" if "your_squad" in selection_frames[-1] else "your_champion"}) => '
-            f'{selection_frames[-1].timestamp_str}'
-        )
-        self.match_started = round(selection_frames[-1].timestamp, 2)
-
-        self.match_ids = self._generate_match_id(champion)
-        self.match_id = self.match_ids[0]
-
         self.menu_frames = [f.apex_play_menu for f in frames if 'apex_play_menu' in f]
         menu_names = [apex_play_menu.player_name for apex_play_menu in self.menu_frames]
         self.logger.info(f'Processing game from {len(frames) - your_squad_first_index} frames and {len(menu_names)} menu frames')
+
+        if len(selection_frames):
+            self.logger.info(
+                f'Match start from selection frame ({"your_squad" if "your_squad" in selection_frames[-1] else "your_champion"}) => '
+                f'{selection_frames[-1].timestamp_str}'
+            )
+            self.match_started = round(selection_frames[-1].timestamp, 2)
+        else:
+            self.logger.warning(f'Got game with missing selection frames - using end of menu frames as game start')
+            self.match_started = round(frames[len(self.menu_frames)].timestamp, 2)
+            your_squad_first_index = len(self.menu_frames)
+            your_squad_last_index = len(self.menu_frames)
+
+        self.match_ids = self._generate_match_id(champion)
+        self.match_id = self.match_ids[0]
 
         self.player_name = levenshtein.median(menu_names)
         self.logger.info(f'Resolved player name={repr(self.player_name)} from menu frames')
