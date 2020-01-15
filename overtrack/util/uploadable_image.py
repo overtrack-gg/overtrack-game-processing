@@ -1,8 +1,8 @@
-import time
 import logging
 from collections import deque
-from typing import Dict, List, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING
 
+import time
 from dataclasses import dataclass
 
 from overtrack.util.logging_config import intermittent_log
@@ -100,5 +100,5 @@ class UploadableImage:
 @dataclass
 class UploadedImage:
     key: str
-    url: str
+    url: Optional[str]
     timestamps: List[float]
