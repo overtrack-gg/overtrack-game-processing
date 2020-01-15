@@ -7,6 +7,7 @@ from dataclasses import Field, dataclass, fields, is_dataclass
 class DataclassPrettyPrinter(PrettyPrinter):
 
     def __init__(self, *args, **kwargs):
+        kwargs['width'] = 120
         super().__init__(*args, **kwargs)
         self.visited = {}
 

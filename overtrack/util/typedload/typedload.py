@@ -71,7 +71,6 @@ class Dumper:
         return isinstance(value, dict)
     def _dump_dict(self, value: Dict[Any, Any]) -> Dict[Any, Any]:
         return self.dump_dict(value)
-
     _dispatch.append((
         _is_dict,
         _dump_dict
@@ -302,7 +301,6 @@ class Loader:
         if not isinstance(value, dict):
             raise TypeError(f'Could not load {type_} from value {value!r}')
         return self._populate_dataclass(type_.__new__(type_), value, type_)
-
     _dispatch.append((
         _check_dataclass,
         _load_dataclass

@@ -437,6 +437,9 @@ class ApexGame:
     def asdict(self) -> Dict[str, Any]:
         return typedload.dump(self, ignore_default=False)
 
+    def to_dict(self) -> Dict[str, Any]:
+        return typedload.dump(self, ignore_default=False)
+
 
 def main() -> None:
     import json

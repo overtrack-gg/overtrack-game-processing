@@ -64,7 +64,8 @@ class ReferencedDumper(Dumper):
         queue = [Pointer(value, 'return', outer_result)]
         dumped: Dict[int, dict] = {}
         ids = itertools.count()
-        dumper = Dumper()
+        dumper = Dumper(numpy_support=self.numpy_support)
+        dumper._dispatch = self._dispatch
         while queue:
             pointer = queue.pop(0)
             if id(pointer.to) in dumped:
@@ -77,6 +78,12 @@ class ReferencedDumper(Dumper):
                 dumped[id(pointer.to)] = result
                 for f in fields(pointer.to):
                     queue.append(Pointer(getattr(pointer.to, f.name), f.name, result, pointer.trace + [f.name]))
+                pointer.from_[pointer.key] = result
+            elif self._is_dict(pointer.to):
+                result = {}
+                dumped[id(pointer.to)] = result
+                for k, v in pointer.to.items():
+                    queue.append(Pointer(pointer.to[k], k, result, pointer.trace + [k]))
                 pointer.from_[pointer.key] = result
             elif self._is_basic_type(pointer.to):
                 # have to do strings before sequences
@@ -93,6 +100,7 @@ class ReferencedDumper(Dumper):
 
 
 class ReferencedLoader(Loader):
+    _dispatch = Loader._dispatch.copy()
 
     def __init__(self, forward_refs: Dict[str, Type] = None):
         self.referenced: Dict[int, Any] = {}
@@ -131,6 +139,24 @@ class ReferencedLoader(Loader):
 
         return super().load(value, type_, push_key, _stack)
 
+    def _populate_dataclass(self, result: Any, value: Dict[str, Any], type_: Type) -> Any:
+        # populate (and load) fields with _id fields first in case one field references another e.g. {'a': {'_ref': 1}, 'b': {'_id': 1}}
+        fields_ordered = sorted(
+            fields(type_),
+            key=lambda f: isinstance(value.get(f.name, None), dict) and '_id' in value[f.name],
+            reverse=True
+        )
+        for f in fields_ordered:
+            if f.name in value:
+                # object.__setattr__ over setattr to bypass frozen check
+                object.__setattr__(result, f.name, self.load(value[f.name], f.type, f'.{f.name}'))
+            elif type(f.default) != _MISSING_TYPE:
+                object.__setattr__(result, f.name, f.default)
+            elif type(f.default_factory) != _MISSING_TYPE:
+                object.__setattr__(result, f.name, f.default_factory())
+            else:
+                raise TypeError(f'Could not load {type_} from provided fields {value.keys()!r} - missing non-default {f.name}')
+        return result
 
 if __name__ == '__main__':
     def make_foo():

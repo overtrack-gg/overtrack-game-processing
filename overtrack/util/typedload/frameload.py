@@ -36,12 +36,24 @@ from overtrack.util.uploadable_image import UploadableImage, UploadedImage
 T = TypeVar('T')
 
 def frames_dump(value: object, ignore_default: bool = True, numpy_support: bool = True) -> Dict[str, Any]:
-    return ReferencedDumper(ignore_default=ignore_default, numpy_support=numpy_support).dump(value)
+    return FrameDumper(ignore_default=ignore_default, numpy_support=numpy_support).dump(value)
 
 
 def frames_load(value: Any, type_: Type[T]) -> T:
     return FrameLoader().load(value, type_)
 
+
+class FrameDumper(ReferencedDumper):
+    _dispatch = ReferencedDumper._dispatch.copy()
+
+    def _is_uploadable_image(self, value) -> bool:
+        return isinstance(value, UploadableImage)
+    def _dump_uploadable_image(self, value: UploadableImage) -> Dict[Any, Any]:
+        return value._typeddump()
+    _dispatch.append((
+        _is_uploadable_image,
+        _dump_uploadable_image
+    ))
 
 _Source = Union[SharedMemorySource, DisplayDuplicationSource]
 

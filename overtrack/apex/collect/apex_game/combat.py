@@ -1,7 +1,6 @@
 import logging
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
-import typedload
 from dataclasses import dataclass
 
 from overtrack.apex.collect.apex_game.squad import Squad
@@ -155,11 +154,3 @@ class Combat:
             f'Elimination_assists: {self.elimination_assists}\n'
             f'Knockdown_assists: {self.knockdown_assists}\n'
         )
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'eliminations': typedload.dump(self.eliminations, hidedefault=False),
-            'knockdowns': typedload.dump(self.knockdowns, hidedefault=False),
-            'elimination_assists': typedload.dump(self.elimination_assists, hidedefault=False),
-            'knockdown_assists': typedload.dump(self.knockdown_assists, hidedefault=False),
-        }
