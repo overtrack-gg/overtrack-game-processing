@@ -1,5 +1,4 @@
 from overtrack.apex.game.combat.combat_processor import CombatProcessor
-from overtrack.apex.game.map.map_processor import MapProcessor
 from overtrack.apex.game.minimap.minimap_processor import MinimapProcessor
 from overtrack.apex.game.match_status.match_status_processor import MatchStatusProcessor
 from overtrack.apex.game.match_summary.match_summary_processor import MatchSummaryProcessor
@@ -48,7 +47,7 @@ def create_pipeline(interleave_processors: bool = True) -> Processor:
                     override_condition=lambda f: 'combat_log' in f
                 ),
             ),
-            condition=lambda f: ('location' in f) or ('match_status' in f),
+            condition=lambda f: ('location' in f) or ('match_status' in f) or ('minimap' in f),
             lookbehind=15,
             lookbehind_behaviour=any,
             default_without_history=True,
@@ -69,7 +68,7 @@ def create_lightweight_pipeline() -> Processor:
             EveryN(
                 OrderedProcessor(
                     EveryN(MatchStatusProcessor(), 2),
-                    MapProcessor(),
+                    MinimapProcessor(),
                 ), 2
             ),
 
