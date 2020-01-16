@@ -1,8 +1,7 @@
-from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 import itertools
-from dataclasses import dataclass, fields, is_dataclass, _MISSING_TYPE, field
+from dataclasses import _MISSING_TYPE, dataclass, field, fields, is_dataclass
 
 from overtrack.util.typedload import Dumper, Loader
 
@@ -123,6 +122,7 @@ class ReferencedLoader(Loader):
 
                 # Create the dataclass and add it to referenced before deserializing its fields
                 # this allows us to build recursive structures without recursing infinitely
+                # noinspection PyArgumentList
                 result = type_.__new__(type_)
                 self.referenced[id_] = result
 
@@ -178,7 +178,7 @@ if __name__ == '__main__':
 
         id: int = 0
 
-        def __repr__(self):
+        def __repr__(self) -> str:
             return f'Bar(' \
                    f'.id={id(self)}, ' \
                    f'foo1={self.foo1}, ' \

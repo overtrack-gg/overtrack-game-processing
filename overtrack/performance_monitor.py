@@ -1,6 +1,6 @@
 import logging
 import time
-from collections import deque
+from collections import deque, defaultdict
 from typing import Any, DefaultDict, Deque, List, Tuple, Optional
 
 import numpy as np
@@ -25,7 +25,7 @@ class PerformanceMonitor:
             self.report()
 
     def report(self) -> None:
-        values: DefaultDict[str, List[float]] = DefaultDict(list)
+        values: DefaultDict[str, List[float]] = defaultdict(list)
         for ts, timing, qsize in self.perf:
             for k, v in timing.items():
                 values[k].append(v)

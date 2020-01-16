@@ -9,7 +9,6 @@ import requests
 import time
 from scipy import optimize
 from tensorflow.python.keras import Model
-from tensorflow.python.keras.saving import export_saved_model
 
 from overtrack.apex import ocr
 from overtrack.apex.game.minimap.models import Circle, Location, Minimap
@@ -281,6 +280,7 @@ class MinimapProcessor(Processor):
 
     def _check_for_rotate_setting(self):
         try:
+            # noinspection PyUnresolvedReferences
             from client.util import knownpaths
             games_path = knownpaths.get_path(knownpaths.FOLDERID.SavedGames, knownpaths.UserHandle.current)
             config_path = os.path.join(games_path, 'Respawn', 'Apex', 'profile', 'profile.cfg')

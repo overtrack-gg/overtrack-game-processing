@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 from typing import Union
 
 import cv2

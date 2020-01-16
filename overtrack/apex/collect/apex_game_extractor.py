@@ -118,7 +118,7 @@ def main() -> None:
 
     logger.info('Loading frames')
     with open(r"C:\Users\simon\workspace\overtrack_2\games\apex_eeveea_apex_19-03-13.json") as f:
-        frames = referenced_typedload.load(json.load(f), List[Frame], source_type=VideoFrameExtractor.VideoFrameMetadata)
+        frames = referenced_typedload.load(json.load(f), List[Frame])
     logger.info(f'Loaded {len(frames)} frames')
 
     # fields = [

@@ -1,11 +1,11 @@
 import logging
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
+from typing import ClassVar, List, Optional, Tuple, Union
 
 from dataclasses import dataclass
 
 from overtrack.apex.collect.apex_game.squad import Squad
 from overtrack.frame import Frame
-from overtrack.util import s2ts, validate_fields, round_floats
+from overtrack.util import round_floats, s2ts, validate_fields
 
 
 @dataclass
@@ -17,7 +17,7 @@ class CombatEvent:
     weapon: Optional[str] = None
     location: Optional[Tuple[int, int]] = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         r = f'CombatEvent(ts={s2ts(self.timestamp)}, type={self.type}'
         if self.inferred:
             r += f', inferred=True'

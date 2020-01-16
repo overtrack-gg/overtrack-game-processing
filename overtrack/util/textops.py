@@ -6,8 +6,6 @@ from typing import Any, Iterable, List, Optional, Sequence, Tuple, TypeVar, Unio
 
 import Levenshtein as levenshtein
 import itertools
-# import editdistance
-import numpy as np
 
 from overtrack.util import arrayops
 

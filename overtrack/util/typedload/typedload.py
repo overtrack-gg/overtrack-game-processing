@@ -300,6 +300,7 @@ class Loader:
     def _load_dataclass(self, value: Dict[str, Any], type_: Type) -> Any:
         if not isinstance(value, dict):
             raise TypeError(f'Could not load {type_} from value {value!r}')
+        # noinspection PyArgumentList
         return self._populate_dataclass(type_.__new__(type_), value, type_)
     _dispatch.append((
         _check_dataclass,

@@ -9,9 +9,7 @@ from overtrack.apex.game.menu import PlayMenu
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
-from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-from overtrack.util.uploadable_image import lazy_upload
 
 
 def _draw_buttons_match(debug_image: Optional[np.ndarray], ready_match: float, cancel_match: float, required_match: float) -> None:
@@ -126,6 +124,7 @@ class MenuProcessor(Processor):
 
 
 def main() -> None:
+    from overtrack.util.logging_config import config_logger
     config_logger('menu_processor', logging.INFO, write_to_file=False)
 
     pipeline = MenuProcessor()
@@ -141,8 +140,6 @@ def main() -> None:
         print(frame)
         cv2.imshow('debug', frame.debug_image)
         cv2.waitKey(0)
-
-
 
 
 if __name__ == '__main__':

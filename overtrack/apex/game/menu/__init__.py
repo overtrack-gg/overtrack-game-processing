@@ -1,1 +1,1 @@
-from .models import PlayMenu
+from overtrack.apex.game.menu.models import PlayMenu

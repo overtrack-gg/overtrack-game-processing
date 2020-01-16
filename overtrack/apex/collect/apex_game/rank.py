@@ -1,6 +1,6 @@
 import logging
 from collections import Counter
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import ClassVar, List, Optional
 
 import numpy as np
 import tabulate
@@ -168,7 +168,7 @@ class Rank:
         if self.rp is None:
             self.logger.warning(f'Menu RP invalid')
 
-    def _resolve_api_rank(self, player_name: str, players_before: List[Optional[APIOriginUser]], players_after: List[Optional[APIOriginUser]]):
+    def _resolve_api_rank(self, player_name: str, players_before: List[Optional[APIOriginUser]], players_after: List[Optional[APIOriginUser]]) -> None:
         self.logger.info(f'Trying to resolve RP from API stats for {player_name!r}')
         player_stats_before_l: List[APIStats] = [p['stats'] for p in players_before if p and p['name'] == player_name and p.get('stats')]
         player_stats_after_l: List[APIStats] = [p['stats'] for p in players_after if p and p['name'] == player_name and p.get('stats')]

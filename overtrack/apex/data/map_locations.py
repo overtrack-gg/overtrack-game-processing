@@ -13,7 +13,7 @@ class MapLocations:
 
     def __init__(self, name: str):
         self.name = name
-        self.layers: Optional[List[str, np.ndarray]] = None
+        self.layers: Optional[List[Tuple[str, np.ndarray]]] = None
 
     def _ensure_loaded(self) -> None:
         import cv2
@@ -44,6 +44,7 @@ class MapLocations:
 
     def get_location_name(self, location: Tuple[int, int]) -> str:
         self._ensure_loaded()
+        assert self.layers is not None
         for name, mask in self.layers:
             if mask[location[1], location[0]]:
                 # logger.info(f'Resolving {location} -> {name}')

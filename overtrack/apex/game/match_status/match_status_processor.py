@@ -2,20 +2,19 @@ import logging
 import os
 import re
 import string
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 import Levenshtein as levenshtein
 import cv2
 import dataclasses
 import numpy as np
 
-from overtrack.apex import ocr, data
+from overtrack.apex import data, ocr
 from overtrack.apex.game.match_status import MatchStatus
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
 from overtrack.util.imageops import matchTemplate
-from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 
 logger = logging.getLogger(__name__)
