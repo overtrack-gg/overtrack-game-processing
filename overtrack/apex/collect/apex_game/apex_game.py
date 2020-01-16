@@ -151,7 +151,14 @@ class ApexGame:
 
         self.mode = 'unranked'
         if self._get_is_ranked(squad_before, squad_after, debug):
-            self.mode = 'ranked'
+            avg_rank_match = np.mean([min(f.rank_badge_matches) for f in self.match_status_frames if f.rank_badge_matches])
+            empty_rank_text = np.mean([f.rank_text == '' for f in self.match_status_frames])
+            self.logger.info(f'Got ranked game with average badge match={avg_rank_match:.1f}, empty rank text={empty_rank_text*100:.0f}%')
+            if avg_rank_match > 1000 and empty_rank_text > 0.5:
+                self.logger.warning(f'Game has bad rank badge match and low rank text - assuming "rank badge" is a custom mode icon - marking game as invalid')
+                self.valid = False
+            else:
+                self.mode = 'ranked'
         elif self.solo:
             self.mode = 'solo'
         elif self.duos:
