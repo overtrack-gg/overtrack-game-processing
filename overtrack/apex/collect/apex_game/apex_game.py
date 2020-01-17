@@ -244,7 +244,7 @@ class ApexGame:
             rank_matches_p = 0
         self.logger.info(f'Got {rank_matches_p * 100:.0f}% ({rank_matches}/{len(self.match_status_frames)}) of match status frames claiming ranked')
 
-        return rank_matches_p > 0.8 and rank_matches > 10
+        return rank_matches_p > 0.8
 
     def _generate_match_id(self, champion: Optional[APIOriginUser]) -> List[Optional[str]]:
         if champion:
