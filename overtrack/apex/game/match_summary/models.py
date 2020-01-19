@@ -18,7 +18,7 @@ class XPStats:
 
 @dataclass
 class ScoreReport:
-    entry_rank: str = None
+    entry_rank: Optional[str] = None
     kills: Optional[int] = None
     placement: Optional[int] = None
     rp_adjustment: Optional[int] = None
