@@ -1,12 +1,9 @@
-from typing import TYPE_CHECKING, Any, Type
-import sys
+from typing import Any, TYPE_CHECKING, Type
 
 try:
     from typing import Literal
 except:
-    if sys.version_info >= (3, 8):
-        from typing import Literal
-    elif TYPE_CHECKING:
+    if TYPE_CHECKING:
         from typing_extensions import Literal
     else:
         class _Literal:
