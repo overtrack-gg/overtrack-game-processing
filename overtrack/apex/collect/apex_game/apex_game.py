@@ -87,7 +87,7 @@ class ApexGame:
         else:
             self.logger.info(f'Match had {squad_frames} squad frames and {match_status_frames} match status frames')
 
-        selection_frames = [f for f in frames if 'your_squad' in f or 'champion_squad' in f]
+        selection_frames = [f for f in frames if 'your_squad' in f]
         self.duos = self._get_is_duos(frames, selection_frames)
 
         self.squad_count = 20
@@ -231,7 +231,7 @@ class ApexGame:
             self.champion = None
 
     def _get_is_duos(self, frames: List[Frame], selection_frames: List[Frame]) -> bool:
-        duos_frames = [f for f in frames if ('your_squad' in f and f.your_squad.mode == 'duos') or ('champion_squad' in f and f.champion_squad.mode == 'duos')]
+        duos_frames = [f for f in frames if ('your_squad' in f and f.your_squad.mode == 'duos')]
         self.logger.info(f'Got {len(duos_frames)}/{len(selection_frames)} confirming game as duos')
         return len(duos_frames) > len(selection_frames) * 0.5
 
