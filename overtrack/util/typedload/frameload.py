@@ -1,6 +1,8 @@
+import base64
+import bz2
 from typing import Dict, Any, Type, Union, TypeVar
 
-from overtrack.frame import Frame, Timings
+from overtrack.frame import Frame, Timings, SerializableArray, CurrentGame
 from overtrack.source.display_duplication import DisplayDuplicationSource
 from overtrack.source.shmem import SharedMemorySource
 from overtrack.util.typedload.referenced_typedload import ReferencedLoader, ReferencedDumper
@@ -55,6 +57,27 @@ class FrameDumper(ReferencedDumper):
         _dump_uploadable_image
     ))
 
+    def _is_serializable_array(self, value) -> bool:
+        return isinstance(value, SerializableArray)
+    def _dump_serializable_array(self, value: SerializableArray) -> Dict[Any, Any]:
+        import numpy as np
+        array = value.finalize()
+        assert isinstance(array, np.ndarray)
+        data = base64.b85encode(bz2.compress(array.tobytes())).decode()
+        return {
+            'dtype': str(array.dtype),
+            'shape': array.shape,
+            'compression': 'bz2',
+            'data': [
+                data[i:i+128]
+                for i in range(0, len(data), 128)
+            ]
+        }
+    _dispatch.append((
+        _is_serializable_array,
+        _dump_serializable_array
+    ))
+
 _Source = Union[SharedMemorySource, DisplayDuplicationSource]
 
 try:
@@ -107,6 +130,7 @@ _TYPES = {
     'apex_metadata': overtrack.apex.game.apex_metadata.ApexClientMetadata,
 
     'source': _Source,
+    'current_game': CurrentGame,
 }
 
 class FrameLoader(ReferencedLoader):
@@ -121,7 +145,7 @@ class FrameLoader(ReferencedLoader):
         result = Frame.__new__(Frame)
         result.image = result.debug_image = result._image_yuv = None
         for k, v in value.items():
-            if k in ['image', 'debug_image']:
+            if k in ['image', 'debug_image', '_image_yuv']:
                 continue
             if v is None or type(v) in {int, bool, float, str}:
                 result[k] = v
@@ -145,4 +169,22 @@ class FrameLoader(ReferencedLoader):
     _dispatch.insert(0, (
         _is_uploadable_image,
         _load_uploadable_image
+    ))
+
+    def _is_serializable_array(self, type_: Type) -> bool:
+        return type_ == SerializableArray
+    def _load_serializable_array(self, value: Dict[str, Any], type_: Type[SerializableArray]) -> SerializableArray:
+        import numpy as np
+
+        assert value['compression'] == 'bz2'
+        string = "".join(value['data'])
+        data = bz2.decompress(base64.b85decode(string))
+        array = np.fromstring(
+            data,
+            dtype=np.dtype(value['dtype'])
+        ).reshape(value['shape'])
+        return SerializableArray(array)
+    _dispatch.append((
+        _is_serializable_array,
+        _load_serializable_array
     ))

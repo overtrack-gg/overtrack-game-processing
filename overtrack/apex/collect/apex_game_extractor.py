@@ -69,7 +69,7 @@ class ApexGameExtractor:
         self.last_seen_frame = frame
         time_since_game_start = frame.timestamp - self.frames[0].timestamp if self.have_current_game else -1
 
-        if 'your_squad' in frame or not self.have_current_game:
+        if 'your_squad' in frame and not self.have_current_game:
             self.game_start = frame.timestamp
             if time_since_game_start > 10:
                 logger.warning(

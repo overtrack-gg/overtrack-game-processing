@@ -1,71 +1,31 @@
-import time
 from datetime import datetime
 from typing import Any, Dict, Optional, TYPE_CHECKING, Union
 
 import cv2
-import dataclasses
 import numpy as np
+import time
+from dataclasses import dataclass, field
 
 from overtrack.util import s2ts
 
 _init_time = time.time()
 
 
-def dictify(dic: Any) -> Any:
-    if isinstance(dic, dict):
-        return {k: dictify(v) for k, v in dic.items()}
-    elif isinstance(dic, list):
-        return [dictify(e) for e in dic]
-    elif callable(getattr(dic, 'to_dict', None)):
-        return dictify(dic.asdict())
-    elif callable(getattr(dic, '_asdict', None)):
-        # noinspection PyProtectedMember
-        return dictify(dic._asdict())
-    elif dataclasses.is_dataclass(dic):
-        return dictify(dic.__dict__)
-    elif isinstance(dic, tuple):
-        return tuple(dictify(e) for e in dic)
-    elif isinstance(dic, np.ndarray) and len(dic.shape) == 1:
-        return [e.item() for e in dic]
-    elif callable(getattr(dic, 'item', None)):  # FIXME
-        return dic.item()
-    elif isinstance(dic, np.ndarray) and np.prod(dic.shape) > 50:
-        return f'np.ndarray<{ dic.shape }, dtype={ dic.dtype }>'
-    return dic
+class SerializableArray:
+    def __init__(self, array):
+        self.array = array
+
+    def finalize(self):
+        return self.array
 
 
-# ¯\_(ツ)_/¯
-def strify(o: Any, depth: int=0) -> str:
-    if isinstance(o, str):
-        return "'" + o + "'"
-    if isinstance(o, float):
-        return f'{ round(o, 4) }'
-    elif isinstance(o, dict):
-        return '{' + ', '.join(f'{repr(k)}: {strify(v, depth+1)}' for k, v in o.items()) + '}'
-    elif isinstance(o, list):
-        return '[' + ', '.join(strify(e, depth + 1) for e in o) + ']'
-    elif dataclasses.is_dataclass(o) or hasattr(o, '_fields'):
-        if dataclasses.is_dataclass(o):
-            fields = [f.name for f in dataclasses.fields(o)]
-        else:
-            # noinspection PyProtectedMember
-            fields = o._fields
-        if len(fields) < 4:
-            return str(o.__class__.__name__ + '(' + ', '.join(f + '=' + strify(getattr(o, f), depth) for f in fields) + ')')
-        else:
-            spaces = '  ' * (depth+1)
-            return str(o.__class__.__name__ + '(\n' + spaces + \
-               (',\n' + spaces).join(
-                   f + '=' + strify(getattr(o, f), depth+1)
-                   for f in fields
-               ) + '\n' + '  ' * depth + ')')
-    elif isinstance(o, tuple):
-        return '(' + ', '.join(strify(e, depth + 1) for e in o) + ')'
-    elif isinstance(o, np.ndarray) and len(o.shape) == 1:
-        return strify([e.item() for e in o], depth + 1)
-    elif isinstance(o, np.ndarray) and np.prod(o.shape) > 50:
-        return f'np.ndarray<{ o.shape }, dtype={ o.dtype }>'
-    return str(o)
+@dataclass
+class CurrentGame:
+    started: float = field(default_factory=time.time)
+
+    def __str__(self):
+        return f'CurrentGame(_id={id(self)}, started={self.started})'
+    __repr__ = __str__
 
 
 class Timings(Dict[str, float]):
@@ -105,6 +65,9 @@ class Frame(Dict[str, Any]):
         relative_timestamp: float
         timestamp_str: str
         relative_timestamp_str: str
+
+        game_time: float
+        current_game: CurrentGame
 
         frame_no: int
         # debug_image: Optional[np.ndarray]
@@ -202,7 +165,6 @@ class Frame(Dict[str, Any]):
             raise TypeError(f'image must have type uint8 but had type { image.dtype }')
 
         if image.shape[0] != 1080 or image.shape[2] != 3:
-        # if image.shape != (1080, 1920, 3):
             raise TypeError(f'image must have shape (1080, *, 3) but had { image.shape }')
 
         f = cls.__new__(cls)
@@ -222,27 +184,28 @@ class Frame(Dict[str, Any]):
         f.timings = Timings(**timings if timings else {})
         if debug:
             f.debug_image = image.copy()
+
+            s = f'{f.timestamp_str}'
+
+            if 'relative_timestamp_str' in f:
+                s += f' | {f.relative_timestamp_str}'
+                if 'image_no' in data:
+                    s += f' ({data["image_no"]})'
+
+            if data.get('offset_from_now') is not None:
+                s += f' | offset: {s2ts(data["offset_from_now"])}'
+
+            if 'source' in data:
+                s += f' | {data["source"]}'
+            if 'source_frame_no' in data:
+                s += f' +{data["source_frame_no"]}'
+            if 'source_timestamp' in data:
+                s += f'/+{data["source_timestamp"]:1.2f}s'
+
+            if 'offset_from_last' in data and data['offset_from_last'] is not None:
+                s += f' | +{data["offset_from_last"]:1.2f}s'
+
             for t, c in (5, (0, 0, 0)), (1, (255, 0, 255)):
-                s = f'{f.timestamp_str}'
-
-                if 'relative_timestamp_str' in f:
-                    s += f' | {f.relative_timestamp_str}'
-                    if 'image_no' in data:
-                        s += f' ({data["image_no"]})'
-
-                if data.get('offset_from_now') is not None:
-                    s += f' | offset: {s2ts(data["offset_from_now"])}'
-
-                if 'source' in data:
-                    s += f' | {data["source"]}'
-                if 'source_frame_no' in data:
-                    s += f' +{data["source_frame_no"]}'
-                if 'source_timestamp' in data:
-                    s += f'/+{data["source_timestamp"]:1.2f}s'
-
-                if 'offset_from_last' in data and data['offset_from_last'] is not None:
-                    s += f' | +{data["offset_from_last"]:1.2f}s'
-
                 cv2.putText(f.debug_image, s, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, c, t)
         else:
             f.debug_image = None
@@ -287,23 +250,3 @@ class Frame(Dict[str, Any]):
         if key in self:
             raise ValueError(f'Cannot add item "{ key }": already exists')
         super().__setitem__(key, value)
-
-    def _to_str(self, newlines: bool=True) -> str:
-        return '%s(%s%s%s)' % (
-            self.__class__.__name__,
-            '\n  ' if newlines else '',
-            (',\n  ' if newlines else ', ').join(
-                '%s=%s' % (
-                    k,
-                    strify(v, 1)
-                ) for (k, v) in sorted(self.items())
-            ),
-            '\n' if newlines else ''
-        )
-
-    def __str__(self) -> str:
-        return self._to_str(newlines=True)
-
-    def __repr__(self) -> str:
-        return self._to_str(newlines=False)
-
