@@ -1,8 +1,10 @@
 import bisect
 import logging
+import time
 from collections import defaultdict, deque
 from typing import Any, ClassVar, DefaultDict, List, NamedTuple, Optional, Tuple, Union
 
+import cv2
 import numpy as np
 from dataclasses import dataclass
 
@@ -10,14 +12,15 @@ from overtrack.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
 from overtrack.apex.collect.apex_game.weapons import Weapons
 from overtrack.apex.data import ROUNDS, get_round_state
-from overtrack.apex.game.minimap import Circle as FrameCircle, Location as FrameLocation
+from overtrack.apex.game.minimap import Circle as FrameCircle, Location as FrameLocation, Minimap
+from overtrack.apex.game.minimap.models import RingsComposite
 from overtrack.frame import Frame
 from overtrack.util import s2ts, validate_fields
 
 Coordinates = Tuple[int, int]
 
 
-@dataclass(frozen=True)
+@dataclass
 class Ring:
     round: int
     center: Coordinates
@@ -44,7 +47,7 @@ class Route:
     landed_location: Coordinates
     landed_name: str
     locations_visited: List[str]
-    rings = Any
+    rings: List[Optional[Ring]]
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
@@ -75,47 +78,6 @@ class Route:
         self.locations = []
         circles: DefaultDict[int, List[FrameCircle]] = defaultdict(list)
         recent = deque(maxlen=10)
-
-        def add_circle(location: FrameLocation, circle: FrameCircle, expected_radius: float, circle_index: int, closing: Optional[bool], game_time: float, name: str):
-            error = rel_error(circle.r, expected_radius)
-            if circle.points < 30 or circle.residual > 100:
-                self.logger.debug(f'Ignoring {name} {circle} | game_time={s2ts(game_time)}, round={state.round}')
-            elif error < 0.05:
-                self.logger.debug(
-                    f'Using {name} {circle} | '
-                    f'expected radius={expected_radius} for ring {circle_index} (error={error * 100:.0f}%) | '
-                    f'game time={frame.game_time:.0f}s, round={state.round}' +
-                    (f', closing={closing}' if closing is not None else '')
-                )
-
-                circles[circle_index].append(circle)
-
-            elif error < 0.2 and not closing and circle.r > 200:
-                # Use a circle with the in the same direction as the observed circle, but with the correct radius
-                # This assumes the observed circle is the correct circle, and that the center of the arc is in the correct position,
-                #   but that the radius calculation is incorrect
-                offset = np.array(circle.coordinates) - location.coordinates
-                scale = expected_radius / circle.r
-                new_center = np.array(location.coordinates) + offset * scale
-                new_circle = FrameCircle(
-                    coordinates=(new_center[0], new_center[1]),
-                    r=expected_radius
-                )
-                self.logger.debug(
-                    f'Using {name} arc {circle} => '
-                    f'corrected to Circle(coordinates={new_circle.coordinates}, r={new_circle.r:.0f}) | '
-                    f'scaled offset/radius by {scale:.2f} for ring {circle_index} | '
-                    f'game time={frame.game_time:.0f}s, round={state.round}' +
-                    (f', closing={closing}' if closing is not None else '')
-                )
-                circles[circle_index].append(new_circle)
-            else:
-                self.logger.debug(
-                    f'Ignoring {name} {circle} | '
-                    f'expected r={expected_radius:.1f} for ring {circle_index} (error={error * 100:.0f}%) | '
-                    f'game time={frame.game_time:.0f}s, round={state.round}' +
-                    (f', closing={closing}' if closing is not None else '')
-                )
 
         ignored = 0
         final_game_time = None
@@ -155,33 +117,7 @@ class Route:
                     self.logger.debug(f'Ignoring location {i}: {frame.minimap.location} - not alive')
                 elif dist < thresh_dist:
                     if 'game_time' in frame:
-                        state = get_round_state(frame.game_time)
-
-                        if state.ring_radius and frame.minimap.outer_circle:
-                            if state.ring_closing:
-                                circle_index = state.round
-                            else:
-                                circle_index = state.round - 1
-                            add_circle(
-                                frame.minimap.location,
-                                frame.minimap.outer_circle,
-                                state.ring_radius,
-                                circle_index,
-                                state.ring_closing,
-                                frame.game_time,
-                                'outer'
-                            )
-
-                        if state.next_ring_radius and frame.minimap.inner_circle:
-                            add_circle(
-                                frame.minimap.location,
-                                frame.minimap.inner_circle,
-                                state.next_ring_radius,
-                                state.round,
-                                None,
-                                frame.game_time,
-                                'inner'
-                            )
+                        self._add_circles(circles, frame.game_time, frame.minimap)
 
                     if frame.timestamp - last_location_timestamp > 2.5:
                         self.locations.append(Location(rts, coordinates))
@@ -230,14 +166,138 @@ class Route:
 
             self._process_locations_visited()
 
-        self.rings: List[Optional[Ring]] = []
+        self._process_rings(circles, final_game_time)
+
+        rings_composite = None
+        for f in frames:
+            if 'minimap' in f and f.minimap.rings_composite:
+                rings_composite = f.minimap.rings_composite
+                break
+        if rings_composite:
+            self._process_rings_v2(rings_composite)
+
+        if debug is True or debug == 'Rings':
+            import matplotlib.pyplot as plt
+            import cv2
+            plt.figure()
+            map_with_rings = self._make_image()
+            for ring in self.rings:
+                if ring:
+                    cv2.circle(map_with_rings, ring.center, ring.radius, (255, 0, 255), 1)
+            plt.imshow(map_with_rings, interpolation='none')
+            plt.show()
+
+        for event in combat.events:
+            event.location = self.get_location_at(event.timestamp)
+            if season <= 2:
+                lname = data.KINGS_CANYON_LOCATIONS[event.location] if event.location else "???"
+            else:
+                lname = data.WORLDS_EDGE_LOCATIONS[event.location] if event.location else "???"
+            self.logger.info(f'Found location={lname} for {event}')
+
+        if debug is True or debug == self.__class__.__name__:
+            self._debug(frames)
+
+    def _add_circles(
+        self,
+        circles: DefaultDict[int, List[FrameCircle]],
+        game_time: float,
+        minimap: Minimap,
+    ) -> None:
+        state = get_round_state(game_time)
+
+        if state.ring_radius and minimap.outer_circle:
+            if state.ring_closing:
+                circle_index = state.round
+            else:
+                circle_index = state.round - 1
+
+            self._add_circle(
+                circles,
+                minimap.location,
+                minimap.outer_circle,
+                state.ring_radius,
+                circle_index,
+                state.ring_closing,
+                game_time,
+                'outer'
+            )
+
+        if state.next_ring_radius and minimap.inner_circle:
+            self._add_circle(
+                circles,
+                minimap.location,
+                minimap.inner_circle,
+                state.next_ring_radius,
+                state.round,
+                None,
+                game_time,
+                'inner'
+            )
+
+    def _add_circle(
+        self,
+        circles: DefaultDict[int, List[FrameCircle]],
+        location: FrameLocation,
+        circle: FrameCircle,
+        expected_radius: float,
+        circle_index: int,
+        closing: Optional[bool],
+        game_time: float,
+        circle_name: str
+    ) -> None:
+        error = rel_error(circle.r, expected_radius)
+        if circle.points < 30 or circle.residual > 100:
+            self.logger.debug(f'Ignoring {circle_name} {circle} | game_time={s2ts(game_time)}')
+        elif error < 0.05:
+            self.logger.debug(
+                f'Using {circle_name} {circle} | '
+                f'expected radius={expected_radius} for ring {circle_index} (error={error * 100:.0f}%) | '
+                f'game time={game_time:.0f}s' +
+                (f', closing={closing}' if closing is not None else '')
+            )
+
+            circles[circle_index].append(circle)
+
+        elif error < 0.2 and not closing and circle.r > 200:
+            # Use a circle with the in the same direction as the observed circle, but with the correct radius
+            # This assumes the observed circle is the correct circle, and that the center of the arc is in the correct position,
+            #   but that the radius calculation is incorrect
+            offset = np.array(circle.coordinates) - location.coordinates
+            scale = expected_radius / circle.r
+            new_center = np.array(location.coordinates) + offset * scale
+            new_circle = FrameCircle(
+                coordinates=(new_center[0], new_center[1]),
+                r=expected_radius
+            )
+            self.logger.debug(
+                f'Using {circle_name} arc {circle} => '
+                f'corrected to Circle(coordinates={new_circle.coordinates}, r={new_circle.r:.0f}) | '
+                f'scaled offset/radius by {scale:.2f} for ring {circle_index} | '
+                f'game time={game_time:.0f}s' +
+                (f', closing={closing}' if closing is not None else '')
+            )
+            circles[circle_index].append(new_circle)
+        else:
+            self.logger.debug(
+                f'Ignoring {circle_name} {circle} | '
+                f'expected r={expected_radius:.1f} for ring {circle_index} (error={error * 100:.0f}%) | '
+                f'game time={game_time:.0f}s' +
+                (f', closing={closing}' if closing is not None else '')
+            )
+
+    def _process_rings(self, circles: DefaultDict[int, List[FrameCircle]], final_game_time: float) -> None:
+        self.logger.info(f'Processing rings from {sum([len(v) for v in circles.values()])} recorded circles')
+
+        self.rings = []
         for round_ in ROUNDS[1:]:
             circs = circles[round_.index]
             if len(circs):
                 xs, ys = [c.coordinates[0] for c in circs], [c.coordinates[1] for c in circs]
                 x, y = int(np.median(xs) + 0.5), int(np.median(ys) + 0.5)
                 std = (np.std(xs) + np.std(ys)) / 2
-                self.logger.info(f'Ring {round_.index}: center=({x}, {y}), r={round_.radius}, std=({np.std(xs):.1f}, {np.std(ys):.1f}) => {std:.1f}, count={len(xs)}')
+                self.logger.info(
+                    f'Ring {round_.index}: center=({x}, {y}), r={round_.radius}, std=({np.std(xs):.1f}, {np.std(ys):.1f}) => {std:.1f}, count={len(xs)}')
                 self.logger.debug(f'    X={xs}')
                 self.logger.debug(f'    Y={ys}')
                 if (round_.index <= 2 and std > 20) or (round_.index > 2 and std > 7):
@@ -259,31 +319,146 @@ class Route:
                 self.logger.info(f'Final ring is {round_.index}, next round starts in {round_.end_time - final_game_time:.0f}s')
                 break
 
-        if debug is True or debug == 'Rings':
-            import matplotlib.pyplot as plt
-            import cv2
-            plt.figure()
-            map_with_rings = self.make_image()
-            for ring in self.rings:
-                if ring:
-                    cv2.circle(map_with_rings, ring.center, ring.radius, (255, 0, 255), 1)
-            plt.imshow(map_with_rings, interpolation='none')
-            plt.show()
-
-        for event in combat.events:
-            event.location = self._get_location_at(event.timestamp)
-            if season <= 2:
-                lname = data.KINGS_CANYON_LOCATIONS[event.location] if event.location else "???"
+    def _process_locations_visited(self):
+        self.locations_visited = [self.landed_name]
+        last_location = self.locations[self.landed_location_index][0], self.landed_name
+        for ts, location in self.locations[self.landed_location_index + 1:]:
+            if self.season <= 2:
+                location_name = data.KINGS_CANYON_LOCATIONS[location]
             else:
-                lname = data.WORLDS_EDGE_LOCATIONS[event.location] if event.location else "???"
-            self.logger.info(f'Found location={lname} for {event}')
+                location_name = data.WORLDS_EDGE_LOCATIONS[location]
+            if location_name == 'Unknown':
+                continue
+            if location_name == last_location[1] and ts - last_location[0] > 30:
+                if self.locations_visited[-1] != location_name:
+                    self.locations_visited.append(location_name)
+            elif location_name != last_location[1]:
+                self.logger.info(f'Spent {ts - last_location[0]:.1f}s in {last_location[1]}')
+                last_location = ts, location_name
 
-        if debug is True or debug == self.__class__.__name__:
-            self._debug(frames)
+    def _process_rings_v2(self, composites: RingsComposite) -> None:
+        self.logger.info(f'Processing rings (v2) from {len(composites.images)} composite images')
+
+        t0 = time.perf_counter()
+        for index in composites.images:
+            radius = ROUNDS[index].radius
+
+            image = composites.images[index].array.astype(np.float) / 255.0
+            image *= 30
+
+            # accumulator = self._hough_circles(image, ROUNDS[index].radius // 2)
+            accumulator = self._hough_circles(cv2.erode(image, None), radius // 2)
+
+            mnv, mxv, mnl, mxl = cv2.minMaxLoc(accumulator)
+            center = (mxl[0] * 2, mxl[1] * 2)
+
+            self.logger.info(f'Found ring {index} (radius={radius}) at {center} - match={mxv:.2f}')
+            if mxv > 200:
+                old = self.rings[index - 1].center
+                dist = np.sqrt(np.sum((np.array(old) - center) ** 2))
+                self.logger.log(
+                    logging.INFO if dist < 25 else logging.WARNING,
+                    f'Updating ring {index} center {old} -> {center} - update distance: {dist:.2f}'
+                )
+                self.rings[index - 1].center = center
+            else:
+                self.logger.info(f'Ignoring ring with low match')
+
+            # import matplotlib.pyplot as plt
+            #
+            # plt.figure()
+            # plt.title(f'erode accumulator {index} | max={np.max(accumulator2):.1f}')
+            # plt.imshow(accumulator2 / np.max(accumulator2), interpolation='none')
+            #
+            # flat = accumulator2.flatten()
+            # flat = flat[flat > 1]
+            # plt.figure()
+            # plt.title('erode accumulator hist')
+            # plt.hist(flat, bins=100, range=(0, 200))
+            #
+            # plt.figure()
+            # plt.title(f'erode ring {index}')
+            # plt.imshow(cv2.erode(image, None), interpolation='none')
+            #
+            # plt.figure()
+            # plt.title(f'accumulator {index} | max={np.max(accumulator):.1f}')
+            # plt.imshow(accumulator / np.max(accumulator), interpolation='none')
+            #
+            # flat = accumulator.flatten()
+            # flat = flat[flat > 1]
+            # plt.figure()
+            # plt.title('accumulator hist')
+            # plt.hist(flat, bins=100, range=(0, 200))
+            #
+            # plt.figure()
+            # plt.title(f'ring {index}')
+            # plt.imshow(image, interpolation='none')
+            # plt.show()
+
+        self.logger.info(f'Took {(time.perf_counter() - t0) * 1000:.2f}ms')
+
+    def _hough_circles(self, image: np.ndarray, radius: int, threshold: float = 2.) -> np.ndarray:
+        # precompute circle points
+        blank = np.zeros(image.shape, dtype=np.uint8)
+        cv2.circle(
+            blank,
+            (radius, radius),
+            radius,
+            255,
+            1,
+        )
+        ys, xs = np.where(blank > 0)
+
+        # we add `radius` to each edge of accumulator. This is done to
+        # a) handle `xs` and `ys` being offset by `radius`
+        # b) ignore the accumulator values outside of `image` (by cropping `radius` off each edge after)
+        accumulator = np.zeros(
+            (image.shape[0] + radius * 2, image.shape[1] + radius * 2),
+            dtype=np.float
+        )
+
+        # add intensities for each pixel in the image that surpasses threshold
+        for y, x in zip(*np.where(image >= threshold)):
+            accumulator[
+                ys + y,
+                xs + x
+            ] += image[y, x]
+        return accumulator[radius:-radius, radius:-radius]
+
+    def get_location_at(self, timestamp: float, max_distance: float = 120) -> Optional[Tuple[int, int]]:
+        ts = [l[0] for l in self.locations]
+        xy = [l[1] for l in self.locations]
+        index = min(max(0, bisect.bisect(ts, timestamp) - 1), len(ts))
+        if not (0 <= index < len(ts)):
+            self.logger.error(f'Got invalid index {index} trying to find location @ {timestamp:.1f}s', exc_info=True)
+            return None
+
+        self.logger.debug(
+            f'Trying to resolve location at {timestamp:.1f}s - '
+            f'got location index={index} -> {ts[index]:.1f}s'
+        )
+        for fan_out in range(100):
+            for sign in -1, 1:
+                check = index + sign * fan_out
+                if 0 <= check < len(ts):
+                    ats = ts[check]
+                    distance = abs(timestamp - ats)
+                    if distance < max_distance:
+                        loc = xy[check]
+                        if distance < 30:
+                            level = logging.DEBUG
+                        else:
+                            level = logging.WARNING
+                        self.logger.log(level, f'Found {loc} at {ats:.1f}s - time delta {distance:.1f}s')
+                        return loc
+
+        self.logger.warning(f'Could not find location for ts={timestamp:.1f}s')
+        return None
 
     def _debug(self, frames):
         import matplotlib.pyplot as plt
         from mpl_toolkits.mplot3d import Axes3D
+
         assert Axes3D, 'Axes3D import required for 3D plots'
 
         plt.figure()
@@ -307,7 +482,7 @@ class Route:
             )
 
         plt.figure()
-        plt.imshow(cv2.cvtColor(self.make_image(), cv2.COLOR_BGR2RGB), interpolation='none')
+        plt.imshow(cv2.cvtColor(self._make_image(), cv2.COLOR_BGR2RGB), interpolation='none')
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -379,7 +554,7 @@ class Route:
 
         plt.show()
 
-    def make_image(self, combat: Optional[Combat] = None) -> np.ndarray:
+    def _make_image(self, combat: Optional[Combat] = None) -> np.ndarray:
         import cv2
         from overtrack.apex.game.minimap.minimap_processor import MinimapProcessor
 
@@ -412,7 +587,7 @@ class Route:
 
             if combat:
                 for event in combat.events:
-                    location = self._get_location_at(event.timestamp)
+                    location = self.get_location_at(event.timestamp)
                     if location:
                         cv2.putText(
                             image,
@@ -425,50 +600,3 @@ class Route:
                         )
 
         return image
-
-    def _process_locations_visited(self):
-        self.locations_visited = [self.landed_name]
-        last_location = self.locations[self.landed_location_index][0], self.landed_name
-        for ts, location in self.locations[self.landed_location_index + 1:]:
-            if self.season <= 2:
-                location_name = data.KINGS_CANYON_LOCATIONS[location]
-            else:
-                location_name = data.WORLDS_EDGE_LOCATIONS[location]
-            if location_name == 'Unknown':
-                continue
-            if location_name == last_location[1] and ts - last_location[0] > 30:
-                if self.locations_visited[-1] != location_name:
-                    self.locations_visited.append(location_name)
-            elif location_name != last_location[1]:
-                self.logger.info(f'Spent {ts - last_location[0]:.1f}s in {last_location[1]}')
-                last_location = ts, location_name
-
-    def _get_location_at(self, timestamp: float, max_distance: float = 120) -> Optional[Tuple[int, int]]:
-        ts = [l[0] for l in self.locations]
-        xy = [l[1] for l in self.locations]
-        index = min(max(0, bisect.bisect(ts, timestamp) - 1), len(ts))
-        if not (0 <= index < len(ts)):
-            self.logger.error(f'Got invalid index {index} trying to find location @ {timestamp:.1f}s', exc_info=True)
-            return None
-
-        self.logger.debug(
-            f'Trying to resolve location at {timestamp:.1f}s - '
-            f'got location index={index} -> {ts[index]:.1f}s'
-        )
-        for fan_out in range(100):
-            for sign in -1, 1:
-                check = index + sign * fan_out
-                if 0 <= check < len(ts):
-                    ats = ts[check]
-                    distance = abs(timestamp - ats)
-                    if distance < max_distance:
-                        loc = xy[check]
-                        if distance < 30:
-                            level = logging.DEBUG
-                        else:
-                            level = logging.WARNING
-                        self.logger.log(level, f'Found {loc} at {ats:.1f}s - time delta {distance:.1f}s')
-                        return loc
-
-        self.logger.warning(f'Could not find location for ts={timestamp:.1f}s')
-        return None

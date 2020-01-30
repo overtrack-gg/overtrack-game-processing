@@ -1,8 +1,24 @@
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from overtrack.frame import SerializableArray
 from overtrack.util import round_floats
+
+
+@dataclass(frozen=True)
+@round_floats
+class RingsComposite:
+    images: Dict[int, SerializableArray] = field(default_factory=dict)
+
+    def __str__(self):
+        print()
+        return (
+            'RingsComposite(' +
+            ', '.join(f'{k}=Composite(shape={v.array.shape}, pixels=~{(v.array >= 1).sum()})' for k, v in self.images.items()) +
+            ')'
+        )
+    __repr__ = __str__
 
 
 @dataclass(frozen=True)
@@ -39,4 +55,6 @@ class Minimap:
     inner_circle: Optional[Circle]
     outer_circle: Optional[Circle]
     spectate: bool = False
+    rings_composite: Optional[RingsComposite] = None
+
     version: int = 0

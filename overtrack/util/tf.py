@@ -7,6 +7,7 @@ import tensorflow as tf
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.keras import Model, backend
 from tensorflow.python.keras.layers import Layer, deserialize
+from tensorflow.python.keras.utils.tf_utils import ListWrapper
 from tensorflow.python.ops import image_ops, sparse_ops
 from tensorflow.python.ops.gen_ctc_ops import ctc_greedy_decoder
 
@@ -220,6 +221,52 @@ class BGR2RGB(NormaliseByte):
         return tf.reverse(inputs, axis=[-1])
 
 
+class Slice(Layer):
+
+    def __init__(self, slices: Tuple[Union[Tuple[Optional[int], Optional[int]], int, None], ...], **kwargs):
+        self.slices = slices
+
+        bslices = [slice(None)]
+        for slice_ in self.slices:
+            if slice_ is None:
+                bslices.append(slice(None))
+            elif isinstance(slice_, Sequence):
+                bslices.append(slice(*slice_))
+            elif isinstance(slice_, int):
+                bslices.append(slice_)
+            else:
+                raise ValueError(f'Cannot create Slice layer with {slice_}')
+        self.bslices = tuple(bslices)
+
+        super().__init__(**kwargs)
+
+    def compute_output_shape(self, input_shape):
+        input_shape = tensor_shape.TensorShape(input_shape).as_list()
+        output_shape = [input_shape[0]]
+        for original_len, slice_ in zip(input_shape[1:], self.slices):
+            if slice_ is None:
+                output_shape.append(original_len)
+            elif isinstance(slice_, Sequence):
+                slice_ = slice(*slice_)
+                start, stop, step = slice_.indices(original_len)
+                assert step == 1
+                output_shape.append(stop - start)
+            else:
+                pass
+        return tensor_shape.TensorShape(output_shape)
+
+    def get_config(self) -> Dict[str, any]:
+        config = {
+            'slices': self.slices
+        }
+        base_config = super().get_config()
+        # noinspection PyTypeChecker
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def call(self, inputs, training=None):
+        return inputs[self.bslices]
+
+
 class CTCDecoder(Layer):
 
     def __init__(self, **kwargs):
@@ -312,6 +359,7 @@ all_custom_objects = {
     'ResizeImage': ResizeImage,
     'BGR2RGB': BGR2RGB,
     'ByteToFloat': ByteToFloat,
+    'Slice': Slice,
 }
 
 

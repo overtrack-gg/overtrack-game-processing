@@ -306,6 +306,9 @@ def config_logger(
         logger.info(f'Uploading log files every {upload_frequency}s')
         Thread(target=upload_loop, daemon=True).start()
 
+    logging.getLogger('tensorflow').setLevel(logging.ERROR)
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
     # hsh = hashlib.md5()
     # modules = [
     #     m.__file__ for m in globals().values() if

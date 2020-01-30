@@ -10,16 +10,26 @@ import time
 from scipy import optimize
 from tensorflow.python.keras import Model
 
-from overtrack.apex import ocr
-from overtrack.apex.game.minimap.models import Circle, Location, Minimap
-from overtrack.frame import Frame
+from overtrack.apex import ocr, data as apex_data
+from overtrack.apex.game.minimap.models import Circle, Location, Minimap, RingsComposite
+from overtrack.frame import CurrentGame, Frame, SerializableArray
 from overtrack.processor import Processor
-from overtrack.util import imageops, time_processing
+from overtrack.util import imageops, s2ts, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.util.tf import load_model
 
 logger = logging.getLogger('MinimapProcessor')
+
+
+class SerializableRingsComposite(SerializableArray):
+
+    def finalize(self):
+        array = np.clip(self.array, 0, 30)
+        array = np.clip(array, 0, 30)
+        array[array < 2] = 0
+        return ((array / 30) * 255).astype(np.uint8)
+
 
 def _draw_map_location(
     debug_image: Optional[np.ndarray],
@@ -29,6 +39,7 @@ def _draw_map_location(
     map_template: np.ndarray,
     filtered: np.ndarray,
     edges: Optional[np.ndarray],
+    rings: Optional[RingsComposite],
 ) -> None:
 
     if debug_image is None:
@@ -220,6 +231,19 @@ def _draw_map_location(
             4,
         )
 
+    if rings:
+        for i in rings.images:
+            im = np.clip(rings.images[i].array, 0, 30)[:-100, :-100]
+            im /= max(np.max(im), 5)
+            im = np.stack((
+                im * 200,
+                im * 255,
+                np.zeros_like(im)
+            ), axis=-1)
+            im = im.astype(np.uint8)
+            im = cv2.resize(im, (out.shape[1], out.shape[0]))
+            cv2.add(out, im, dst=out)
+
     sout = cv2.resize(out, (0, 0), fx=0.25, fy=0.25)
     debug_image[100:100 + sout.shape[0], 300:300 + sout.shape[1]] = sout
 
@@ -265,13 +289,16 @@ class MinimapProcessor(Processor):
 
     def __init__(self):
         self.map_rotated = deque(maxlen=10)
-        self.map_rotate_in_config = None  # TODO
+        self.map_rotate_in_config = None
         self.model: Model = load_model(
             os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter')
-            # "C:/Users/simon/overtrack_2/training/apex_minimap/v3/inprog_models/v12_14_with_mini"
+            # "C:/Users/simon/overtrack_2/training/apex_minimap/v3/v15/checkpoint"
         )
         # from tensorflow.python.keras.saving import export_saved_model
         # export_saved_model(self.model, os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter'), serving_only=True)
+
+        self.current_game: Optional[CurrentGame] = None
+        self.current_composite: Optional[RingsComposite] = None
 
     def eager_load(self):
         self.REGIONS.eager_load()
@@ -357,8 +384,19 @@ class MinimapProcessor(Processor):
             map_image = frame.image[114:114 + 240, 50:50 + 240]
 
         t0 = time.perf_counter()
-        filtered = np.clip(self.model.predict([[map_image]], 1)[0], 0, 255).astype(np.uint8)
+        filtered_minimap, filtered_rings = [
+            np.clip(p[0], 0, 255).astype(np.uint8)
+            for p in self.model.predict([[map_image]], 1)
+        ]
         logger.debug(f'predict {(time.perf_counter() - t0) * 1000:.2f}')
+
+        filtered = np.concatenate(
+            (
+                np.expand_dims(filtered_minimap, axis=-1),
+                cv2.resize(filtered_rings, (filtered_minimap.shape[1], filtered_minimap.shape[0]), interpolation=cv2.INTER_NEAREST)
+            ),
+            axis=-1
+        )
 
         # location, min_loc, min_val = self._get_location(filtered[:, :, 0])
         location = None
@@ -395,6 +433,8 @@ class MinimapProcessor(Processor):
         if location and location.match < self.THRESHOLD:
             self.map_rotated.append(location.bearing is not None)
 
+            # frame.minimap_filtered = filtered.copy()
+
             # from overtrack.util.debugops import sliders
             # filtered[:, :, 0] = 0
             # sliders(
@@ -403,6 +443,9 @@ class MinimapProcessor(Processor):
             #     mul=lambda im, m_10_100: np.clip(im.astype(np.float) * (m_10_100 / 10), 0, 255).astype(np.uint8),
             #     filter_edge=lambda im, t_0_255, p_1_70, e_1_30, k_1_30: self.filter_edge(im, t_0_255, p_1_70, e_1_30, k_1_30)
             # )
+            t0 = time.perf_counter()
+            self._update_composite(frame, location, filtered_rings)
+            logger.debug(f'update composite {(time.perf_counter() - t0) * 1000:.2f}')
 
             t0 = time.perf_counter()
             blur = cv2.GaussianBlur(filtered, (0, 0), 4)
@@ -421,7 +464,8 @@ class MinimapProcessor(Processor):
                 self._get_circle(edges[:, :, 1], location),
                 self._get_circle(edges[:, :, 2], location),
                 spectate=is_spectate,
-                version=1,
+                rings_composite=self.current_composite,
+                version=2,
             )
             logger.debug(f'get circles {(time.perf_counter() - t0) * 1000:.2f}')
 
@@ -433,7 +477,8 @@ class MinimapProcessor(Processor):
                     self.MAP,
                     self.MAP_TEMPLATE,
                     filtered,
-                    edges
+                    edges,
+                    self.current_composite,
                 )
             except:
                 logger.exception('Failed to draw debug map location')
@@ -452,7 +497,8 @@ class MinimapProcessor(Processor):
                     self.MAP,
                     self.MAP_TEMPLATE,
                     filtered,
-                    None
+                    None,
+                    self.current_composite
                 )
             except Exception as e:
                 print(e)
@@ -551,6 +597,71 @@ class MinimapProcessor(Processor):
             zoom=zoom
         )
 
+    def _update_composite(self, frame: Frame, location: Location, filtered: np.ndarray) -> None:
+        current_game: Optional[CurrentGame] = getattr(frame, 'current_game', None)
+        game_time: Optional[float] = getattr(frame, 'game_time', None)
+
+        if current_game:
+            if current_game is not self.current_game:
+                logger.info(f'Creating new RingsComposite for {frame.current_game}')
+                self.current_game = frame.current_game
+                self.current_composite = RingsComposite()
+        else:
+            self.current_game = None
+            self.current_composite = None
+
+        if self.current_game and game_time and self.current_composite:
+            ring_state = apex_data.get_round_state(game_time)
+
+            to_add = []
+            if ring_state.ring_index and not ring_state.ring_closing:
+                to_add.append((ring_state.ring_index, filtered[:, :, 1], 'outer ring'))
+            else:
+                logger.debug(f'Not adding outer ring to composite for game time {s2ts(game_time)}, closing={ring_state.ring_closing}')
+
+            if ring_state.next_ring_index:
+                to_add.append((ring_state.next_ring_index, filtered[:, :, 0], 'inner ring'))
+            else:
+                logger.debug(f'Not adding inner ring to composite for game time {s2ts(game_time)}')
+
+            for index, image, name in to_add:
+                logger.debug(f'Adding {name} to ring composite {index} (approx {np.sum(image > 128)} observed ring pixels) for game time {s2ts(game_time)}')
+
+                # TODO: handle zoom, handle non-rotating
+                image = cv2.copyMakeBorder(
+                    image,
+                    image.shape[0] // 5,
+                    image.shape[0] // 5,
+                    image.shape[1] // 5,
+                    image.shape[1] // 5,
+                    cv2.BORDER_CONSTANT
+                )
+                image_t = cv2.warpAffine(
+                    image,
+                    cv2.getRotationMatrix2D(
+                        (image.shape[1] // 2, image.shape[0] // 2),
+                        360 - location.bearing,
+                        1
+                    ),
+                    (image.shape[0], image.shape[1])
+                )
+                image_t = cv2.resize(image_t, (0, 0), fx=location.zoom, fy=location.zoom)
+
+                if index not in self.current_composite.images:
+                    self.current_composite.images[index] = SerializableRingsComposite(np.zeros((self.MAP_TEMPLATE.shape[0] // 2, self.MAP_TEMPLATE.shape[1] // 2)))
+                target = self.current_composite.images[index].array
+
+                # TODO: handle borders
+                try:
+                    y = location.y // 2 - image_t.shape[0] // 2
+                    x = location.x // 2 - image_t.shape[1] // 2
+                    target[
+                        y:y + image_t.shape[0],
+                        x:x + image_t.shape[1]
+                    ] += image_t.astype(np.float) / 255.
+                except:
+                    logger.exception('Failed to add ring to composite')
+
     def filter_edge(self, im: np.ndarray, thresh: int, edge_type_box_size: int, edge_type_widening: int, edge_extraction_size: int) -> np.ndarray:
         thresh = im > thresh
 
@@ -574,7 +685,7 @@ class MinimapProcessor(Processor):
 
     def _get_circle(self, filt: np.ndarray, location: Location) -> Optional[Circle]:
         y_i, x_i = np.nonzero(filt)
-        if len(y_i) > 10:
+        if len(y_i) > 50:
             def calc_R(x, y, xc, yc):
                 """
                 calculate the distance of each 2D points from the center (xc, yc)
@@ -614,7 +725,10 @@ class MinimapProcessor(Processor):
                 minimap_center_relative = tuple(cv2.transform(np.array([[minimap_center_relative]]), rot)[0][0])
 
             return Circle(
-                (location.coordinates[0] + minimap_center_relative[0] * location.zoom, location.coordinates[1] + minimap_center_relative[1] * location.zoom),
+                (
+                    location.coordinates[0] + minimap_center_relative[0] * location.zoom,
+                    location.coordinates[1] + minimap_center_relative[1] * location.zoom
+                ),
                 r * location.zoom,
                 residu,
                 len(y_i),
@@ -669,37 +783,35 @@ MinimapProcessor.MAP_VERSION = 2
 
 
 if __name__ == '__main__':
-    # main()
+    import glob
+    import json
+    from tqdm import tqdm
     from overtrack import util
 
-    p = MinimapProcessor()
+    proc = MinimapProcessor()
 
-    # p.map_rotate_in_config = True
-    # p._check_for_rotate_setting = lambda: None
-    # p._get_zoom = lambda frame: 0.375
-    # util.test_processor(
-    #     "D:/overtrack/worlds_edge/video_frames/SEASON 3 IS HERE LETS GOOO - SPONSORED STREAM #AD-v488890432/20178.34.image.png",
-    #     p,
-    #     'minimap',
-    #     game='apex',
-    #     test_all=False
-    # )
+    # frames = glob.glob("D:/overtrack/frames6/*.json")
+    # frames = sorted(frames, key=lambda p: float(os.path.basename(p).split('_')[0]))
+    #
+    # cg = CurrentGame()
+    # for p in tqdm(frames[1600:]):
+    #     with open(p) as f:
+    #         fdata = json.load(f)
+    #     if 'minimap' in fdata:
+    #         f = Frame.create(
+    #             cv2.imread(p.replace('_frame.json', '_image.png')),
+    #             fdata['timestamp'],
+    #             debug=True,
+    #             current_game=cg,
+    #             game_time=fdata.get('game_time')
+    #         )
+    #         proc.process(f)
+    #
+    #         if proc.current_composite:
+    #             for i in proc.current_composite.images:
+    #                 cv2.imshow(f'ring {i}', ((np.clip(proc.current_composite.images[i].array, 0, 30) / 30) * 255).astype(np.uint8))
+    #
+    #         cv2.imshow('debug', f.debug_image)
+    #         cv2.waitKey(0)
 
-    # p.MAP = cv2.copyMakeBorder(imageops.imread("C:/Users/simon/overtrack_2/apex_map/target.png", 0), 0, 240, 0, 240, cv2.BORDER_CONSTANT)
-    # p.MAP_TEMPLATE = cv2.GaussianBlur(
-    #     cv2.Canny(
-    #         cv2.GaussianBlur(
-    #             p.MAP,
-    #             (0, 0),
-    #             template_blur_pre
-    #         ),
-    #         template_canny_t1,
-    #         template_canny_t2
-    #     ),
-    #     (0, 0),
-    #     template_blur_post
-    # ).astype(np.float)
-    # p.MAP_TEMPLATE /= 100
-    # p.MAP_TEMPLATE *= 255
-    # p.MAP_TEMPLATE = np.clip(p.MAP_TEMPLATE, 0, 255).astype(np.uint8)
-    util.test_processor('minimap_s3', p, 'minimap', game='apex')
+    util.test_processor('minimap_s3', proc, 'minimap', 'game_time', 'current_game', game='apex', test_all=False)
