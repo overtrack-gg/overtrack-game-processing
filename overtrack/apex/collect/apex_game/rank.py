@@ -55,15 +55,6 @@ class Rank:
         # TODO: resolve RP and change from match summary > score summary
         # NOTE: score summary current RP is an animation - take the last frame and use IFF there are enough frames for it to have finished animating
 
-        if self.rank:
-            # FIXME: assists
-            self.rp_change = -data.rank_entry_cost[self.rank] + min(kills, 5) + data.rank_rewards[placement]
-            self.logger.info(f'Got rp_change={self.rp_change:+}: rank={self.rank}, placement={placement}, kills={kills}')
-            if self.rp and self.rp + self.rp_change < data.rank_rp[self.rank][0]:
-                self.logger.info(f'RP {self.rp} {self.rp_change} would drop rank - setting RP change to 0')
-                self.rp_change = 0
-        else:
-            self.rp_change = None
 
         if players_before and players_after:
             self._resolve_api_rank(player_name, players_before, players_after)
@@ -76,8 +67,11 @@ class Rank:
         ])
         rank_matches_avg = np.median(rank_matches, axis=0)
 
-        self.logger.info(f'Found ranked matches:\n{tabulate.tabulate([(data.ranks[i], rank_matches_avg[i]) for i in range(len(data.ranks))])}')
-        self.rank = data.ranks[arrayops.argmin(rank_matches_avg)]
+        rank_names = data.ranks.copy()
+        if len(rank_matches_avg) == 6:
+            rank_names.remove('master')
+        self.logger.info(f'Found ranked matches:\n{tabulate.tabulate([(rank_names[i], rank_matches_avg[i]) for i in range(len(rank_names))])}')
+        self.rank = rank_names[arrayops.argmin(rank_matches_avg)]
         self.logger.info(f'Got rank={self.rank}')
 
         if self.rank != 'apex_predator':
@@ -98,7 +92,7 @@ class Rank:
 
             plt.figure()
             plt.title('Rank Badges')
-            for i, rank in enumerate(data.ranks):
+            for i, rank in enumerate(rank_names):
                 plt.plot(
                     rank_matches[:, i],
                     label=rank

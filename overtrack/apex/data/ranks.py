@@ -4,6 +4,7 @@ ranks = [
     'gold',
     'platinum',
     'diamond',
+    'master',
     'apex_predator'
 ]
 
@@ -20,7 +21,8 @@ rank_rp = {
     'gold': (2800, 4800),
     'platinum': (4800, 7200),
     'diamond': (7200, 10_000),
-    'apex_predator': (10_000, 99_999)
+    'master': (10_000, 99_999),
+    'apex_predator': (10_000, 99_999),
 }
 
 rank_entry_cost = {
@@ -29,6 +31,7 @@ rank_entry_cost = {
     'gold': 24,
     'platinum': 36,
     'diamond': 48,
+    'master': 60,
     'apex_predator': 60
 }
 
