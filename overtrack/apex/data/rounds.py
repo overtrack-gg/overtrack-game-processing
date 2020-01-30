@@ -1,11 +1,11 @@
-from dataclasses import dataclass
 from typing import Optional
+
+from dataclasses import dataclass
+
+from overtrack.util import ts2s
 
 ROUND_START_DELAY = 4.0
 CLOSING_DELAY = 5.0
-
-COUNTDOWN = 10
-FIRST_RING_SPAWN = 55
 
 @dataclass
 class Round:
@@ -30,45 +30,45 @@ class Round:
 ROUNDS = [
     Round(
         0,
-        ring_countdown=COUNTDOWN,
-        close_time=FIRST_RING_SPAWN - CLOSING_DELAY,
+        ring_countdown=10,
+        close_time=50 - CLOSING_DELAY,
 
         radius=None
     ),
 
     Round(
         1,
-        ring_countdown=180,
-        close_time=166.66,
+        ring_countdown=ts2s('3:00'),
+        close_time=ts2s('2:25'),
         radius=332,
     ),
     Round(
         2,
-        ring_countdown=150,
-        close_time=58.33,
+        ring_countdown=ts2s('2:30'),
+        close_time=ts2s('1:19'),
         radius=218,
     ),
     Round(
         3,
-        ring_countdown=135,
-        close_time=41.66,
+        ring_countdown=ts2s('2:14'),
+        close_time=ts2s('0:44'),
         radius=132,
     ),
     Round(
         4,
-        ring_countdown=120,
-        close_time=33.66,
+        ring_countdown=ts2s('1:59'),
+        close_time=ts2s('0:33'),
         radius=65,
     ),
     Round(
         5,
-        ring_countdown=90,
+        ring_countdown=ts2s('1:29'),
         close_time=25.0,
         radius=24,
     ),
     Round(
         6,
-        ring_countdown=90,
+        ring_countdown=ts2s('1:28'),
         close_time=7.5,
         radius=10,
     ),
@@ -98,28 +98,35 @@ for current_round in ROUNDS:
 @dataclass(frozen=True)
 class RoundState:
     round: int
-    ring_moving: bool
 
     ring_radius: Optional[int]
     next_ring_radius: Optional[int]
+
+    ring_index: Optional[int]
+    next_ring_index: Optional[int]
+
     ring_closing: bool
 
     time_into: float
     time_to_next: float
 
 
-def get_round_state(t: float):
+def get_round_state(t: float) -> RoundState:
     current_time = 0
-    current_ring_radius = None
+    current_ring_index = -1
+    current_ring_radius = 0
     for current_round in ROUNDS:
         next_state_time = current_time + current_round.ring_countdown + CLOSING_DELAY
         if t <= next_state_time or current_round.close_time is None:
             return RoundState(
                 round=current_round.index,
-                ring_moving=False,
 
                 ring_radius=current_ring_radius,
                 next_ring_radius=current_round.radius,
+
+                ring_index=current_ring_index if (current_ring_index > 0) else None,
+                next_ring_index=current_ring_index + 1 if (current_ring_index >= 0) else None,
+
                 ring_closing=False,
 
                 time_into=t - current_time,
@@ -137,11 +144,14 @@ def get_round_state(t: float):
         if t <= next_state_time:
             return RoundState(
                 round=current_round.index,
-                ring_moving=True,
 
                 ring_radius=ring_radius,
                 next_ring_radius=current_round.radius,
-                ring_closing=True,
+
+                ring_index=current_ring_index if (current_ring_index > 0) else None,
+                next_ring_index=current_ring_index + 1 if (current_ring_index >= 0) else None,
+
+                ring_closing=current_round.index != 0,
 
                 time_into=t - current_time,
                 time_to_next=next_state_time - t,
@@ -152,34 +162,55 @@ def get_round_state(t: float):
             current_ring_radius = current_round.radius + 3
         else:
             current_ring_radius = None
+        current_ring_index += 1
 
 
 if __name__ == '__main__':
-    current = 0
-    for r in ROUNDS:
-        if r is None:
-            current += COUNTDOWN + FIRST_RING_SPAWN
-        else:
-            print(f'Round {r.index} start: {current:.1f}')
-            current += ROUND_START_DELAY + r.ring_countdown
-            print(f'Round {r.index} closing: {current:.1f}')
-            if r.close_time:
-                current += CLOSING_DELAY + r.close_time
+    print()
+
+    # current = 0
+    # for r in ROUNDS:
+    #     if r is None:
+    #         current += COUNTDOWN + FIRST_RING_SPAWN
+    #     else:
+    #         print(f'Round {r.index} start: {current:.1f}')
+    #         current += ROUND_START_DELAY + r.ring_countdown
+    #         print(f'Round {r.index} closing: {current:.1f}')
+    #         if r.close_time:
+    #             current += CLOSING_DELAY + r.close_time
 
     import matplotlib.pyplot as plt
 
-    ts, irr, orr, rin = [], [], [], []
+    ts, next_radius, current_radius, round_index, closing, current_index, next_index = [], [], [], [], [], [], []
     for t in range(1500):
         state = get_round_state(t)
         ts.append(t)
-        irr.append(state.next_ring_radius)
-        orr.append(state.ring_radius)
-        rin.append(state.round * 10)
+        current_radius.append(state.ring_radius)
+        next_radius.append(state.next_ring_radius)
+        round_index.append(state.round * 10)
+        closing.append(state.ring_closing * -10)
+
+        if state.ring_index:
+            current_index.append(state.ring_index * 10)
+        else:
+            current_index.append(float('nan'))
+
+        if state.next_ring_index:
+            next_index.append(state.next_ring_index * 10)
+        else:
+            next_index.append(float('nan'))
 
     plt.figure()
-    plt.scatter(ts, orr, label='outer')
-    plt.scatter(ts, irr, label='inner')
-    plt.scatter(ts, rin, label='index')
+
+    plt.plot(ts, closing, color='gray', label='closing')
+
+    plt.plot(ts, current_index, color='orange', label='current index')
+    plt.scatter(ts, current_radius, color='orange', label='current radius')
+
+    plt.plot(ts, next_index, color='blue', label='next index')
+    plt.scatter(ts, next_radius, color='blue', label='inner')
+
+    plt.scatter(ts, round_index, color='green', label='index')
     plt.legend()
     plt.show()
 
