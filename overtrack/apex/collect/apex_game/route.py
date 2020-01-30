@@ -174,7 +174,7 @@ class Route:
                 rings_composite = f.minimap.rings_composite
                 break
         if rings_composite:
-            self._process_rings_v2(rings_composite)
+            self._process_rings_v2(rings_composite, debug in [True, 'Rings'])
 
         if debug is True or debug == 'Rings':
             import matplotlib.pyplot as plt
@@ -336,12 +336,26 @@ class Route:
                 self.logger.info(f'Spent {ts - last_location[0]:.1f}s in {last_location[1]}')
                 last_location = ts, location_name
 
-    def _process_rings_v2(self, composites: RingsComposite) -> None:
+    def _process_rings_v2(self, composites: RingsComposite, debug: bool = False) -> None:
         self.logger.info(f'Processing rings (v2) from {len(composites.images)} composite images')
+
+        if debug:
+            comb = None
+            for index in composites.images:
+                im = composites.images[index].array.astype(np.float) / 255.0
+                if comb is None:
+                    comb = im.copy()
+                else:
+                    comb += im
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.imshow(comb, interpolation='none')
+            plt.show()
 
         t0 = time.perf_counter()
         for index in composites.images:
-            radius = ROUNDS[index].radius
+            round_ = ROUNDS[index]
+            radius = round_.radius
 
             image = composites.images[index].array.astype(np.float) / 255.0
             image *= 30
@@ -354,46 +368,57 @@ class Route:
 
             self.logger.info(f'Found ring {index} (radius={radius}) at {center} - match={mxv:.2f}')
             if mxv > 200:
-                old = self.rings[index - 1].center
-                dist = np.sqrt(np.sum((np.array(old) - center) ** 2))
-                self.logger.log(
-                    logging.INFO if dist < 25 else logging.WARNING,
-                    f'Updating ring {index} center {old} -> {center} - update distance: {dist:.2f}'
+                old = self.rings[index - 1]
+                if old:
+                    dist = np.sqrt(np.sum((np.array(old.center) - center) ** 2))
+                    self.logger.log(
+                        logging.INFO if dist < 25 else logging.WARNING,
+                        f'Updating ring {index} center {old.center} -> {center} - update distance: {dist:.2f}'
+                    )
+                else:
+                    self.logger.info(f'Ring {index} was unknown by previous method - setting')
+                self.rings[index - 1] = Ring(
+                    round_.index,
+                    center,
+                    round_.radius,
+                    round(round_.start_time, 2),
+                    round(round_.end_time, 2),
                 )
-                self.rings[index - 1].center = center
             else:
                 self.logger.info(f'Ignoring ring with low match')
 
-            # import matplotlib.pyplot as plt
-            #
-            # plt.figure()
-            # plt.title(f'erode accumulator {index} | max={np.max(accumulator2):.1f}')
-            # plt.imshow(accumulator2 / np.max(accumulator2), interpolation='none')
-            #
-            # flat = accumulator2.flatten()
-            # flat = flat[flat > 1]
-            # plt.figure()
-            # plt.title('erode accumulator hist')
-            # plt.hist(flat, bins=100, range=(0, 200))
-            #
-            # plt.figure()
-            # plt.title(f'erode ring {index}')
-            # plt.imshow(cv2.erode(image, None), interpolation='none')
-            #
-            # plt.figure()
-            # plt.title(f'accumulator {index} | max={np.max(accumulator):.1f}')
-            # plt.imshow(accumulator / np.max(accumulator), interpolation='none')
-            #
-            # flat = accumulator.flatten()
-            # flat = flat[flat > 1]
-            # plt.figure()
-            # plt.title('accumulator hist')
-            # plt.hist(flat, bins=100, range=(0, 200))
-            #
-            # plt.figure()
-            # plt.title(f'ring {index}')
-            # plt.imshow(image, interpolation='none')
-            # plt.show()
+            if debug:
+                import matplotlib.pyplot as plt
+
+                plt.figure()
+                plt.title(f'ring {index}')
+                plt.imshow(image, interpolation='none')
+
+                plt.figure()
+                plt.title(f'accumulator {index} | max={np.max(accumulator):.1f}')
+                plt.imshow(accumulator / np.max(accumulator), interpolation='none')
+
+                gim = ((image / np.max(image)) * 255).astype(np.uint8)
+                cim = np.zeros_like(gim)
+                cv2.circle(cim, mxl, radius // 2, 255)
+                im = np.stack(
+                    (
+                        gim,
+                        gim,
+                        cim
+                    ),
+                    axis=-1,
+                )
+                plt.figure()
+                plt.imshow(im, interpolation='none')
+                plt.show()
+
+                # flat = accumulator.flatten()
+                # flat = flat[flat > 1]
+                # plt.figure()
+                # plt.title('accumulator hist')
+                # plt.hist(flat, bins=100, range=(0, 200))
+
 
         self.logger.info(f'Took {(time.perf_counter() - t0) * 1000:.2f}ms')
 

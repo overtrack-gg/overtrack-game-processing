@@ -40,7 +40,7 @@ ROUNDS = [
         1,
         ring_countdown=ts2s('3:00'),
         close_time=ts2s('2:25'),
-        radius=332,
+        radius=380,
     ),
     Round(
         2,
