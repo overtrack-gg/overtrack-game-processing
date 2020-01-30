@@ -34,18 +34,18 @@ def _draw_status(debug_image: Optional[np.ndarray], status: MatchStatus) -> None
         cv2.putText(
             debug_image,
             line,
-            (400, 150 + 30 * y),
+            (800, 150 + 30 * y),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.75,
+            0.6,
             (0, 0, 0),
             3
         )
         cv2.putText(
             debug_image,
             line,
-            (400, 150 + 30 * y),
+            (800, 150 + 30 * y),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.75,
+            0.6,
             (255, 0, 255),
             1
         )

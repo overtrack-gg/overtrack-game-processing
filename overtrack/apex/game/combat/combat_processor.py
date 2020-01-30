@@ -1,16 +1,18 @@
 import logging
 import os
-from typing import Optional
+from typing import List, Optional
 
 import cv2
 import numpy as np
 
+from overtrack import util
+from overtrack.apex.game.combat import CombatLog
+from overtrack.apex.game.combat.models import Event
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import imageops, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-from .models import *
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ def _draw_log(debug_image: Optional[np.ndarray], log: CombatLog) -> None:
         cv2.putText(
             debug_image,
             f'{event}',
-            (760, 200 + 30 * (i + 1)),
+            (760, 900 + 30 * (i + 1)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.75,
             (0, 255, 0),
@@ -119,22 +121,7 @@ class CombatProcessor(Processor):
 
 
 def main() -> None:
-    config_logger('map_processor', logging.INFO, write_to_file=False)
-
-    pipeline = CombatProcessor()
-
-    import glob
-
-    for p in glob.glob('../../../../dev/apex_images/kill/*.png') + glob.glob('../../../../dev/apex_images/**/*.png'):
-        frame = Frame.create(
-            cv2.resize(cv2.imread(p), (1920, 1080)),
-            0,
-            True
-        )
-        pipeline.process(frame)
-        print(frame)
-        cv2.imshow('debug', frame.debug_image)
-        cv2.waitKey(0)
+    util.test_processor('kill', CombatProcessor(), 'combat_log', game='apex')
 
 
 if __name__ == '__main__':
