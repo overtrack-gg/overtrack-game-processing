@@ -89,7 +89,6 @@ class UploadableImage:
     def _typeddump(self) -> Dict:
         if self.url is None:
             logger.warning(f'Dumping image {self} before it is uploaded')
-            logger.error('Dumping image before it has an upload URL', exc_info=True)
         return {
             'key': self.key,
             'url': self.url,
