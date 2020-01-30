@@ -9,8 +9,10 @@ from typing import Callable, Tuple, TypeVar, TYPE_CHECKING
 
 import typing
 
+from overtrack.util.prettyprint import pformat
+
 if TYPE_CHECKING:
-    from overtrack.frame import Frame
+    from overtrack.frame import Frame, CurrentGame
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,15 @@ def round_floats(_cls=None, *, precision: int = 2):
             if orig__post_init__:
                 orig__post_init__(self, *initvars)
             for field in dataclasses.fields(cls):
-                if field.type is float:
+                is_float = (
+                    field.type is float or
+                    (
+                        getattr(field.type, '__origin__', None) == typing.Union and
+                        float in field.type.__args__ and
+                        isinstance(getattr(self, field.name), float)
+                    )
+                )
+                if is_float:
                     object.__setattr__(self, field.name, round(float(getattr(self, field.name)), precision))
                 elif getattr(field.type, '__origin__', None) is typing.Tuple:
                     object.__setattr__(
@@ -127,9 +137,13 @@ def ms2ts(ms: float) -> str:
     return s2ts(ms / 1000)
 
 
-def ts2s(ts: str) -> int:
-    hs, ms, ss = ts.split(':')
-    h, m, s = int(hs), int(ms), int(ss)
+def ts2s(ts: str) -> float:
+    if ts.count(':') == 3:
+        hs, ms, ss = ts.split(':')
+    else:
+        hs = 0
+        ms, ss = ts.split(':')
+    h, m, s = int(hs), int(ms), float(ss)
     m = m + 60 * h
     s = m * 60 + s
     return s
@@ -193,7 +207,7 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
     import os
     import tabulate
     from pprint import pprint
-    from overtrack.frame import Frame
+    from overtrack.frame import Frame, CurrentGame
 
     from overtrack.util.logging_config import config_logger
 
@@ -226,8 +240,10 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
         if 'game_time=' in p:
             f.game_time = float(os.path.basename(p).split('=', 1)[1].rsplit('.', 1)[0])
 
+        f.current_game = CurrentGame()
+
         proc.process(f)
-        print(tabulate.tabulate([(n, f.get(n)) for n in fields]))
+        print(tabulate.tabulate([(n, pformat(f.get(n))) for n in fields]))
         pprint(f.timings)
         if show:
             cv2.imshow('debug', f.debug_image)
