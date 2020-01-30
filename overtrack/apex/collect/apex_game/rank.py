@@ -55,6 +55,7 @@ class Rank:
         # TODO: resolve RP and change from match summary > score summary
         # NOTE: score summary current RP is an animation - take the last frame and use IFF there are enough frames for it to have finished animating
 
+        self.rp_change = None
 
         if players_before and players_after:
             self._resolve_api_rank(player_name, players_before, players_after)
