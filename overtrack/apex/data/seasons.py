@@ -17,6 +17,7 @@ class Season:
 
 
 _PDT = datetime.timezone(datetime.timedelta(hours=-7))
+_PST = datetime.timezone(datetime.timedelta(hours=-8))
 _season_1_start = datetime.datetime.strptime(
     # https://twitter.com/PlayApex/status/1107733497450356742
     'Mar 19 2019 10:00AM',
@@ -31,7 +32,7 @@ _season_3_start = 1569956446
 _season_4_start = datetime.datetime.strptime(
     'Feb 4 2020 10:00AM',
     '%b %d %Y %I:%M%p'
-).replace(tzinfo=_PDT)
+).replace(tzinfo=_PST)
 
 SEASONS = [
     Season(0, 0, _season_1_start.timestamp()),

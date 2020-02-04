@@ -49,6 +49,7 @@ class ApexGame:
     images: Dict[str, str]
 
     frames_count: int
+    client_version: str
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
@@ -60,11 +61,13 @@ class ApexGame:
         squad_after: Optional[List[Optional[APIOriginUser]]] = None,
         champion: Optional[APIOriginUser] = None,
         scrims: Optional[str] = None,
+        client_version: Optional[str] = None,
         debug: Union[bool, str] = False
     ):
 
         self.scrims = scrims
         self.valid = True
+        self.client_version = client_version
 
         your_squad_first_index = 0
         your_squad_last_index = 0
@@ -173,10 +176,54 @@ class ApexGame:
                 self.player_name = config_name
                 self.logger.info(f'Got player name from config: {config_name!r}')
 
-        self.squad = Squad(self.all_frames, menu_names, config_name, self.mode == 'ranked', squad_before, squad_after, solo=self.solo, duos=self.duos, debug=debug)
-        self.combat = Combat(self.frames, self.placed, self.squad, debug=debug)
-        self.weapons = Weapons(self.frames, self.combat, debug=debug)
-        self.route: Route = Route(self.frames, self.weapons, self.combat, season=self.season, debug=debug)
+        treat_unknown_champion_as = None
+        if self.client_version:
+            try:
+                client_date = datetime.datetime.strptime(self.client_version.replace('-beta', ''), "%Y-%m-%d-%H-%M-%S").timestamp()
+            except:
+                treat_unknown_champion_as = 'revenant'
+                self.logger.info(
+                    f'Got game from client version {self.client_version} with unknown release date - '
+                    f'using {treat_unknown_champion_as!r} for unknown champions'
+                )
+            else:
+                if self.season == 4 and client_date < data.seasons.SEASONS[4].start:
+                    treat_unknown_champion_as = 'revenant'
+                    self.logger.info(
+                        f'Got game from client version {self.client_version} released before season {self.season} start - '
+                        f'using {treat_unknown_champion_as!r} for unknown champions'
+                    )
+
+        self.squad = Squad(
+            self.all_frames,
+            menu_names,
+            config_name,
+            self.mode == 'ranked',
+            squad_before,
+            squad_after,
+            solo=self.solo,
+            duos=self.duos,
+            treat_unknown_champion_as=treat_unknown_champion_as,
+            debug=debug
+        )
+        self.combat = Combat(
+            self.frames,
+            self.placed,
+            self.squad,
+            debug=debug
+        )
+        self.weapons = Weapons(
+            self.frames,
+            self.combat,
+            debug=debug
+        )
+        self.route: Route = Route(
+            self.frames,
+            self.weapons,
+            self.combat,
+            season=self.season,
+            debug=debug
+        )
         # self.stats = Stats(frames, self.squad)  # TODO: stats using match summary
 
         if self.squad.player and self.squad.player.stats and self.squad.player.stats.kills is not None:

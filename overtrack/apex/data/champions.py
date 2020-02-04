@@ -21,5 +21,6 @@ CHAMPIONS = {
     'caustic': Champion('Caustic'),
     'octane': Champion('Octane'),
     'wattson': Champion('Wattson'),
-    'crypto': Champion('Crypto')
+    'crypto': Champion('Crypto'),
+    'revenant': Champion('Revenant'),
 }

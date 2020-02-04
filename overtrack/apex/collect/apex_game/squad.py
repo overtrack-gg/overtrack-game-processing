@@ -119,7 +119,7 @@ class Player:
     """
 
     name: str
-    champion: str
+    champion: Optional[str]
     stats: Optional[PlayerStats]
     is_owner: bool
     name_from_config: bool
@@ -360,6 +360,7 @@ class Squad:
             squad_after: Optional[List[Optional[APIOriginUser]]] = None,
             solo: bool = False,
             duos: bool = False,
+            treat_unknown_champion_as: Optional[str] = None,
             debug: Union[bool, str] = False):
 
         self.squad = [f.squad for f in frames if 'squad' in f]
@@ -405,6 +406,9 @@ class Squad:
                 champions.insert(1, self._get_squadmate_champion(0, debug, champions))
 
         self.logger.info(f'Resolved names and champions: {list(zip(names, champions))}')
+        if sum(c is None for c in champions) == 1 and treat_unknown_champion_as:
+            self.logger.warning(f'Got unknown champion with treat_unknown_champion_as={treat_unknown_champion_as!r} - updating champion')
+            champions[champions.index(None)] = treat_unknown_champion_as
 
         squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
         if len(squad_summaries) and any(champions):
