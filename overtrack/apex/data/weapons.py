@@ -36,10 +36,11 @@ ars = [
     Weapon('Flatline', 'ar', 'heavy'),
     Weapon('Havoc', 'ar', 'energy'),
     Weapon('R-301', 'ar', 'light', full_name='R-301 Carbine'),
+    Weapon('G7 Scout', 'ar', 'light'),
 ]
 lmgs = [
     Weapon('Spitfire', 'lmg', 'heavy'),
-    Weapon('Devotion', 'lmg', 'energy'),
+    Weapon('Devotion', 'lmg', 'special'),
     Weapon('L-STAR', 'lmg', 'special'),
 ]
 smgs = [
@@ -48,10 +49,10 @@ smgs = [
     Weapon('R-99', 'smg', 'light'),
 ]
 snipers = [
-    Weapon('Triple Take', 'sniper', 'energy'),
-    Weapon('Charge Rifle', 'sniper', 'energy'),
-    Weapon('Longbow', 'sniper', 'heavy'),
-    Weapon('G7 Scout', 'sniper', 'light'),
+    Weapon('Triple Take', 'sniper', 'sniper'),
+    Weapon('Charge Rifle', 'sniper', 'sniper'),
+    Weapon('Longbow', 'sniper', 'sniper'),
+    Weapon('Sentinel', 'sniper', 'sniper'),
     Weapon('Kraber', 'sniper', 'special'),
 ]
 WEAPONS = \

@@ -46,6 +46,10 @@ class Weapons:
         (7, 32, 107): (True, 'Shotgun'),
         (10, 17, 48): (False, 'Shotgun'),
 
+        # Sniper
+        (126, 42, 53): (True, 'Shotgun'),
+        (57, 20, 24): (False, 'Shotgun'),
+
         # Special
         (17, 149, 178): (True, 'Special'),
         (39, 78, 90): (False, 'Special'),
