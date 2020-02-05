@@ -360,6 +360,15 @@ class Route:
             image = composites.images[index].array.astype(np.float) / 255.0
             image *= 30
 
+            # handle issue where the harvester adds a lot of noise to the images
+            cv2.circle(
+                image,
+                (353, 463),
+                45,
+                0.,
+                -1
+            )
+
             # accumulator = self._hough_circles(image, ROUNDS[index].radius // 2)
             accumulator = self._hough_circles(cv2.erode(image, None), radius // 2)
 
@@ -367,7 +376,7 @@ class Route:
             center = (mxl[0] * 2, mxl[1] * 2)
 
             self.logger.info(f'Found ring {index} (radius={radius}) at {center} - match={mxv:.2f}')
-            if mxv > 200:
+            if mxv > 400:
                 old = self.rings[index - 1]
                 if old:
                     dist = np.sqrt(np.sum((np.array(old.center) - center) ** 2))
@@ -418,7 +427,6 @@ class Route:
                 # plt.figure()
                 # plt.title('accumulator hist')
                 # plt.hist(flat, bins=100, range=(0, 200))
-
 
         self.logger.info(f'Took {(time.perf_counter() - t0) * 1000:.2f}ms')
 
