@@ -150,7 +150,7 @@ class Weapons:
                     c = 'orange'
                 if c:
                     plt.axvline(event.timestamp, color=c)
-            for i, n in enumerate(data.WEAPON_NAMES):
+            for i, n in enumerate(data.weapon_names):
                 plt.text(0, i + 0.25, n)
 
         plt.figure()
@@ -175,12 +175,12 @@ class Weapons:
             return textops.strip_string(s, string.ascii_uppercase + string.digits + '- ')
 
         weapon = np.full((len(self.weapon_data, )), fill_value=-1, dtype=np.int)
-        name2index = {stripname(n): i for i, n in enumerate(data.WEAPON_NAMES)}
+        name2index = {stripname(n): i for i, n in enumerate(data.weapon_names)}
         for i, weapons in enumerate(self.weapon_data):
             name = weapons.weapon_names[index]
             ratio, match = textops.matches_ratio(
                 stripname(name),
-                data.WEAPON_NAMES
+                data.weapon_names
             )
             if ratio > 0.75:
                 weapon[i] = name2index[match]
@@ -211,7 +211,7 @@ class Weapons:
             if weapon_index == -1:
                 continue
             if last is not None:
-                weapon_name = data.WEAPONS[weapon_index].name
+                weapon_name = data.weapons[weapon_index].name
                 weapon_stats = weapon_stats_lookup.get(weapon_name)
                 if not weapon_stats:
                     weapon_stats = WeaponStats(weapon_name)

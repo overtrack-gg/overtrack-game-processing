@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from overtrack.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
 from overtrack.apex.collect.apex_game.weapons import Weapons
-from overtrack.apex.data import ROUNDS, get_round_state
+from overtrack.apex.data import rounds, get_round_state
 from overtrack.apex.game.minimap import Circle as FrameCircle, Location as FrameLocation, Minimap
 from overtrack.apex.game.minimap.models import RingsComposite
 from overtrack.frame import Frame
@@ -160,9 +160,9 @@ class Route:
             )
             self.landed_location = int(mean_location[0]), int(mean_location[1])
             if season <= 2:
-                self.landed_name = data.KINGS_CANYON_LOCATIONS[self.landed_location]
+                self.landed_name = data.kings_canyon_locations[self.landed_location]
             else:
-                self.landed_name = data.WORLDS_EDGE_LOCATIONS[self.landed_location]
+                self.landed_name = data.worlds_edge_locations[self.landed_location]
 
             self._process_locations_visited()
 
@@ -190,9 +190,9 @@ class Route:
         for event in combat.events:
             event.location = self.get_location_at(event.timestamp)
             if season <= 2:
-                lname = data.KINGS_CANYON_LOCATIONS[event.location] if event.location else "???"
+                lname = data.kings_canyon_locations[event.location] if event.location else "???"
             else:
-                lname = data.WORLDS_EDGE_LOCATIONS[event.location] if event.location else "???"
+                lname = data.worlds_edge_locations[event.location] if event.location else "???"
             self.logger.info(f'Found location={lname} for {event}')
 
         if debug is True or debug == self.__class__.__name__:
@@ -290,7 +290,7 @@ class Route:
         self.logger.info(f'Processing rings from {sum([len(v) for v in circles.values()])} recorded circles')
 
         self.rings = []
-        for round_ in ROUNDS[1:]:
+        for round_ in rounds[1:]:
             circs = circles[round_.index]
             if len(circs):
                 xs, ys = [c.coordinates[0] for c in circs], [c.coordinates[1] for c in circs]
@@ -324,9 +324,9 @@ class Route:
         last_location = self.locations[self.landed_location_index][0], self.landed_name
         for ts, location in self.locations[self.landed_location_index + 1:]:
             if self.season <= 2:
-                location_name = data.KINGS_CANYON_LOCATIONS[location]
+                location_name = data.kings_canyon_locations[location]
             else:
-                location_name = data.WORLDS_EDGE_LOCATIONS[location]
+                location_name = data.worlds_edge_locations[location]
             if location_name == 'Unknown':
                 continue
             if location_name == last_location[1] and ts - last_location[0] > 30:
@@ -347,14 +347,15 @@ class Route:
                     comb = im.copy()
                 else:
                     comb += im
-            import matplotlib.pyplot as plt
-            plt.figure()
-            plt.imshow(comb, interpolation='none')
-            plt.show()
+            if comb is not None:
+                import matplotlib.pyplot as plt
+                plt.figure()
+                plt.imshow(comb, interpolation='none')
+                plt.show()
 
         t0 = time.perf_counter()
         for index in composites.images:
-            round_ = ROUNDS[index]
+            round_ = rounds[index]
             radius = round_.radius
 
             image = composites.images[index].array.astype(np.float) / 255.0

@@ -10,7 +10,7 @@ class Champion:
     name: str
 
 
-CHAMPIONS = {
+champions = {
     'bloodhound': Champion('Bloodhound'),
     'gibraltar': Champion('Gibraltar'),
     'lifeline': Champion('Lifeline'),

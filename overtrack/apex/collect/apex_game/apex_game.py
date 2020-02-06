@@ -187,7 +187,7 @@ class ApexGame:
                     f'using {treat_unknown_champion_as!r} for unknown champions'
                 )
             else:
-                if self.season == 4 and client_date < data.seasons.SEASONS[4].start:
+                if self.season == 4 and client_date < data.seasons[4].start:
                     treat_unknown_champion_as = 'revenant'
                     self.logger.info(
                         f'Got game from client version {self.client_version} released before season {self.season} start - '
@@ -474,11 +474,11 @@ class ApexGame:
         return last_killcount
 
     def _get_season(self) -> int:
-        for season in data.SEASONS:
+        for season in data.seasons:
             if season.start < self.timestamp < season.end:
                 return season.index
-        self.logger.error(f'Could not get season for {self.timestamp} (valid={self.valid}) - using {len(data.SEASONS)}', exc_info=True)
-        return len(data.SEASONS)
+        self.logger.error(f'Could not get season for {self.timestamp} (valid={self.valid}) - using {len(data.seasons)}', exc_info=True)
+        return len(data.seasons)
 
     @property
     def time(self) -> datetime.datetime:

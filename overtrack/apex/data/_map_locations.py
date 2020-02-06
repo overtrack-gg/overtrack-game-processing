@@ -56,5 +56,5 @@ class MapLocations:
         return self.get_location_name(location)
 
 
-KINGS_CANYON_LOCATIONS = MapLocations('kings_canyon_locations')
-WORLDS_EDGE_LOCATIONS = MapLocations('worlds_edge_locations')
+kings_canyon_locations = MapLocations('kings_canyon_locations')
+worlds_edge_locations = MapLocations('worlds_edge_locations')

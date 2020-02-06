@@ -9,6 +9,7 @@ class Season:
     index: int
     start: float
     end: float
+    has_ranked: bool = True
     season_name: Optional[str] = None
 
     @property
@@ -34,15 +35,16 @@ _season_4_start = datetime.datetime.strptime(
     '%b %d %Y %I:%M%p'
 ).replace(tzinfo=_PST)
 
-SEASONS = [
-    Season(0, 0, _season_1_start.timestamp()),
+seasons = [
+    Season(0, 0, _season_1_start.timestamp(), has_ranked=False),
     Season(1, _season_1_start.timestamp(), _season_2_start.timestamp()),
     Season(2, _season_2_start.timestamp(), _season_3_start),
     Season(3, _season_3_start, _season_4_start.timestamp()),
     Season(4, _season_4_start.timestamp(), float('inf')),
 
-    Season(1002, 0, 0, season_name='Season 2 Solos'),
-    Season(1003, _season_3_start, _season_4_start.timestamp(), season_name='Season 3 Duos'),
+    Season(1002, 0, 0, season_name='Season 2 Solos', has_ranked=False),
+    Season(1003, _season_3_start, _season_4_start.timestamp(), season_name='Season 3 Duos', has_ranked=False),
 
-    Season(2000, _season_3_start, float('inf'), season_name='Scrims'),
+    Season(2000, _season_3_start, float('inf'), season_name='Scrims', has_ranked=False),
 ]
+current_season = sorted([s for s in seasons if s.index < 100], key=lambda s: s.end)[-1]

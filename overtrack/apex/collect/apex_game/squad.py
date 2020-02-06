@@ -565,7 +565,7 @@ class Squad:
         ts = [frame.timestamp - frames[0].timestamp for frame in frames if 'squad' in frame]
 
         def make_champion_plot(vals):
-            for i, (s, c) in enumerate(data.CHAMPIONS.items()):
+            for i, (s, c) in enumerate(data.champions.items()):
                 plt.plot(ts, [v[i] for v in vals], label=s)
             plt.legend()
 
@@ -598,7 +598,7 @@ class Squad:
         return self._get_matching_champion([s.squadmate_champions[index] for s in self.squad], debug, other_champions)
 
     def _get_matching_champion(self, arr: List[List[float]], debug: Union[bool, str] = False, other_champions: Optional[List[str]] = None) -> Optional[str]:
-        champions = list(data.CHAMPIONS.keys())
+        champions = list(data.champions.keys())
         if other_champions:
             other_champion_inds = [champions.index(c) for c in other_champions if c]
         else:

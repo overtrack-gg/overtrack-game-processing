@@ -29,7 +29,7 @@ shotguns = [
     Weapon('Mozambique', 'shotgun', 'shotgun'),
     Weapon('EVA-8 Auto', 'shotgun', 'shotgun'),
     Weapon('Peacekeeper', 'shotgun', 'shotgun'),
-    Weapon('Mastiff', 'shotgun', 'special'),  # is this "Mastiff Shotgun"?
+    Weapon('Mastiff', 'shotgun', 'special'),
 ]
 ars = [
     Weapon('Hemlock', 'ar', 'heavy'),
@@ -45,7 +45,7 @@ lmgs = [
 ]
 smgs = [
     Weapon('Alternator', 'smg', 'light'),
-    Weapon('Prowler', 'smg', 'heavy'),  # is this "Prowler SMG"?
+    Weapon('Prowler', 'smg', 'heavy'),
     Weapon('R-99', 'smg', 'light'),
 ]
 snipers = [
@@ -55,11 +55,11 @@ snipers = [
     Weapon('Sentinel', 'sniper', 'sniper'),
     Weapon('Kraber', 'sniper', 'special'),
 ]
-WEAPONS = \
+weapons = \
     pistols + \
     shotguns + \
     ars + \
     lmgs + \
     smgs + \
     snipers
-WEAPON_NAMES = [w.name.upper() for w in WEAPONS]
+weapon_names = [w.name.upper() for w in weapons]

@@ -51,7 +51,7 @@ def _load_template(name: str, large: bool = False) -> Tuple[np.ndarray, np.ndarr
 class SquadProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), '..', 'data', 'regions', '16_9.zip'))
     CHAMPIONS = [
-        (c, (_load_template(c, large=False), _load_template(c, large=True))) for c in data.CHAMPIONS.keys()
+        (c, (_load_template(c, large=False), _load_template(c, large=True))) for c in data.champions.keys()
     ]
     SPEAKER_LARGE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'speaker_lg.png'), 0)
     SPEAKER_SMALL = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'speaker_sm.png'), 0)

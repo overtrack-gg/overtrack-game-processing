@@ -27,7 +27,7 @@ class Round:
             return None
 
 
-ROUNDS = [
+rounds = [
     Round(
         0,
         ring_countdown=10,
@@ -87,7 +87,7 @@ ROUNDS = [
 ]
 
 current_time = 0
-for current_round in ROUNDS:
+for current_round in rounds:
     current_round.start_time = current_time
     if current_round.close_time:
         current_time += current_round.ring_countdown + CLOSING_DELAY + current_round.close_time + ROUND_START_DELAY
@@ -115,7 +115,7 @@ def get_round_state(t: float) -> RoundState:
     current_time = 0
     current_ring_index = -1
     current_ring_radius = 0
-    for current_round in ROUNDS:
+    for current_round in rounds:
         next_state_time = current_time + current_round.ring_countdown + CLOSING_DELAY
         if t <= next_state_time or current_round.close_time is None:
             return RoundState(
