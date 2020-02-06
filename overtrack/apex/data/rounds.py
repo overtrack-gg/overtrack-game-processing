@@ -39,19 +39,19 @@ ROUNDS = [
     Round(
         1,
         ring_countdown=ts2s('3:00'),
-        close_time=ts2s('2:25'),
+        close_time=ts2s('3:42'),
         radius=380,
     ),
     Round(
         2,
         ring_countdown=ts2s('2:30'),
-        close_time=ts2s('1:19'),
+        close_time=ts2s('1:02'),
         radius=218,
     ),
     Round(
         3,
         ring_countdown=ts2s('2:14'),
-        close_time=ts2s('0:44'),
+        close_time=ts2s('0:41'),
         radius=132,
     ),
     Round(
