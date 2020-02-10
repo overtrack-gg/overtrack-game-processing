@@ -19,15 +19,16 @@ class OrderedProcessor(Processor):
     """
     Run all processors in the predefined order
     """
-    def __init__(self, *processors: Processor):
+    def __init__(self, *processors: Processor, condition=any):
         self.processors = processors
+        self.condition = condition
 
     def process(self, frame: Frame) -> bool:
         """
         :param frame: the current frame
-        :return: True if _any_ of the processors returned True
+        :return: True if _condition_ of the processors returns True (e.g. _condition_ might be all() or any())
         """
-        return any([p.process(frame) for p in self.processors])
+        return self.condition([p.process(frame) for p in self.processors])
 
     def eager_load(self):
         for p in self.processors:

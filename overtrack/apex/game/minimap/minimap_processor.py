@@ -1,5 +1,6 @@
 import logging
 import os
+import traceback
 from collections import deque
 from typing import Optional
 
@@ -234,7 +235,7 @@ def _draw_map_location(
     if rings:
         for i in rings.images:
             im = np.clip(rings.images[i].array, 0, 30)[:-100, :-100]
-            im /= max(np.max(im), 5)
+            im /= max(np.max(im), 2)
             im = np.stack((
                 im * 200,
                 im * 255,
@@ -501,7 +502,6 @@ class MinimapProcessor(Processor):
                     self.current_composite
                 )
             except Exception as e:
-                print(e)
         return False
 
     def _get_zoom(self, frame):
@@ -628,23 +628,26 @@ class MinimapProcessor(Processor):
                 logger.debug(f'Adding {name} to ring composite {index} (approx {np.sum(image > 128)} observed ring pixels) for game time {s2ts(game_time)}')
 
                 # TODO: handle zoom, handle non-rotating
-                image = cv2.copyMakeBorder(
-                    image,
-                    image.shape[0] // 5,
-                    image.shape[0] // 5,
-                    image.shape[1] // 5,
-                    image.shape[1] // 5,
-                    cv2.BORDER_CONSTANT
-                )
-                image_t = cv2.warpAffine(
-                    image,
-                    cv2.getRotationMatrix2D(
-                        (image.shape[1] // 2, image.shape[0] // 2),
-                        360 - location.bearing,
-                        1
-                    ),
-                    (image.shape[0], image.shape[1])
-                )
+                if location.bearing is None:
+                    image_t = image
+                else:
+                    image = cv2.copyMakeBorder(
+                        image,
+                        image.shape[0] // 5,
+                        image.shape[0] // 5,
+                        image.shape[1] // 5,
+                        image.shape[1] // 5,
+                        cv2.BORDER_CONSTANT
+                    )
+                    image_t = cv2.warpAffine(
+                        image,
+                        cv2.getRotationMatrix2D(
+                            (image.shape[1] // 2, image.shape[0] // 2),
+                            360 - location.bearing,
+                            1
+                        ),
+                        (image.shape[0], image.shape[1])
+                    )
                 image_t = cv2.resize(image_t, (0, 0), fx=location.zoom, fy=location.zoom)
 
                 if index not in self.current_composite.images:
@@ -778,8 +781,8 @@ def main() -> None:
         cv2.waitKey(0)
 
 
-MinimapProcessor.load_map(os.path.join(os.path.dirname(__file__), 'data', '2.png'))
-MinimapProcessor.MAP_VERSION = 2
+MinimapProcessor.load_map(os.path.join(os.path.dirname(__file__), 'data', '4.png'))
+MinimapProcessor.MAP_VERSION = 4
 
 
 if __name__ == '__main__':

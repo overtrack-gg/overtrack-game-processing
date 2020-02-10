@@ -14,8 +14,8 @@ def create_pipeline(interleave_processors: bool = True) -> Processor:
     pipeline = OrderedProcessor(
         ShortCircuitProcessor(
             MenuProcessor(),
-
             YourSquadProcessor(),
+
             MatchSummaryProcessor(),
             SquadSummaryProcessor(),
 
@@ -28,7 +28,9 @@ def create_pipeline(interleave_processors: bool = True) -> Processor:
                     lookbehind_behaviour=any,
                     default_without_history=True,
                 ),
+                condition=all
             ),
+
             order_defined=False
         ),
 
@@ -92,8 +94,26 @@ def create_lightweight_pipeline() -> Processor:
 
 def main() -> None:
     from overtrack import util
+    import glob
 
-    util.test_processor('squad', create_pipeline(), 'frame', 'minimap', game='apex')
+    util.test_processor(
+        [p for p in glob.glob("D:/overtrack/frames7/*.png") if 'debug' not in p][40:],
+        create_pipeline(interleave_processors=True),
+
+        'frame',
+        'minimap',
+        'location',
+        'match_status',
+        'minimap',
+        'apex_play_menu',
+        'your_squad',
+        'champion_squad',
+        'match_summary',
+        'squad_summary',
+        'combat',
+        'squad',
+
+        game='apex')
 
 
 if __name__ == '__main__':

@@ -499,7 +499,6 @@ class ApexGame:
 def main() -> None:
     import json
     # from overtrack.util import __referenced_typedload
-    from overtrack.util.typedload import frameload
     from overtrack.util.logging_config import config_logger
     from overtrack.util.prettyprint import pprint
     import time
