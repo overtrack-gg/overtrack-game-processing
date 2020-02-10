@@ -1,1 +1,1 @@
-from .models import Squad
+from overtrack.apex.game.squad.models import Squad

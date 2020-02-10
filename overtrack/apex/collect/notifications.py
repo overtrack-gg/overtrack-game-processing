@@ -5,8 +5,8 @@ from pprint import pformat, pprint
 
 import requests
 
-from overtrack_models.apex_game_summary import ApexGameSummary
-from overtrack_models.notifications import DiscordBotNotification, TwitchBotNotification
+from overtrack_models.orm.apex_game_summary import ApexGameSummary
+from overtrack_models.orm.notifications import DiscordBotNotification, TwitchBotNotification
 from overtrack.apex.collect.apex_game import ApexGame
 from overtrack.twitch import twitch_bot
 

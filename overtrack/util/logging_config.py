@@ -336,7 +336,8 @@ def patch_sentry_locals_capture() -> None:
 
     def frame_processor(value, hint):
         if isinstance(value, Frame):
-            from overtrack.util import typedload
+            from overtrack_models.dataclasses import typedload
+
             f = value.copy()
             f.strip()
             return typedload.dump(f)

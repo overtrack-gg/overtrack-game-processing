@@ -5,7 +5,7 @@ from typing import Callable, List, Optional
 
 from overtrack.apex.collect.apex_game import ApexGame
 from overtrack.frame import Frame
-from overtrack.util.typedload import referenced_typedload
+from overtrack_models.dataclasses.typedload import referenced_typedload
 from overtrack.util.logging_config import config_logger
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,6 @@ def main() -> None:
     import pprint
     pprint.sorted = lambda x, **_: x
     from pprint import pprint
-    from overtrack.source.video import VideoFrameExtractor
 
     config_logger('apex_game_extractor.py', logging.INFO, False)
 

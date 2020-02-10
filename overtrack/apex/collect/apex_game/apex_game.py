@@ -15,7 +15,8 @@ from overtrack.apex.collect.apex_game.route import Route
 from overtrack.apex.collect.apex_game.squad import APIOriginUser, Squad
 from overtrack.apex.collect.apex_game.weapons import Weapons
 from overtrack.frame import Frame
-from overtrack.util import arrayops, s2ts, validate_fields, typedload
+from overtrack.util import arrayops, s2ts, validate_fields, frameload
+from overtrack_models.dataclasses import typedload
 
 
 @dataclass
@@ -505,18 +506,22 @@ def main() -> None:
 
     config_logger('apex_game', logging.INFO, False)
 
-    with open("C:/Users/simon/AppData/Local/Temp/mendokusaii_2019-12_15-01-32-PF4QC4tKg4sy6JgmAEwJW4.frames.json") as f:
+    with open("C:/Users/simon/overtrack_2/client/build_client/games/1580279032_2.frames.json") as f:
         data = json.load(f)
 
     t0 = time.perf_counter()
     frames = frameload.frames_load(data, List[Frame])
     print(f'Loaded {len(frames)} in {time.perf_counter()-t0}s')
-    t0 = time.perf_counter()
-    frames_ = __referenced_typedload.load(data, List[Frame])
-    print(f'Loaded {len(frames_)} in {time.perf_counter() - t0}s')
+
+    # t0 = time.perf_counter()
+    # with open("C:/Users/simon/overtrack_2/client/build_client/games/1580279032_2.frames.json", 'w') as f:
+    #     json.dump(frameload.frames_dump(frames), f, indent=2)
+
+    # frames_ = __referenced_typedload.load(data, List[Frame])
+    # print(f'Loaded {len(frames_)} in {time.perf_counter() - t0}s')
 
     game = ApexGame(frames)
-    print(game)
+    pprint(game)
 
     # data = game.asdict()
     # # data['route']['locations'][6] = 'a'

@@ -37,7 +37,7 @@ _season_4_start = datetime.datetime.strptime(
 
 seasons = [
     Season(0, 0, _season_1_start.timestamp(), has_ranked=False),
-    Season(1, _season_1_start.timestamp(), _season_2_start.timestamp()),
+    Season(1, _season_1_start.timestamp(), _season_2_start.timestamp(), has_ranked=False),
     Season(2, _season_2_start.timestamp(), _season_3_start),
     Season(3, _season_3_start, _season_4_start.timestamp()),
     Season(4, _season_4_start.timestamp(), float('inf')),

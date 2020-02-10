@@ -2,7 +2,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from overtrack_models.apex_game_summary import ApexGameSummary
+from overtrack_models.orm.apex_game_summary import ApexGameSummary
 
 
 def _get_points(placed: int) -> int:

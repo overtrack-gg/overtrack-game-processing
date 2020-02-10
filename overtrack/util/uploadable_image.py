@@ -75,7 +75,10 @@ class UploadableImage:
         return len(self.images)
 
     def __del__(self):
-        logger.info(f'Disposing of {self}')
+        try:
+            logger.info(f'Disposing of {self}')
+        except:
+            print(f'Disposing of {self}')
 
     def __str__(self) -> str:
         if self.url is None:

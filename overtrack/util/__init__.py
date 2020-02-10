@@ -211,20 +211,22 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
 
     from overtrack.util.logging_config import config_logger
 
-    config_logger(os.path.basename(images), logging.DEBUG, False)
-
     proc.eager_load()
 
-    if images.endswith('.png'):
-        paths = [images]
-    elif '*' in images:
-        paths = glob.glob(images)
-    elif images[1] == ':':
-        paths = glob.glob(images + '/*.png')
+    if isinstance(images, list):
+        config_logger('test_processor', logging.DEBUG, False)
+        paths = images
     else:
-        paths = glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/{images}/*.png")
-
-    paths.sort(key=lambda p: os.path.getctime(p), reverse=True)
+        config_logger(os.path.basename(images), logging.DEBUG, False)
+        if images.endswith('.png'):
+            paths = [images]
+        elif '*' in images:
+            paths = glob.glob(images)
+        elif images[1] == ':':
+            paths = glob.glob(images + '/*.png')
+        else:
+            paths = glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/{images}/*.png")
+        paths.sort(key=lambda p: os.path.getctime(p), reverse=True)
 
     if test_all:
         paths += glob.glob(f"C:/Users/simon/overtrack_2/{game}_images/*/*.png", recursive=True)
