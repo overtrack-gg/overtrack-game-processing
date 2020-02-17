@@ -280,8 +280,21 @@ class ApexGame:
 
     def _get_is_duos(self, frames: List[Frame], selection_frames: List[Frame]) -> bool:
         duos_frames = [f for f in frames if ('your_squad' in f and f.your_squad.mode == 'duos')]
-        self.logger.info(f'Got {len(duos_frames)}/{len(selection_frames)} confirming game as duos')
-        return len(duos_frames) > len(selection_frames) * 0.5
+        self.logger.info(f'Got {len(duos_frames)}/{len(selection_frames)} your_squad confirming game as duos')
+        if len(duos_frames) > len(selection_frames) * 0.5:
+            self.logger.info(f'Confirming games as duos')
+            return True
+        duos_frames = [f.match_status.mode == 'duos' for f in frames if 'match_status' in f]
+        self.logger.info(f'Got {sum(duos_frames)}/{len(duos_frames)} match_status confirming game as duos')
+        if sum(duos_frames) > len(duos_frames) * 0.75:
+            self.logger.info(f'Confirming games as duos')
+            return True
+        duos_frames = [f.squad_summary.mode == 'duos' for f in frames if 'squad_summary' in f]
+        self.logger.info(f'Got {sum(duos_frames)}/{len(duos_frames)} squad_summary confirming game as duos')
+        if sum(duos_frames) > len(duos_frames) * 0.5:
+            self.logger.info(f'Confirming games as duos')
+            return True
+        return False
 
     def _get_is_ranked(self, squad_before: Optional[List[Optional[APIOriginUser]]], squad_after: Optional[List[Optional[APIOriginUser]]], debug: bool) -> Optional[Rank]:
         if len(self.match_status_frames):
