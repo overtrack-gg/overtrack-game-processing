@@ -44,6 +44,7 @@ seasons = [
 
     Season(1002, 0, 0, season_name='Season 2 Solos', has_ranked=False),
     Season(1003, _season_3_start, _season_4_start.timestamp(), season_name='Season 3 Duos', has_ranked=False),
+    Season(1004, _season_4_start.timestamp(), float('inf'), season_name='Season 4 Duos', has_ranked=False),
 
     Season(2000, _season_3_start, float('inf'), season_name='Scrims', has_ranked=False),
 ]
