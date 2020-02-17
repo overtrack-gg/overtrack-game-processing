@@ -4,7 +4,7 @@ import operator
 import os
 import string
 from threading import Lock
-from typing import Callable, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, no_type_check, overload, Dict
+from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, no_type_check, overload
 
 import cv2
 import numpy as np
@@ -155,7 +155,7 @@ def tesser_ocr(
         scale: float = 1,
         blur: Optional[float] = None,
         engine: tesserocr.PyTessBaseAPI = tesseract_only,
-        warn_on_fail: bool = True) -> Optional[T]:
+        warn_on_fail: bool = False) -> Optional[T]:
 
     with lock:
 
@@ -212,12 +212,12 @@ def tesser_ocr(
                     logger.log(
                         logging.WARNING if warn_on_fail else logging.DEBUG,
                         f'{os.path.basename(caller.filename)}:{caller.lineno} {caller.function} | '
-                        f'Got exception interpreting "{text}" as {expected_type.__name__}'
+                        f'Got exception interpreting {text!r} as {expected_type.__name__}'
                     )
                 except:
                     logger.log(
                         logging.WARNING if warn_on_fail else logging.DEBUG,
-                        f'Got exception interpreting "{text}" as {expected_type.__name__}'
+                        f'Got exception interpreting {text!r} as {expected_type.__name__}'
                     )
                 return None
         else:
@@ -392,8 +392,6 @@ def bgr_2hsv(colour):
 #     print('--')
 #     print(tesser_ocr(gray, whitelist=string.ascii_uppercase))
 #     print(tesser_ocr(gray, invert=True, whitelist=string.ascii_uppercase))
-
-
 
 
 def hsv2bgr(colour):
