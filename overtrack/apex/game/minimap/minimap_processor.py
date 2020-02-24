@@ -502,6 +502,7 @@ class MinimapProcessor(Processor):
                     self.current_composite
                 )
             except Exception as e:
+                pass
         return False
 
     def _get_zoom(self, frame):

@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Union, Dict
 
 import cv2
 import numpy as np
@@ -8,7 +8,7 @@ from overtrack.util import imageops
 
 
 PREV_ARGS = {}
-def sliders(input: np.ndarray, **kwargs: Callable[[Any], np.ndarray]):
+def sliders(image: np.ndarray, **kwargs: Callable[[Any], np.ndarray]) -> Dict[str, List[int]]:
     assert len(kwargs)
     cv2.namedWindow('sliders')
 
@@ -21,39 +21,45 @@ def sliders(input: np.ndarray, **kwargs: Callable[[Any], np.ndarray]):
         args = list(inspect.signature(function).parameters)
         assert len(args), 'Slider functions must take args'
         for i, arg in enumerate(args[1:]):
-            name, lv, uv = arg.split('_')
-            lv, uv = int(lv), int(uv)
+            if arg.count('_') == 3:
+                name, lv, uv, start = arg.split('_')
+            else:
+                name, lv, uv = arg.split('_')
+                start = lv
+            lv, uv, start = int(lv), int(uv), int(start)
             if PREV_ARGS and i < len(PREV_ARGS[fname]):
                 pv = PREV_ARGS[fname][i] - lv
             else:
-                pv = 0
+                pv = start
             cv2.createTrackbar(f'{fname}.{name}', 'sliders', pv, uv - lv, set_updated)
 
     while True:
-        steps = [input]
-        image = input.copy()
+        steps = [image.copy()]
+        editable_image = steps[0]
+        inargs = {}
         for fname, function in kwargs.items():
             args = list(inspect.signature(function).parameters)
-            inargs = []
+            inargs[fname] = []
+            arg: str
             for arg in args[1:]:
-                name, lv, uv = arg.split('_')
+                name, lv, uv = arg.split('_')[:3]
                 lv, uv = int(lv), int(uv)
-                inargs.append(lv + cv2.getTrackbarPos(f'{fname}.{name}', 'sliders'))
-            PREV_ARGS[fname] = inargs
-            images = function(image, *inargs)
+                inargs[fname].append(lv + cv2.getTrackbarPos(f'{fname}.{name}', 'sliders'))
+            PREV_ARGS[fname] = inargs[fname]
+            images = function(editable_image, *inargs[fname])
             if isinstance(images, list) or isinstance(images, tuple):
-                image = images[-1]
+                editable_image = images[-1]
                 steps += list(images)
             else:
-                image = images
-                steps.append(image)
+                editable_image = images
+                steps.append(editable_image)
 
         cv2.imshow('sliders', np.hstack(steps))
         while not updated:
             k = cv2.waitKey(10) & 0xFF
             if k == 27:
                 cv2.destroyAllWindows()
-                return
+                return inargs
         updated = False
 
 
