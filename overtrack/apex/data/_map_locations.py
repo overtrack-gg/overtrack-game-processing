@@ -55,6 +55,16 @@ class MapLocations:
     def __getitem__(self, location: Tuple[int, int]) -> str:
         return self.get_location_name(location)
 
+    @property
+    def width(self) -> int:
+        self._ensure_loaded()
+        return self.layers[0][1].shape[1]
 
-kings_canyon_locations = MapLocations('kings_canyon_locations')
-worlds_edge_locations = MapLocations('worlds_edge_locations')
+    @property
+    def height(self) -> int:
+        self._ensure_loaded()
+        return self.layers[0][1].shape[0]
+
+
+kings_canyon_locations = MapLocations('maps/kings_canyon_locations')
+worlds_edge_locations = MapLocations('maps/worlds_edge_locations')

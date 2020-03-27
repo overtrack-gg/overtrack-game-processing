@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from overtrack.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
 from overtrack.apex.collect.apex_game.weapons import Weapons
-from overtrack.apex.data import rounds, get_round_state
+from overtrack.apex.data import rounds, get_round_state, MapLocations
 from overtrack.apex.game.minimap import Circle as FrameCircle, Location as FrameLocation, Minimap
 from overtrack.apex.game.minimap.models import RingsComposite
 from overtrack.frame import Frame
@@ -41,6 +41,7 @@ def rel_error(x1: float, x2: float) -> float:
 @dataclass
 @validate_fields
 class Route:
+    map: str
     locations: List[Location]
     time_landed: float
     landed_location_index: int
@@ -136,6 +137,31 @@ class Route:
             x = np.array([l[1][0] for l in self.locations])
             y = np.array([l[1][1] for l in self.locations])
             ts = np.array([l[0] for l in self.locations])
+
+            worlds_edge_match = np.mean((x < data.worlds_edge_locations.width))
+            self.logger.info(f'Got worlds edge match: {worlds_edge_match:.2f}')
+            if worlds_edge_match < 0.25 and len(ts) > 10:
+                self.map = 'kings_canyon.s2'
+                self.logger.info(f'Classifying map as Kings Canyon ({self.map!r})')
+                map_location_names = data.kings_canyon_locations
+
+                self.locations = [
+                    Location(
+                        timestamp=l.timestamp,
+                        coordinates=(
+                            l.coordinates[0] - data.worlds_edge_locations.width,
+                            l.coordinates[1],
+                        )
+                    )
+                    for l in self.locations
+                ]
+                x -= data.worlds_edge_locations.width
+                y = np.clip(y, 0, data.kings_canyon_locations.height)
+            else:
+                self.map = 'worlds_edge.s4'
+                self.logger.info(f'Classifying map as Worlds Edge ({self.map!r})')
+                map_location_names = data.worlds_edge_locations
+
             if len(ts) < 3:
                 self.logger.warning(f'Only got {len(ts)} locations - assuming drop location = last location seen')
                 self.landed_location_index = len(ts) - 1
@@ -159,12 +185,10 @@ class Route:
                 axis=0
             )
             self.landed_location = int(mean_location[0]), int(mean_location[1])
-            if season <= 2:
-                self.landed_name = data.kings_canyon_locations[self.landed_location]
-            else:
-                self.landed_name = data.worlds_edge_locations[self.landed_location]
+            print(self.landed_location)
+            self.landed_name = map_location_names[self.landed_location]
 
-            self._process_locations_visited()
+            self._process_locations_visited(map_location_names)
 
         self._process_rings(circles, final_game_time)
 
@@ -189,10 +213,7 @@ class Route:
 
         for event in combat.events:
             event.location = self.get_location_at(event.timestamp)
-            if season <= 2:
-                lname = data.kings_canyon_locations[event.location] if event.location else "???"
-            else:
-                lname = data.worlds_edge_locations[event.location] if event.location else "???"
+            lname = map_location_names[event.location] if event.location else "???"
             self.logger.info(f'Found location={lname} for {event}')
 
         if debug is True or debug == self.__class__.__name__:
@@ -319,14 +340,11 @@ class Route:
                 self.logger.info(f'Final ring is {round_.index}, next round starts in {round_.end_time - final_game_time:.0f}s')
                 break
 
-    def _process_locations_visited(self):
+    def _process_locations_visited(self, map_location_names: MapLocations):
         self.locations_visited = [self.landed_name]
         last_location = self.locations[self.landed_location_index][0], self.landed_name
         for ts, location in self.locations[self.landed_location_index + 1:]:
-            if self.season <= 2:
-                location_name = data.kings_canyon_locations[location]
-            else:
-                location_name = data.worlds_edge_locations[location]
+            location_name = map_location_names[location]
             if location_name == 'Unknown':
                 continue
             if location_name == last_location[1] and ts - last_location[0] > 30:
