@@ -218,7 +218,7 @@ class ByteToFloat(NormaliseByte):
 
 class BGR2RGB(NormaliseByte):
     def call(self, inputs, training=None):
-        return tf.reverse(inputs, axis=[-1])
+        return tf.reverse(inputs, axis=[3])
 
 
 class Slice(Layer):
@@ -316,7 +316,7 @@ def make_ctc_decoder(inputs):
     r = sparse_ops.sparse_to_dense(decoded.indices, decoded.dense_shape, decoded.values, default_value=-1)
     return [r, log_prob]
 
-def decode_ctc(logits: Union[list, np.ndarray], merge_repeated=True, alphabet: Optional[np.ndarray] = None, seq_lens: Optional[List[int]] = None):
+def decode_ctc(logits: Union[list, np.ndarray], merge_repeated=True, alphabet: Union[None, np.ndarray, List[str]] = None, seq_lens: Optional[List[int]] = None):
     if alphabet is not None and isinstance(alphabet, list):
         alphabet = np.array(alphabet)
     if isinstance(logits, list):
@@ -363,7 +363,7 @@ all_custom_objects = {
 }
 
 
-def load_model(path: str, custom_objects: Optional[Dict[str, object]] = None):
+def load_model(path: str, custom_objects: Optional[Dict[str, object]] = None) -> Model:
     if not custom_objects:
         custom_objects = all_custom_objects
     else:

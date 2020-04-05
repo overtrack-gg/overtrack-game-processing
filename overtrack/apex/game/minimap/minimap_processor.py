@@ -1,6 +1,5 @@
 import logging
 import os
-import traceback
 from collections import deque
 from typing import Optional
 
@@ -8,8 +7,6 @@ import cv2
 import numpy as np
 import requests
 import time
-from scipy import optimize
-from tensorflow.python.keras import Model
 
 from overtrack.apex import ocr, data as apex_data
 from overtrack.apex.game.minimap.models import Circle, Location, Minimap, RingsComposite
@@ -18,7 +15,6 @@ from overtrack.processor import Processor
 from overtrack.util import imageops, s2ts, time_processing
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
-from overtrack.util.tf import load_model
 
 logger = logging.getLogger('MinimapProcessor')
 
@@ -288,15 +284,22 @@ class MinimapProcessor(Processor):
 
     MAP_VERSION = 0
 
-    def __init__(self):
+    def __init__(self, use_tflite: bool = True):
         self.map_rotated = deque(maxlen=10)
         self.map_rotate_in_config = None
-        self.model: Model = load_model(
-            os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter')
-            # "C:/Users/simon/overtrack_2/training/apex_minimap/v3/v15/checkpoint"
-        )
-        # from tensorflow.python.keras.saving import export_saved_model
-        # export_saved_model(self.model, os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter'), serving_only=True)
+        if use_tflite:
+            from overtrack.util.tflite import TFLiteModel
+            self.model = TFLiteModel(
+                os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter.tflite')
+            )
+        else:
+            from overtrack.util.tf import load_model
+            self.model = load_model(
+                os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter')
+                # "C:/Users/simon/overtrack_2/training/apex_minimap/v3/v15/checkpoint"
+            )
+            # from tensorflow.python.keras.saving import export_saved_model
+            # export_saved_model(self.model, os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter'), serving_only=True)
 
         self.current_game: Optional[CurrentGame] = None
         self.current_composite: Optional[RingsComposite] = None
@@ -387,7 +390,7 @@ class MinimapProcessor(Processor):
         t0 = time.perf_counter()
         filtered_minimap, filtered_rings = [
             np.clip(p[0], 0, 255).astype(np.uint8)
-            for p in self.model.predict([[map_image]], 1)
+            for p in self.model.predict(np.expand_dims(map_image, axis=0).astype(np.float32), 1)
         ]
         logger.debug(f'predict {(time.perf_counter() - t0) * 1000:.2f}')
 
@@ -462,8 +465,10 @@ class MinimapProcessor(Processor):
             t0 = time.perf_counter()
             frame.minimap = Minimap(
                 location,
-                self._get_circle(edges[:, :, 1], location),
-                self._get_circle(edges[:, :, 2], location),
+                None,
+                None,
+                # self._get_circle(edges[:, :, 1], location),
+                # self._get_circle(edges[:, :, 2], location),
                 spectate=is_spectate,
                 rings_composite=self.current_composite,
                 version=2,
@@ -687,58 +692,58 @@ class MinimapProcessor(Processor):
         edge = (w_edge * greater) + (h_edge * (1 - greater))
         return edge
 
-    def _get_circle(self, filt: np.ndarray, location: Location) -> Optional[Circle]:
-        y_i, x_i = np.nonzero(filt)
-        if len(y_i) > 50:
-            def calc_R(x, y, xc, yc):
-                """
-                calculate the distance of each 2D points from the center (xc, yc)
-                """
-                return np.sqrt((x - xc) ** 2 + (y - yc) ** 2)
-            def f(c, x, y):
-                """
-                calculate the algebraic distance between the data points
-                and the mean circle centered at c=(xc, yc)
-                """
-                Ri = calc_R(x, y, *c)
-                error = Ri - Ri.mean()
-                return error
-
-            x_m = np.mean(x_i)
-            y_m = np.mean(y_i)
-            center_estimate = x_m, y_m
-            result = optimize.least_squares(
-                f,
-                center_estimate,
-                args=(x_i, y_i),
-                # loss='soft_l1',
-            )
-            center = result.x
-            x, y = center
-            r_i = calc_R(x_i, y_i, x, y)
-            r = r_i.mean()
-            residu = np.sum((r_i - r) ** 2)
-
-            minimap_center_relative = (x - (240 // 2 - 8)), y - (240 // 2 - 8)
-            if location.bearing is not None:
-                rot = cv2.getRotationMatrix2D(
-                    (0, 0),
-                    360 - location.bearing,
-                    1
-                )
-                minimap_center_relative = tuple(cv2.transform(np.array([[minimap_center_relative]]), rot)[0][0])
-
-            return Circle(
-                (
-                    location.coordinates[0] + minimap_center_relative[0] * location.zoom,
-                    location.coordinates[1] + minimap_center_relative[1] * location.zoom
-                ),
-                r * location.zoom,
-                residu,
-                len(y_i),
-                )
-
-        return None
+    # def _get_circle(self, filt: np.ndarray, location: Location) -> Optional[Circle]:
+    #     y_i, x_i = np.nonzero(filt)
+    #     if len(y_i) > 50:
+    #         def calc_R(x, y, xc, yc):
+    #             """
+    #             calculate the distance of each 2D points from the center (xc, yc)
+    #             """
+    #             return np.sqrt((x - xc) ** 2 + (y - yc) ** 2)
+    #         def f(c, x, y):
+    #             """
+    #             calculate the algebraic distance between the data points
+    #             and the mean circle centered at c=(xc, yc)
+    #             """
+    #             Ri = calc_R(x, y, *c)
+    #             error = Ri - Ri.mean()
+    #             return error
+    #
+    #         x_m = np.mean(x_i)
+    #         y_m = np.mean(y_i)
+    #         center_estimate = x_m, y_m
+    #         result = optimize.least_squares(
+    #             f,
+    #             center_estimate,
+    #             args=(x_i, y_i),
+    #             # loss='soft_l1',
+    #         )
+    #         center = result.x
+    #         x, y = center
+    #         r_i = calc_R(x_i, y_i, x, y)
+    #         r = r_i.mean()
+    #         residu = np.sum((r_i - r) ** 2)
+    #
+    #         minimap_center_relative = (x - (240 // 2 - 8)), y - (240 // 2 - 8)
+    #         if location.bearing is not None:
+    #             rot = cv2.getRotationMatrix2D(
+    #                 (0, 0),
+    #                 360 - location.bearing,
+    #                 1
+    #             )
+    #             minimap_center_relative = tuple(cv2.transform(np.array([[minimap_center_relative]]), rot)[0][0])
+    #
+    #         return Circle(
+    #             (
+    #                 location.coordinates[0] + minimap_center_relative[0] * location.zoom,
+    #                 location.coordinates[1] + minimap_center_relative[1] * location.zoom
+    #             ),
+    #             r * location.zoom,
+    #             residu,
+    #             len(y_i),
+    #             )
+    #
+    #     return None
 
 
 def main() -> None:
@@ -782,11 +787,23 @@ def main() -> None:
         cv2.waitKey(0)
 
 
-MinimapProcessor.load_map(os.path.join(os.path.dirname(__file__), 'data', '4.png'))
-MinimapProcessor.MAP_VERSION = 4
+MinimapProcessor.load_map(os.path.join(os.path.dirname(__file__), 'data', '7.png'))
+MinimapProcessor.MAP_VERSION = 7
+
+
+def convert_tflite():
+    import tensorflow as tf
+
+    p = MinimapProcessor(use_tflite=False)
+    converter = tf.lite.TFLiteConverter.from_keras_model(p.model)
+    tflite_model = converter.convert()
+    with open(os.path.join(os.path.dirname(__file__), 'data', 'minimap_filter.tflite'), 'wb') as f:
+        f.write(tflite_model)
 
 
 if __name__ == '__main__':
+    # convert_tflite()
+
     import glob
     import json
     from tqdm import tqdm
@@ -817,5 +834,7 @@ if __name__ == '__main__':
     #
     #         cv2.imshow('debug', f.debug_image)
     #         cv2.waitKey(0)
+
+    util.test_processor("D:/overtrack/kings_canyon/game", proc, 'minimap', 'game_time', 'current_game', game='apex', test_all=False)
 
     util.test_processor('minimap_s3', proc, 'minimap', 'game_time', 'current_game', game='apex', test_all=False)
