@@ -17,7 +17,7 @@ class TFLiteModel:
             self.interpreter.set_tensor(self.input_details[0]['index'], inps[i:i+1].copy())
             self.interpreter.invoke()
             for r, od in zip(rs, self.output_details):
-                r.append(self.interpreter.get_tensor(od['index'])[0])
+                r.append(self.interpreter.get_tensor(od['index'])[0].copy())
         rs = [np.array(r) for r in rs]
         if len(rs) == 1:
             return rs[0]
