@@ -145,22 +145,24 @@ class Route:
                 self.logger.info(f'Classifying map as Kings Canyon ({self.map!r})')
                 map_location_names = data.kings_canyon_locations
 
-                self.locations = [
-                    Location(
-                        timestamp=l.timestamp,
-                        coordinates=(
-                            l.coordinates[0] - data.worlds_edge_locations.width,
-                            l.coordinates[1],
-                        )
-                    )
-                    for l in self.locations
-                ]
                 x -= data.worlds_edge_locations.width
-                y = np.clip(y, 0, data.kings_canyon_locations.height)
             else:
                 self.map = 'worlds_edge.s4'
                 self.logger.info(f'Classifying map as Worlds Edge ({self.map!r})')
                 map_location_names = data.worlds_edge_locations
+
+            self.locations = [
+                Location(
+                    timestamp=l.timestamp,
+                    coordinates=(
+                        int(xi),
+                        int(yi),
+                    )
+                )
+                for (l, xi, yi) in zip(self.locations, x, y)
+                if 0 <= xi < map_location_names.width and
+                   0 <= yi < map_location_names.height
+            ]
 
             if len(ts) < 3:
                 self.logger.warning(f'Only got {len(ts)} locations - assuming drop location = last location seen')
@@ -576,33 +578,6 @@ class Route:
         accel = np.diff(speed_smooth)
         plt.plot(accel)
 
-        t, x, y, r = [], [], [], []
-        for f in frames:
-            if 'minimap' in f and f.minimap.inner_circle:
-                t.append(f.game_time)
-                x.append(f.minimap.inner_circle.coordinates[0])
-                y.append(f.minimap.inner_circle.coordinates[1])
-                r.append(f.minimap.inner_circle.r)
-        plt.figure()
-        plt.title('inner')
-        plt.scatter(t, x, label='x')
-        plt.scatter(t, y, label='y')
-        plt.scatter(t, r, label='r')
-        plt.legend()
-
-        t, x, y, r = [], [], [], []
-        for f in frames:
-            if 'minimap' in f and f.minimap.outer_circle:
-                t.append(f.game_time)
-                x.append(f.minimap.outer_circle.coordinates[0])
-                y.append(f.minimap.outer_circle.coordinates[1])
-                r.append(f.minimap.outer_circle.r)
-        plt.figure()
-        plt.title('outer')
-        plt.scatter(t, x, label='x')
-        plt.scatter(t, y, label='y')
-        plt.scatter(t, r, label='r')
-        plt.legend()
 
         plt.show()
 
@@ -615,6 +590,7 @@ class Route:
         if len(self.locations):
             last = self.locations[self.landed_location_index][1]
             for ts, l in self.locations[self.landed_location_index + 1:]:
+                l = l[0], l[1]
                 dist = np.sqrt(np.sum((np.array(last) - np.array(l)) ** 2))
                 cv2.line(
                     image,
