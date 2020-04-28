@@ -11,6 +11,7 @@ import overtrack.apex.game.minimap.models
 import overtrack.apex.game.squad.models
 import overtrack.apex.game.squad_summary.models
 import overtrack.apex.game.weapon.models
+
 import overtrack.overwatch.game.eliminations.models
 import overtrack.overwatch.game.endgame.models
 import overtrack.overwatch.game.endgame_sr.models
@@ -26,8 +27,15 @@ import overtrack.overwatch.game.role_select.models
 import overtrack.overwatch.game.score.models
 import overtrack.overwatch.game.spectator.models
 import overtrack.overwatch.game.tab.models
+
+import overtrack.valorant.game.timer.models
+import overtrack.valorant.game.agent_select.models
+import overtrack.valorant.game.top_hud.models
+import overtrack.valorant.game.postgame.models
+import overtrack.valorant.game.home_screen.models
+
 from overtrack.apex.game.your_squad import ChampionSquad, YourSelection, YourSquad
-from overtrack.frame import CurrentGame, Frame, SerializableArray, Timings
+from overtrack.frame import CurrentGame, Frame, SerializableArray, Timings, ValorantData
 from overtrack.source.display_duplication import DisplayDuplicationSource
 from overtrack.source.shmem import SharedMemorySource
 from overtrack.util.uploadable_image import UploadableImage, UploadedImage
@@ -127,6 +135,8 @@ _TYPES = {
     'combat_log': overtrack.apex.game.combat.models.CombatLog,
     'apex_metadata': overtrack.apex.game.apex_metadata.ApexClientMetadata,
 
+    'valorant': ValorantData,
+
     'source': _Source,
     'current_game': CurrentGame,
 }
@@ -134,6 +144,16 @@ _TYPES = {
 class FrameLoader(ReferencedLoader):
 
     _dispatch = ReferencedLoader._dispatch.copy()
+
+    def __init__(self):
+        super().__init__({
+            'overtrack.valorant.game.home_screen.models.HomeScreen': overtrack.valorant.game.home_screen.models.HomeScreen,
+            'overtrack.valorant.game.timer.models.Timer': overtrack.valorant.game.timer.models.Timer,
+            'overtrack.valorant.game.agent_select.models.AgentSelect': overtrack.valorant.game.agent_select.models.AgentSelect,
+            'overtrack.valorant.game.top_hud.models.TopHud': overtrack.valorant.game.top_hud.models.TopHud,
+            'overtrack.valorant.game.postgame.models.Postgame': overtrack.valorant.game.postgame.models.Postgame,
+            'overtrack.valorant.game.postgame.models.Scoreboard': overtrack.valorant.game.postgame.models.Scoreboard,
+        })
 
     def _is_frame(self, type_: Type) -> bool:
         return type_ == Frame
@@ -153,6 +173,10 @@ class FrameLoader(ReferencedLoader):
                 result[k] = Timings(v)
             else:
                 raise TypeError(f'Don\'t know how to load Frame field {k!r}')
+
+        if 'valorant' not in result:
+            result.valorant = ValorantData()
+
         return result
     _dispatch.append((
         _is_frame,

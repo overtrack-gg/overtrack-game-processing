@@ -43,6 +43,30 @@ class Timings(Dict[str, float]):
     __repr__ = __str__
 
 
+@dataclass
+class ValorantData:
+    if TYPE_CHECKING:
+        import overtrack.valorant.game.home_screen.models
+        import overtrack.valorant.game.timer.models
+        import overtrack.valorant.game.top_hud.models
+        import overtrack.valorant.game.agent_select.models
+        import overtrack.valorant.game.postgame.models
+
+        home_screen: Optional[overtrack.valorant.game.home_screen.models.HomeScreen] = None
+        timer: Optional[overtrack.valorant.game.timer.models.Timer] = None
+        top_hud: Optional[overtrack.valorant.game.top_hud.models.TopHud] = None
+        agent_select: Optional[overtrack.valorant.game.agent_select.models.AgentSelect] = None
+        postgame: Optional[overtrack.valorant.game.postgame.models.Postgame] = None
+        scoreboard: Optional[overtrack.valorant.game.postgame.models.Scoreboard] = None
+    else:
+        home_screen: Optional['overtrack.valorant.game.home_screen.models.HomeScreen'] = None
+        timer: Optional['overtrack.valorant.game.timer.models.Timer'] = None
+        top_hud: Optional['overtrack.valorant.game.top_hud.models.TopHud'] = None
+        agent_select: Optional['overtrack.valorant.game.agent_select.models.AgentSelect'] = None
+        postgame: Optional['overtrack.valorant.game.postgame.models.Postgame'] = None
+        scoreboard: Optional['overtrack.valorant.game.postgame.models.Scoreboard'] = None
+
+
 class Frame(Dict[str, Any]):
 
     def __init__(
@@ -57,6 +81,8 @@ class Frame(Dict[str, Any]):
             self.debug_image: Optional[np.ndarray] = None
         if '_image_yuv' not in kwargs:
             self._image_yuv: Optional[np.ndarray] = None
+
+        self.valorant = ValorantData()
 
     # typing hints - access to fields is through object-level dict or __getattr__
     if TYPE_CHECKING:
@@ -145,6 +171,8 @@ class Frame(Dict[str, Any]):
         minimap: overtrack.apex.game.minimap.models.Minimap
         apex_metadata: overtrack.apex.game.apex_metadata.ApexClientMetadata
 
+        valorant: ValorantData
+
         timings: Timings
 
         from overtrack.source.stream.ts_stream import TSSource
@@ -180,6 +208,8 @@ class Frame(Dict[str, Any]):
             relative_timestamp = f.timestamp - _init_time
         f.relative_timestamp = relative_timestamp
         f.relative_timestamp_str = f'{s2ts(relative_timestamp)}.' + f'{relative_timestamp % 1 :.2f}'[2:]
+
+        f.valorant = ValorantData()
 
         f.timings = Timings(**timings if timings else {})
         if debug:

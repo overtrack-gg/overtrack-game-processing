@@ -3,6 +3,19 @@ from typing import List
 
 from dataclasses import Field, dataclass, fields, is_dataclass
 
+try:
+    from pynamodb.models import Model as PynamoModel
+    from pynamodb.attributes import MapAttribute
+except:
+    class PynamoModel:
+        pass
+    MapAttribute = PynamoModel
+
+
+@dataclass
+class PynamoField:
+    name: str
+
 
 class DataclassPrettyPrinter(PrettyPrinter):
 
@@ -23,19 +36,30 @@ class DataclassPrettyPrinter(PrettyPrinter):
             return
         rep = self._repr(object, context, level)
         max_width = self._width - indent - allowance
+
+        if isinstance(object, (PynamoModel, MapAttribute)):
+            # Don't use default repr
+            rep = f'{object.__class__.__qualname__}(' + ', '.join(
+                f'{k}={self._repr(getattr(object, k), context, level + 1)}' for k in object._attributes.keys()
+            ) + ')'
+
         if len(rep) > max_width:
             p = self._dispatch.get(type(object).__repr__, None)
             # Modification: use custom _pprint_dict before using from _dispatch
             # Modification: add _pprint_dataclass
             if isinstance(object, dict):
                 context[objid] = 1
-                self._pprint_dict(object, stream, indent, allowance,
-                                  context, level + 1)
+                self._pprint_dict(object, stream, indent, allowance, context, level + 1)
                 del context[objid]
                 return
             elif is_dataclass(object):
                 context[objid] = 1
                 self._pprint_dataclass(object, stream, indent, allowance, context, level + 1)
+                del context[objid]
+                return
+            elif isinstance(object, (PynamoModel, MapAttribute)):
+                context[objid] = 1
+                self._pprint_pynamo_model(object, stream, indent, allowance, context, level + 1)
                 del context[objid]
                 return
             elif p is not None:
@@ -53,11 +77,34 @@ class DataclassPrettyPrinter(PrettyPrinter):
         length = len(object)
         if length:
             # Modification: don't sort dictionaries
-            # modern python keeps key order to creation/insertion order, and this order often has meaning
+            # Modern python keeps key order to creation/insertion order, and this order often has meaning
             items = object.items()
-            self._format_dict_items(items, stream, indent, allowance + 1,
-                                    context, level)
+            self._format_dict_items(items, stream, indent, allowance + 1, context, level)
         write('}')
+
+    def _format_dict_items(self, items, stream, indent, allowance, context, level):
+        write = stream.write
+        indent += self._indent_per_level
+        max_width = self._width - indent - allowance
+        delimnl = ',\n' + ' ' * indent
+        last_index = len(items) - 1
+        for i, (key, ent) in enumerate(items):
+            last = i == last_index
+            rep = self._repr(key, context, level)
+            if len(rep) < max_width:
+                write(rep)
+                write(': ')
+                self._format(ent, stream, indent + len(rep) + 2,
+                             allowance if last else 1,
+                             context, level)
+            else:
+                self._format(key, stream, indent, allowance if last else 1, context, level)
+                write(': ')
+                self._format(ent, stream, indent + 2,
+                             allowance if last else 1,
+                             context, level)
+            if not last:
+                write(delimnl)
 
     def _pprint_dataclass(self, object, stream, indent, allowance, context, level):
         write = stream.write
@@ -84,6 +131,18 @@ class DataclassPrettyPrinter(PrettyPrinter):
                 write(delimnl)
         indent -= self._indent_per_level
         write('\n' + ' ' * indent)
+
+    def _pprint_pynamo_model(self, object, stream, indent, allowance, context, level):
+        write = stream.write
+        write(f'{object.__class__.__qualname__}(')
+        if self._indent_per_level > 1:
+            write((self._indent_per_level - 1) * ' ')
+        object_fields = [
+            PynamoField(n) for n in object._attributes.keys()
+        ]
+        if len(object_fields):
+            self._format_dataclass_fields(object, object_fields, stream, indent, allowance + 1, context, level)
+        write(')')
 
 
 def pprint(object, stream=None, indent=1, width=80, depth=None, *, compact=False):

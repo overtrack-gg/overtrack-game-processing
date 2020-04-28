@@ -54,7 +54,19 @@ def sliders(image: np.ndarray, **kwargs: Callable[[Any], np.ndarray]) -> Dict[st
                 editable_image = images
                 steps.append(editable_image)
 
-        cv2.imshow('sliders', np.hstack(steps))
+        height = max(i.shape[0] for i in steps)
+        width = max(i.shape[1] for i in steps)
+        cv2.imshow('sliders', np.hstack([
+            cv2.copyMakeBorder(
+                s,
+                0,
+                height - s.shape[0],
+                0,
+                width - s.shape[1],
+                cv2.BORDER_CONSTANT
+            )
+            for s in steps
+        ]))
         while not updated:
             k = cv2.waitKey(10) & 0xFF
             if k == 27:
@@ -398,6 +410,7 @@ def tesser_ocr(im: np.ndarray, vscale: float = 3, **kwargs) -> None:
 
 def test_tesser_engines(image: np.ndarray, scale: float = 1.) -> None:
     import overtrack.apex.ocr
+    import overtrack.valorant.ocr
 
     if scale != 0:
         image = cv2.resize(image, (0, 0), fx=scale, fy=scale)
@@ -415,6 +428,10 @@ def test_tesser_engines(image: np.ndarray, scale: float = 1.) -> None:
         ('tesseract_mensura', overtrack.apex.ocr.tesseract_mensura),
         ('tesseract_ttlakes_digits_specials', overtrack.apex.ocr.tesseract_ttlakes_digits_specials),
         ('tesseract_ttlakes_bold_digits_specials', overtrack.apex.ocr.tesseract_ttlakes_bold_digits_specials),
+
+        ('din_next_regular_digits', overtrack.valorant.ocr.din_next_regular_digits),
+        ('din_next_regular', overtrack.valorant.ocr.din_next_regular),
+        ('din_next_combined', overtrack.valorant.ocr.din_next_combined),
     ]:
         if len(image.shape) == 2:
             height, width = image.shape
@@ -469,6 +486,16 @@ def hstack(images: Sequence[np.ndarray]) -> np.ndarray:
         ) for i in images
     )
 
+
+def normalise(image):
+    # image = image.astype(np.float)
+    sliders(
+        image,
+        normalise=lambda im, bottom_0_100, top_0_100: cv2.resize(
+            imageops.normalise(im, bottom_0_100, top_0_100),
+            (0, 0), fx=3, fy=3
+        )
+    )
 
 def main() -> None:
     # im = cv2.imread("C:/Users/simon/mpv-screenshots/Untitled.png")

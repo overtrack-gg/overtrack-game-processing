@@ -127,6 +127,8 @@ def config_logger(
         upload_func: Optional[Callable[[str, str], None]] = None,
         upload_frequency: Optional[float] = None,
 
+        custom_loggers_config: Optional[Dict[str, Dict]] = None,
+
         format: str = LOG_FORMAT,
         logdir: str = 'logs') -> None:
 
@@ -226,6 +228,8 @@ def config_logger(
                 'level': 'ERROR',
                 'propagate': False
             },
+
+            **(custom_loggers_config or {})
         }
     })
 

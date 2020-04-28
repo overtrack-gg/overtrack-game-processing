@@ -4,7 +4,7 @@ import operator
 import os
 import string
 from threading import Lock
-from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, no_type_check, overload
+from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, no_type_check, overload, Any
 
 import cv2
 import numpy as np
@@ -314,10 +314,16 @@ def findContours(
         return r[0], r[1]
 
 
-def normalise(im: np.ndarray) -> np.ndarray:
+def normalise(im: np.ndarray, bottom: int = 2, top: int = 98) -> np.ndarray:
     im = im.astype(np.float)
-    im -= np.percentile(im, 2)
-    im /= np.percentile(im, 98)
+    if bottom:
+        im -= np.percentile(im, bottom)
+    else:
+        im -= np.min(im)
+    if top:
+        im /= np.percentile(im, top)
+    else:
+        im /= np.max(im)
     return np.clip(im * 255, 0, 255).astype(np.uint8)
 
 
@@ -336,18 +342,28 @@ def matchTemplate(image: np.ndarray, template: np.ndarray, method: int, mask: Op
         return cv2.matchTemplate(image, template, method, mask=mask)
 
 
-def match_templates(image: np.ndarray, templates: Dict[str, np.ndarray], method: int, required_match: Optional[float] = None) -> Tuple[float, str]:
+def match_templates(
+    image: np.ndarray,
+    templates: Dict[T, np.ndarray],
+    method: int,
+    required_match: Optional[float] = None,
+    use_masks: bool = False,
+    verbose: bool = False,
+
+    previous_match_context: Any = None,
+    _previous_match_dict={}
+) -> Tuple[float, T]:
     """
     Find the template that best matches `image` OR the first template that meets `required_match`
 
-    :param image: The image to test templates against
-    :param templates: A dictionary of templates and their names
-    :param method: The CV2 method to match templates
-    :param required_match: The required match to return early when a template meets this
     :return: A tuple of the match value and key of the best match OR the first match meeting required_match (if provided)
     """
     if not templates:
         raise ValueError('No templates provided (templates was empty dict)')
+
+    previous_match = None
+    if previous_match_context is not None:
+        previous_match = _previous_match_dict.get(previous_match_context)
 
     if method in [cv2.TM_SQDIFF_NORMED, cv2.TM_SQDIFF]:
         arrop = np.min
@@ -357,14 +373,27 @@ def match_templates(image: np.ndarray, templates: Dict[str, np.ndarray], method:
         valop = operator.gt
 
     # TODO: check the last template that matched first
-    best: Optional[Tuple[float, str]] = None
-    for key, template in templates.items():
-        match = float(arrop(matchTemplate(image, template, method)))
-        if required_match is not None and valop(match, required_match):
+    best: Optional[Tuple[float, T]] = None
+    matches = []
+    for key, template in sorted(list(templates.items()), key=lambda e: e[0] == previous_match, reverse=True):
+        mask = None
+        if use_masks:
+            template, mask = template
+        match = float(arrop(matchTemplate(image, template, method, mask=mask)))
+        matches.append((key, match))
+        if required_match is not None and valop(match, required_match) and not verbose:
+            if previous_match_context is not None:
+                _previous_match_dict[previous_match_context] = key
             return match, key
         if not best or valop(match, best[0]):
             best = match, key
 
+    if verbose:
+        import tabulate
+        matches.sort(key=lambda e: e[1])
+        logger.info(f'Got matches:\n{tabulate.tabulate(matches)}')
+
+    assert best is not None
     return best
 
 

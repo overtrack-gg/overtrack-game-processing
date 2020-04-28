@@ -1,0 +1,218 @@
+import logging
+import os
+from typing import Optional
+
+import Levenshtein as levenshtein
+import cv2
+import numpy as np
+
+from overtrack.frame import Frame
+from overtrack.processor import Processor
+from overtrack.util import time_processing, imageops
+from overtrack.util.region_extraction import ExtractionRegionsCollection
+from overtrack.util.uploadable_image import lazy_upload
+from overtrack.valorant.data import agents
+from overtrack.valorant.game.postgame import Postgame
+from overtrack.valorant.game.postgame.models import Scoreboard, PlayerStats
+from overtrack.valorant.ocr import din_next_regular_digits
+
+logger = logging.getLogger('TopHudProcessor')
+
+
+def draw_postgame(debug_image: Optional[np.ndarray], postgame: Postgame) -> None:
+    if debug_image is None:
+        return
+
+    for c, t in ((0, 0, 0), 5), ((64, 0, 255), 2):
+        cv2.putText(
+            debug_image,
+            str(postgame),
+            (500, 300),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.75,
+            c,
+            t,
+        )
+
+
+def draw_scoreboard(debug_image: Optional[np.ndarray], scoreboard: Scoreboard) -> None:
+    if debug_image is None:
+        return
+
+    for i, stat in enumerate(scoreboard.player_stats):
+        for c, t in ((0, 0, 0), 3), ((255, 255, 255), 1):
+            cv2.putText(
+                debug_image,
+                str(stat),
+                (335, 400 + i * 52),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                c,
+                t,
+            )
+
+
+def load_agent_template(path):
+    image = cv2.imread(path, -1)[5:-5, 5:-5]
+    return image[:, :, :3], cv2.cvtColor(image[:, :, 3], cv2.COLOR_GRAY2BGR)
+
+
+class PostgameProcessor(Processor):
+
+    REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
+    SCOREBOARD_REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', 'scoreboard', '16_9.zip'))
+    RESULTS = {
+        'victory': cv2.imread(os.path.join(os.path.dirname(__file__), 'data', 'victory.png'), 0),
+        'defeat': cv2.imread(os.path.join(os.path.dirname(__file__), 'data', 'defeat.png'), 0),
+    }
+    RESULT_TEMPLATE_REQUIRED_MATCH = 0.8
+
+    # TAB_SELECTED_TEMPLATE = np.array([0] * 50 + [3] * 73 + [5] * 24 + [3] * 73 + [0] * 50)
+    # TABS = [
+    #     ('summary', 240),
+    #     ('scoreboard', 335)
+    # ]
+    SCOREBOARD_SORT_MODES = [
+        'Individually Sorted',
+        'Grouped By Team',
+    ]
+
+    AGENT_TEMPLATES = {
+        name: load_agent_template(os.path.join(os.path.dirname(__file__), 'data', 'agents', name + '.png'))
+        for name in agents
+    }
+    AGENT_TEMPLATE_REQUIRED_MATCH = 50
+
+    @time_processing
+    def process(self, frame: Frame) -> bool:
+        result_y = self.REGIONS['result'].extract_one(frame.image_yuv[:, :, 0])
+        _, result_thresh = cv2.threshold(result_y, 220, 255, cv2.THRESH_BINARY)
+        match, result = imageops.match_templates(
+            result_thresh,
+            self.RESULTS,
+            cv2.TM_CCORR_NORMED,
+            required_match=self.RESULT_TEMPLATE_REQUIRED_MATCH,
+            previous_match_context=(self.__class__.__name__, 'result'),
+        )
+
+        if match > self.RESULT_TEMPLATE_REQUIRED_MATCH:
+            logger.debug(f'Round result is {result} with match={match}')
+
+            score_ims = self.REGIONS['scores'].extract(frame.image)
+            score_gray = [imageops.normalise(np.max(im, axis=2)) for im in score_ims]
+            scores = imageops.tesser_ocr_all(
+                score_gray,
+                expected_type=int,
+                engine=din_next_regular_digits,
+                invert=True,
+            )
+            logger.debug(f'Round score is {scores}')
+
+            map_im = self.REGIONS['map'].extract_one(frame.image)
+            map_im_gray = 255 - imageops.normalise(np.min(map_im, axis=2))
+            map_text = imageops.tesser_ocr(
+                map_im_gray,
+                engine=imageops.tesseract_lstm,
+            )
+            map_confidence = np.mean(imageops.tesseract_lstm.AllWordConfidences())
+            logger.debug(f'Got map={map_text!r}, confidence={map_confidence}')
+            if map_confidence < 50:
+                logger.warning(f'Map confidence for {map_text!r} below 50 (confidence={map_confidence}) - rejecting')
+                map_text = None
+
+            frame.valorant.postgame = Postgame(
+                victory=result == 'victory',
+                score=(scores[0], scores[1]),
+                map=map_text,
+                image=lazy_upload('postgame', self.REGIONS.blank_out(frame.image), frame.timestamp),
+            )
+            draw_postgame(frame.debug_image, frame.valorant.postgame)
+
+            sort_mode_y = self.REGIONS['scoreboard_sort_mode'].extract_one(frame.image_yuv[:, :, 0])
+            sort_mode_filt = 255 - imageops.normalise(sort_mode_y)
+            sort_mode = imageops.tesser_ocr(sort_mode_filt)
+            sort_mode_match = max([levenshtein.ratio(sort_mode, expected) for expected in self.SCOREBOARD_SORT_MODES])
+            logger.debug(f'Got scoreboard sort mode: {sort_mode!r} match={sort_mode_match:.2f}')
+
+            if sort_mode_match > 0.75:
+                frame.valorant.scoreboard = self._parse_scoreboard(frame)
+                draw_scoreboard(frame.debug_image, frame.valorant.scoreboard)
+
+            return True
+
+        return False
+
+    def _parse_scoreboard(self, frame: Frame) -> Scoreboard:
+        agent_images = self.SCOREBOARD_REGIONS['agents'].extract(frame.image)
+
+        name_images = self.SCOREBOARD_REGIONS['names'].extract(frame.image)
+
+        stat_images = self.SCOREBOARD_REGIONS['stats'].extract(frame.image)
+        stat_images_filt = [self._filter_statrow_image(im) for im in stat_images]
+        stat_image_rows = [stat_images_filt[r * 8:(r + 1) * 8] for r in range(10)]
+
+        # cv2.imshow(
+        #     'stats',
+        #     np.vstack([
+        #         np.hstack([self._filter_statrow_image(n)] + r)
+        #         for n, r in zip(name_images, stat_image_rows)
+        #     ])
+        # )
+
+        stats = []
+        for i, (agent_im, name_im, stat_row) in enumerate(zip(agent_images, name_images, stat_image_rows)):
+            agent_match, agent = imageops.match_templates(
+                agent_im,
+                self.AGENT_TEMPLATES,
+                method=cv2.TM_SQDIFF,
+                required_match=self.AGENT_TEMPLATE_REQUIRED_MATCH,
+                use_masks=True,
+                previous_match_context=(self.__class__.__name__, 'scoreboard', 'agent', i)
+            )
+            if agent_match > self.AGENT_TEMPLATE_REQUIRED_MATCH:
+                agent = None
+
+            row_bg = name_im[np.max(name_im, axis=2) < 200]
+            row_color = np.median(row_bg, axis=0).astype(np.int)
+
+            stat = PlayerStats(
+                agent,
+                imageops.tesser_ocr(
+                    self._filter_statrow_image(name_im),
+                    engine=imageops.tesseract_lstm,
+                ),
+                row_color[0] > row_color[2],
+                *imageops.tesser_ocr_all(
+                    stat_row,
+                    expected_type=int,
+                    engine=din_next_regular_digits,
+                )
+            )
+            stats.append(stat)
+            logger.debug(f'Got player stats: {stat} - agent match={agent_match:.2f}, row colour={tuple(row_color)}')
+
+        return Scoreboard(
+            stats,
+            image=lazy_upload('scoreboard', self.SCOREBOARD_REGIONS.blank_out(frame.image), frame.timestamp),
+        )
+
+    def _filter_statrow_image(self, im):
+        im_gray = np.min(im, axis=2).astype(np.float)
+        bgcol = np.percentile(im_gray, 90)
+        im_norm = im_gray - bgcol
+        im_norm = im_norm / np.max(im_norm)
+        im = 255 - np.clip(im_norm * 255, 0, 255).astype(np.uint8)
+        return im
+
+
+def main():
+    from overtrack.util.logging_config import config_logger
+    from overtrack import util
+    config_logger(os.path.basename(__file__), level=logging.DEBUG, write_to_file=False)
+    p = PostgameProcessor()
+    util.test_processor('postgame', p, 'postgame', game='valorant', test_all=False)
+    util.test_processor('postgame/scoreboard', p, 'postgame', game='valorant', test_all=False)
+
+
+if __name__ == '__main__':
+    main()
