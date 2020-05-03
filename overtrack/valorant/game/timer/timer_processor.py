@@ -9,9 +9,12 @@ from typing import Optional
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import time_processing, imageops
+from overtrack.util import time_processing, imageops, debugops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.game.timer.models import Timer
+
+
+logger = logging.getLogger('TimerProcessor')
 
 
 def draw_timer(debug_image: Optional[np.ndarray], timer: Timer) -> None:
@@ -42,46 +45,52 @@ class TimerProcessor(Processor):
 
     @time_processing
     def process(self, frame: Frame) -> bool:
-        timer_y = self.REGIONS['timer'].extract_one(frame.image_yuv[:, :, 0])
-        _, timer_y_thresh = cv2.threshold(timer_y, 230, 255, cv2.THRESH_BINARY)
+        # timer_y = self.REGIONS['timer'].extract_one(frame.image_yuv[:, :, 0])
+        # _, timer_y_thresh = cv2.threshold(timer_y, 230, 255, cv2.THRESH_BINARY)
 
         spike_planted_im = self.REGIONS['spike_planted'].extract_one(frame.image)
         spike_planted_thresh = cv2.inRange(
             spike_planted_im,
-            (0, 0, 170),
+            (0, 0, 130),
             (10, 10, 250),
         )
+        # cv2.imshow('spike_planted_im', spike_planted_im)
+        # cv2.imshow('spike_planted_thresh', spike_planted_thresh)
+        # cv2.imshow('SPIKE_PLANTED_TEMPLATE', self.SPIKE_PLANTED_TEMPLATE)
         spike_planted_match = np.max(cv2.matchTemplate(
             spike_planted_thresh,
             self.SPIKE_PLANTED_TEMPLATE,
             cv2.TM_CCORR_NORMED,
         ))
-        spike_planted = spike_planted_match > self.SPIKE_PLANTED_REQUIRED_MATCH
+        logger.debug(f'Spike planted match: {spike_planted_match:.2f}')
+        spike_planted = bool(spike_planted_match > self.SPIKE_PLANTED_REQUIRED_MATCH)
 
         if spike_planted:
             buy_phase = False
         else:
-            buy_phase_y = self.REGIONS['buy_phase'].extract_one(frame.image_yuv[:, :, 0])
-            _, buy_phase_thresh = cv2.threshold(
-                buy_phase_y,
-                200,
-                255,
-                cv2.THRESH_BINARY
+            buy_phase_gray = np.min(self.REGIONS['buy_phase'].extract_one(frame.image), axis=2)
+            buy_phase_norm = imageops.normalise(buy_phase_gray, bottom=70)
+            # cv2.imshow('buy_phase_norm', buy_phase_norm)
+            buy_phase_match = np.max(cv2.matchTemplate(buy_phase_norm, self.BUY_PHASE_TEMPLATE, cv2.TM_CCORR_NORMED))
+            logger.debug(f'Buy phase match: {buy_phase_match}')
+            buy_phase = buy_phase_match > 0.9
+
+
+        countdown_text = None
+        if not spike_planted:
+            countdown_gray = np.min(self.REGIONS['timer'].extract_one(frame.image), axis=2)
+            countdown_norm = 255 - imageops.normalise(countdown_gray, bottom=80)
+            # debugops.test_tesser_engines(
+            #     countdown_norm
+            # )
+            countdown_text = imageops.tesser_ocr(
+                countdown_norm,
+                # whitelist=string.digits + ':.',
+                engine=imageops.tesseract_only
             )
-            # cv2.imshow('buy_phase_thresh', buy_phase_thresh)
-            buy_phase_match = np.max(cv2.matchTemplate(buy_phase_thresh, self.BUY_PHASE_TEMPLATE, cv2.TM_CCORR_NORMED))
-            buy_phase = buy_phase_match > 0.75
 
-        # cv2.imshow('spike_planted_thresh', spike_planted_thresh)
-        # cv2.imshow('SPIKE_PLANTED_TEMPLATE', self.SPIKE_PLANTED_TEMPLATE)
-
-        countdown_text = imageops.tesser_ocr(
-            timer_y_thresh,
-            whitelist=string.digits + ':.',
-            engine=imageops.tesseract_only
-        )
-        if len(countdown_text) > 6:
-            countdown_text = None
+            if len(countdown_text) > 6:
+                countdown_text = None
 
         frame.valorant.timer = Timer(
             spike_planted=spike_planted,
@@ -96,7 +105,7 @@ def main():
     from overtrack.util.logging_config import config_logger
     from overtrack import util
     config_logger(os.path.basename(__file__), level=logging.DEBUG, write_to_file=False)
-    util.test_processor('ingame', TimerProcessor(), 'timer', game='valorant')
+    util.test_processor('ingame', TimerProcessor(), 'timer', game='valorant', wait=True)
 
 
 if __name__ == '__main__':

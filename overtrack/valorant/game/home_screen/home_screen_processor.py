@@ -13,6 +13,9 @@ from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.game.home_screen.models import HomeScreen
 
 
+logger = logging.getLogger('HomeScreenProcessor')
+
+
 def draw_home_screen(debug_image: Optional[np.ndarray], home_screen: HomeScreen) -> None:
     if debug_image is None:
         return
@@ -35,16 +38,26 @@ class HomeScreenProcessor(Processor):
 
     @time_processing
     def process(self, frame: Frame) -> bool:
-        practice_im = self.REGIONS['practice'].extract_one(frame.image)
-        practice_gray = 255 - imageops.normalise(np.min(practice_im, axis=2))
-        practice_text = imageops.tesser_ocr(
-            practice_gray,
+        social_im = self.REGIONS['social'].extract_one(frame.image)
+        social_gray = 255 - imageops.normalise(np.min(social_im, axis=2))
+        social_text = imageops.tesser_ocr(
+            social_gray,
             engine=imageops.tesseract_lstm,
         )
-        if levenshtein.ratio(practice_text, 'PRACTICE') > 0.8:
-            frame.valorant.home_screen = HomeScreen()
-            draw_home_screen(frame.debug_image, frame.valorant.home_screen)
-            return True
+        logger.debug(f'Social text: {social_text!r}')
+        if levenshtein.ratio(social_text, 'SOCIAL') > 0.8:
+
+            play_im = self.REGIONS['play'].extract_one(frame.image)
+            play_gray = 255 - imageops.normalise(np.min(play_im, axis=2))
+            play_text = imageops.tesser_ocr(
+                play_gray,
+                engine=imageops.tesseract_lstm,
+            )
+            logger.debug(f'Menu type string: {play_text!r}')
+            if levenshtein.ratio(play_text, 'PLAY') > 0.7:
+                frame.valorant.home_screen = HomeScreen()
+                draw_home_screen(frame.debug_image, frame.valorant.home_screen)
+                return True
 
         return False
 

@@ -8,7 +8,7 @@ import numpy as np
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import time_processing, imageops
+from overtrack.util import time_processing, imageops, textops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.util.uploadable_image import lazy_upload
 from overtrack.valorant.data import agents
@@ -73,8 +73,8 @@ class PostgameProcessor(Processor):
     #     ('scoreboard', 335)
     # ]
     SCOREBOARD_SORT_MODES = [
-        'Individually Sorted',
-        'Grouped By Team',
+        textops.strip_string('Individually Sorted').upper(),
+        textops.strip_string('Grouped By Team').upper(),
     ]
 
     AGENT_TEMPLATES = {
@@ -128,10 +128,15 @@ class PostgameProcessor(Processor):
             )
             draw_postgame(frame.debug_image, frame.valorant.postgame)
 
-            sort_mode_y = self.REGIONS['scoreboard_sort_mode'].extract_one(frame.image_yuv[:, :, 0])
-            sort_mode_filt = 255 - imageops.normalise(sort_mode_y)
-            sort_mode = imageops.tesser_ocr(sort_mode_filt)
-            sort_mode_match = max([levenshtein.ratio(sort_mode, expected) for expected in self.SCOREBOARD_SORT_MODES])
+            sort_mode_gray = np.min(self.SCOREBOARD_REGIONS['scoreboard_sort_mode'].extract_one(frame.image), axis=2)
+            sort_mode_filt = 255 - imageops.normalise(sort_mode_gray, bottom=75)
+            # cv2.imshow('sort_mode_gray', sort_mode_gray)
+            sort_mode = imageops.tesser_ocr(sort_mode_filt, engine=imageops.tesseract_lstm)
+
+            sort_mode_match = max([
+                levenshtein.ratio(textops.strip_string(sort_mode).upper(), expected)
+                for expected in self.SCOREBOARD_SORT_MODES
+            ])
             logger.debug(f'Got scoreboard sort mode: {sort_mode!r} match={sort_mode_match:.2f}')
 
             if sort_mode_match > 0.75:
@@ -210,8 +215,8 @@ def main():
     from overtrack import util
     config_logger(os.path.basename(__file__), level=logging.DEBUG, write_to_file=False)
     p = PostgameProcessor()
-    util.test_processor('postgame', p, 'postgame', game='valorant', test_all=False)
-    util.test_processor('postgame/scoreboard', p, 'postgame', game='valorant', test_all=False)
+    util.test_processor('postgame', p, 'valorant.postgame', 'valorant.scoreboard', game='valorant', test_all=False)
+    util.test_processor('postgame/scoreboard', p, 'valorant.postgame', 'valorant.scoreboard', game='valorant', test_all=False)
 
 
 if __name__ == '__main__':

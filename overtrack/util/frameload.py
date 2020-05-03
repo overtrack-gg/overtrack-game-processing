@@ -2,6 +2,8 @@ import base64
 import bz2
 from typing import Any, Dict, Type, TypeVar, Union
 
+from dataclasses import fields
+
 import overtrack.apex.game.apex_metadata
 import overtrack.apex.game.combat.models
 import overtrack.apex.game.match_status.models
@@ -146,14 +148,15 @@ class FrameLoader(ReferencedLoader):
     _dispatch = ReferencedLoader._dispatch.copy()
 
     def __init__(self):
-        super().__init__({
-            'overtrack.valorant.game.home_screen.models.HomeScreen': overtrack.valorant.game.home_screen.models.HomeScreen,
-            'overtrack.valorant.game.timer.models.Timer': overtrack.valorant.game.timer.models.Timer,
-            'overtrack.valorant.game.agent_select.models.AgentSelect': overtrack.valorant.game.agent_select.models.AgentSelect,
-            'overtrack.valorant.game.top_hud.models.TopHud': overtrack.valorant.game.top_hud.models.TopHud,
-            'overtrack.valorant.game.postgame.models.Postgame': overtrack.valorant.game.postgame.models.Postgame,
-            'overtrack.valorant.game.postgame.models.Scoreboard': overtrack.valorant.game.postgame.models.Scoreboard,
-        })
+        frefs = {}
+        for f in fields(ValorantData):
+            typestr = f.type.__args__[0].__forward_arg__
+            modulestr, classname = typestr.rsplit('.', 1)
+            type_ = __import__(modulestr)
+            for p in typestr.split('.')[1:]:
+                type_ = getattr(type_, p)
+            frefs[typestr] = type_
+        super().__init__(frefs)
 
     def _is_frame(self, type_: Type) -> bool:
         return type_ == Frame

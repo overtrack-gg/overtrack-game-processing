@@ -10,6 +10,7 @@ from overtrack.frame import Frame
 from overtrack.util import textops
 from overtrack.util.prettyprint import pprint
 from overtrack.valorant import data
+from overtrack.valorant.collect.kills import Kills
 from overtrack.valorant.collect.rounds import Rounds
 from overtrack.valorant.collect.teams import Teams
 from overtrack_models.dataclasses.typedload import referenced_typedload
@@ -28,20 +29,29 @@ class NoMapError(GameParseError):
 
 @dataclass
 class ValorantGame:
-
+    key: str
     timestamp: float
     duration: float
 
     spectated: bool
 
+    won: Optional[bool]
+
     map: MapName
     rounds: Rounds
     teams: Teams
-    score: Tuple[Optional[int], Optional[int]]
 
-    version: str = VERSION
+    version: str
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
+
+    @property
+    def score(self) -> Optional[Tuple[int, int]]:
+        return self.rounds.final_score
+
+    @property
+    def time(self) -> datetime.datetime:
+        return datetime.datetime.fromtimestamp(self.timestamp)
 
     def __init__(self, frames: List[Frame], key: Optional[str] = None, debug: Union[bool, str] = False):
         self.timestamp = frames[0].timestamp
@@ -53,14 +63,35 @@ class ValorantGame:
 
         self.spectated = False
 
+        map_ = self._resolve_map(frames)
+        self.map = map_
+
+        self.rounds = Rounds(frames, debug)
+        self.duration = self.rounds[-1].end
+        self.teams = Teams(frames, self.rounds, debug)
+
+        for r in self.rounds:
+            r.kills = Kills(frames, self.teams, self.timestamp, r.start, r.end)
+
+        if self.rounds[-1].won is not None:
+            self.won = self.rounds[-1].won
+        elif self.score:
+            self.won = self.score[0] > self.score[1]
+        else:
+            self.won = None
+
+        self.version = VERSION
+
+    def _resolve_map(self, frames):
         mapcounter = Counter()
         map_texts = []
         for f in frames:
-            if f.valorant.agent_select:
+            if f.valorant.agent_select and f.valorant.agent_select.map:
                 map_texts.append(f.valorant.agent_select.map)
-            elif f.valorant.postgame:
+            elif f.valorant.postgame and f.valorant.postgame.map:
                 map_texts.append(f.valorant.postgame.map)
         map_texts = map_texts[-50:]
+        map_ = None
         for map_text in map_texts:
             map_ = textops.best_match(
                 map_text,
@@ -70,37 +101,10 @@ class ValorantGame:
             )
             if map_:
                 mapcounter[map_] += 1
-        if not len(mapcounter):
+        if not map_:
             raise NoMapError()
-        self.map = mapcounter.most_common(1)[0][0]
-        self.logger.info(f'Resolving map {mapcounter} -> {self.map}')
-
-        self.rounds = Rounds(frames, debug)
-        self.duration = self.rounds[-1].end
-        self.teams = Teams(frames, self.rounds, debug)
-
-        score = [0, 0]
-        if self.won is not None:
-            score[self.won - 1] = 13
-            score[self.won] = len(self.rounds) - 13
-            self.logger.info(
-                f'Resolved score={score} from known winning team (team {int(not self.won) + 1}) '
-                f'and number of rounds ({len(self.rounds)})'
-            )
-        else:
-            for round_ in self.rounds:
-                if round_.won is not None:
-                    score[1 - round_.won] += 1
-            self.logger.warning(f'Game winner unknown - resolved score={score} from round win totals')
-        self.score = score[0], score[1]
-
-    @property
-    def won(self) -> Optional[bool]:
-        return self.rounds[-1].won
-
-    @property
-    def time(self) -> datetime.datetime:
-        return datetime.datetime.fromtimestamp(self.timestamp)
+        self.logger.info(f'Resolving map {mapcounter} -> {map_}')
+        return map_
 
     def asdict(self) -> Dict[str, Any]:
         return referenced_typedload.dump(self)
@@ -113,41 +117,44 @@ def main():
     import json
     from overtrack.util import frameload
 
-    # with open("C:/Users/simon/overtrack_2/overtrack_2/overtrack/valorant/frames.json") as f:
-    #     frames = frameload.frames_load(json.load(f), List[Frame])
+    frames_path = "D:/overtrack/valorant_stream_client/games/2020-05-03-04-19-57.frames.json"
+
+    with open(frames_path) as frame:
+        frames = frameload.frames_load(json.load(frame), List[Frame])
+
+    # import cv2
+    # from overtrack.valorant.game.default_pipeline import create_pipeline
+    # from overtrack.frame import ValorantData
+    # from tqdm import tqdm
     #
-    # filt_frames = []
-    # started = False
-    # for f in frames:
-    #     if 'agent_select' in f:
-    #         if len(filt_frames) and f.timestamp - filt_frames[0].timestamp > 120:
-    #             print('stopping after', filt_frames[-1].timestamp - filt_frames[0].timestamp)
-    #             break
-    #         started = True
-    #     # if started:
-    #     #     filt_frames.append(f)
-    #     if started and (not len(filt_frames) or f.timestamp - filt_frames[-1].timestamp >= 2):
-    #         filt_frames.append(f)
-    # with open('./game-frames.json', 'w') as f:
-    #     json.dump(frameload.frames_dump(filt_frames), f, indent=2)
-
-    with open("C:/Users/simon/overtrack_2/overtrack_2/overtrack/valorant/frames.json") as f:
-        frames = frameload.frames_load(json.load(f), List[Frame])
-
-    # frames = []
-    # started = False
-    # for p in tqdm(sorted(glob.glob("D:/overtrack/valorant_stream/*.json"))):
-    #     with open(p) as f:
-    #         frame = frameload.frames_load(json.load(f), Frame)
-    #     if 'agent_select' in frame:
-    #         started = True
-    #         if len(frames) and frame.timestamp - frames[0].timestamp > 90:
-    #             break
-    #     if started:
-    #         frames.append(frame)
+    # proc = create_pipeline(aggressive=True)
+    # for frame in tqdm(frames):
+    #     del frame['image']
+    #     del frame['debug_image']
+    #     frame.image = cv2.imread(frame.image_path)
+    #     frame.debug_image = frame.image.copy()
+    #     del frame['valorant']
+    #     frame.valorant = ValorantData()
+    #
+    #     proc.process(frame)
+    #     cv2.waitKey(1)
+    #
+    #     cv2.imwrite(frame.debug_image_path, frame.debug_image)
+    #     cv2.imshow('frame', frame.debug_image)
+    #
+    #     frame.strip()
+    #     with open(frame.frame_path, 'w') as f:
+    #         json.dump(frameload.frames_dump(frame), f, indent=2)
+    #
+    # with open(frames_path, 'w') as f:
+    #     json.dump(frameload.frames_dump(frames), f, indent=2)
 
     game = ValorantGame(frames, debug=False)
-    pprint(game)
+    # pprint(game)
+    data = game.asdict()
+    from overtrack_models.dataclasses.valorant import ValorantGame as DataclassValorantGame
+    game2 = referenced_typedload.load(data, DataclassValorantGame)
+    pprint(game2)
 
     from overtrack_models.orm.valorant_game_summary import ValorantGameSummary
     summary = ValorantGameSummary.create(
@@ -157,6 +164,7 @@ def main():
         'http://example.com',
     )
     print(summary)
+
 
 
 if __name__ == '__main__':

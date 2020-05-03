@@ -11,7 +11,7 @@ def argmin(seq: Union[Sequence[Num], np.ndarray]) -> int:
     return int(np.argmin(seq))
 
 
-def argmax(seq: Union[Sequence[Num], np.ndarray]) -> int:
+def argmax(seq: Union[Sequence[Union[Num, np.ndarray]], np.ndarray]) -> int:
     return int(np.argmax(seq))
 
 

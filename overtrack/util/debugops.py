@@ -56,7 +56,12 @@ def sliders(image: np.ndarray, **kwargs: Callable[[Any], np.ndarray]) -> Dict[st
 
         height = max(i.shape[0] for i in steps)
         width = max(i.shape[1] for i in steps)
-        cv2.imshow('sliders', np.hstack([
+
+        if height > width:
+            stack = np.hstack
+        else:
+            stack = np.vstack
+        sim = stack([
             cv2.copyMakeBorder(
                 s,
                 0,
@@ -66,7 +71,10 @@ def sliders(image: np.ndarray, **kwargs: Callable[[Any], np.ndarray]) -> Dict[st
                 cv2.BORDER_CONSTANT
             )
             for s in steps
-        ]))
+        ])
+
+        cv2.imshow('sliders', sim)
+        cv2.imshow('preview', sim)
         while not updated:
             k = cv2.waitKey(10) & 0xFF
             if k == 27:
@@ -487,13 +495,13 @@ def hstack(images: Sequence[np.ndarray]) -> np.ndarray:
     )
 
 
-def normalise(image):
+def normalise(image, scale=3):
     # image = image.astype(np.float)
-    sliders(
+    return sliders(
         image,
-        normalise=lambda im, bottom_0_100, top_0_100: cv2.resize(
-            imageops.normalise(im, bottom_0_100, top_0_100),
-            (0, 0), fx=3, fy=3
+        normalise=lambda im, bottom_0_100, top_0_100, min_0_255, max_0_255: cv2.resize(
+            imageops.normalise(im, bottom_0_100, top_0_100, min_0_255, max_0_255),
+            (0, 0), fx=scale, fy=scale
         )
     )
 

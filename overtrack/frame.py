@@ -8,6 +8,23 @@ from dataclasses import dataclass, field
 
 from overtrack.util import s2ts
 
+if TYPE_CHECKING:
+    from overtrack.valorant.game.home_screen.models import HomeScreen as ValorantHomeScreen
+    from overtrack.valorant.game.timer.models import Timer as ValorantTimer
+    from overtrack.valorant.game.top_hud.models import TopHud as ValorantTopHud
+    from overtrack.valorant.game.agent_select.models import AgentSelect as ValorantAgentSelect
+    from overtrack.valorant.game.postgame.models import Postgame as ValorantPostgame, Scoreboard as ValorantScoreboard
+    from overtrack.valorant.game.killfeed.models import Killfeed as ValorantKillfeed
+else:
+    ValorantHomeScreen = 'overtrack.valorant.game.home_screen.models.HomeScreen'
+    ValorantTimer = 'overtrack.valorant.game.timer.models.Timer'
+    ValorantTopHud = 'overtrack.valorant.game.top_hud.models.TopHud'
+    ValorantAgentSelect = 'overtrack.valorant.game.agent_select.models.AgentSelect'
+    ValorantPostgame = 'overtrack.valorant.game.postgame.models.Postgame'
+    ValorantScoreboard = 'overtrack.valorant.game.postgame.models.Scoreboard'
+    ValorantKillfeed = 'overtrack.valorant.game.killfeed.models.Killfeed'
+
+
 _init_time = time.time()
 
 
@@ -45,26 +62,13 @@ class Timings(Dict[str, float]):
 
 @dataclass
 class ValorantData:
-    if TYPE_CHECKING:
-        import overtrack.valorant.game.home_screen.models
-        import overtrack.valorant.game.timer.models
-        import overtrack.valorant.game.top_hud.models
-        import overtrack.valorant.game.agent_select.models
-        import overtrack.valorant.game.postgame.models
-
-        home_screen: Optional[overtrack.valorant.game.home_screen.models.HomeScreen] = None
-        timer: Optional[overtrack.valorant.game.timer.models.Timer] = None
-        top_hud: Optional[overtrack.valorant.game.top_hud.models.TopHud] = None
-        agent_select: Optional[overtrack.valorant.game.agent_select.models.AgentSelect] = None
-        postgame: Optional[overtrack.valorant.game.postgame.models.Postgame] = None
-        scoreboard: Optional[overtrack.valorant.game.postgame.models.Scoreboard] = None
-    else:
-        home_screen: Optional['overtrack.valorant.game.home_screen.models.HomeScreen'] = None
-        timer: Optional['overtrack.valorant.game.timer.models.Timer'] = None
-        top_hud: Optional['overtrack.valorant.game.top_hud.models.TopHud'] = None
-        agent_select: Optional['overtrack.valorant.game.agent_select.models.AgentSelect'] = None
-        postgame: Optional['overtrack.valorant.game.postgame.models.Postgame'] = None
-        scoreboard: Optional['overtrack.valorant.game.postgame.models.Scoreboard'] = None
+    home_screen: Optional[ValorantHomeScreen] = None
+    timer: Optional[ValorantTimer] = None
+    top_hud: Optional[ValorantTopHud] = None
+    agent_select: Optional[ValorantAgentSelect] = None
+    postgame: Optional[ValorantPostgame] = None
+    scoreboard: Optional[ValorantScoreboard] = None
+    killfeed: Optional[ValorantKillfeed] = None
 
 
 class Frame(Dict[str, Any]):

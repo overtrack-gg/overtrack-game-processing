@@ -206,12 +206,26 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
     import cv2
     import os
     import tabulate
+    import json
     from pprint import pprint
     from overtrack.frame import Frame, CurrentGame
+    from overtrack.util import frameload
+    from overtrack_models.dataclasses.typedload import referenced_typedload
 
     from overtrack.util.logging_config import config_logger
 
     proc.eager_load()
+
+    import numpy as np
+
+    # warm up
+    for _ in range(10):
+        proc.process(
+            Frame.create(
+                np.zeros((1080, 1920, 3), dtype=np.uint8),
+                0
+            )
+        )
 
     if isinstance(images, list):
         config_logger('test_processor', logging.DEBUG, False)
@@ -237,18 +251,57 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
         print(os.path.abspath(p))
 
         im = cv2.imread(p)
+
+        ratio = im.shape[0] / im.shape[1]
+        if round(ratio, 2) != 0.56:
+            logger.warning(f'Ignoring {p} had invalid aspect ratio - dimensions were {im.shape}')
+            continue
+
         im = cv2.resize(im, (1920, 1080))
-        f = Frame.create(im, 0, debug=True)
+        f = Frame.create(im, os.path.getctime(p), debug=True)
+        f.source_image = p
         if 'game_time=' in p:
             f.game_time = float(os.path.basename(p).split('=', 1)[1].rsplit('.', 1)[0])
 
         f.current_game = CurrentGame()
 
-        proc.process(f)
-        print(tabulate.tabulate([(n, pformat(f.get(n))) for n in fields]))
+        result = proc.process(f)
+        debug_image = f.debug_image
+
+        f.strip()
+        # print(json.dumps(frameload.frames_dump(f, numpy_support=True), indent=2))
+
+        def getval(f: Frame, n: str):
+            v = f
+            for p in n.split('.'):
+                v = getattr(v, p)
+            return v
+
+        print(tabulate.tabulate([
+                (
+                    'source_image',
+                    p
+                ),
+                (
+                    'processor_result',
+                    result
+                )
+            ] +
+            [
+            (
+                n,
+                pformat(getval(f, n))
+            )
+            for n in fields
+        ]))
         pprint(f.timings)
+        print()
+
         if show:
-            cv2.imshow('debug', f.debug_image)
-            cv2.waitKey(0 if wait else 1)
+            cv2.imshow('debug', debug_image)
+            if wait == 'sometimes':
+                cv2.waitKey(0 if result else 1)
+            else:
+                cv2.waitKey(0 if wait else 1)
 
         print('-' * 32)

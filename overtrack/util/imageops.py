@@ -4,7 +4,7 @@ import operator
 import os
 import string
 from threading import Lock
-from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, no_type_check, overload, Any
+from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, no_type_check, overload, Any, Union
 
 import cv2
 import numpy as np
@@ -314,13 +314,19 @@ def findContours(
         return r[0], r[1]
 
 
-def normalise(im: np.ndarray, bottom: int = 2, top: int = 98) -> np.ndarray:
+def normalise(im: np.ndarray, bottom: int = 2, top: int = 98, min: Optional[int] = None, max: Optional[int] = None) -> np.ndarray:
     im = im.astype(np.float)
-    if bottom:
+    if min:
+        im -= min
+    elif bottom:
         im -= np.percentile(im, bottom)
     else:
         im -= np.min(im)
-    if top:
+    im = np.clip(im, 0, 255)
+
+    if max:
+        im /= max
+    elif top:
         im /= np.percentile(im, top)
     else:
         im /= np.max(im)
@@ -344,8 +350,11 @@ def matchTemplate(image: np.ndarray, template: np.ndarray, method: int, mask: Op
 
 def match_templates(
     image: np.ndarray,
-    templates: Dict[T, np.ndarray],
+    templates: Dict[T, Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]],
     method: int,
+
+    template_in_image=True,
+
     required_match: Optional[float] = None,
     use_masks: bool = False,
     verbose: bool = False,
@@ -379,7 +388,11 @@ def match_templates(
         mask = None
         if use_masks:
             template, mask = template
-        match = float(arrop(matchTemplate(image, template, method, mask=mask)))
+        if template_in_image:
+            conv = matchTemplate(image, template, method, mask=mask)
+        else:
+            conv = matchTemplate(template, image, method, mask=mask)
+        match = float(arrop(conv))
         matches.append((key, match))
         if required_match is not None and valop(match, required_match) and not verbose:
             if previous_match_context is not None:

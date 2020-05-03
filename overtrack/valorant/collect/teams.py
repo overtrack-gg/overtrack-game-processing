@@ -30,7 +30,7 @@ class PlayerStats:
             counter = Counter()
             for stat in stats:
                 raw_value = getattr(stat, f.name)
-                if 0 <= raw_value <= 999:
+                if raw_value is not None and 0 <= raw_value <= 999:
                     counter[raw_value] += 1
                 else:
                     self.logger.warning(f'Ignoring {f.name} value {raw_value}')
@@ -47,9 +47,55 @@ class PlayerStats:
 class Player:
     agent: Optional[AgentName]
     name: Optional[str]
-    team1: bool
+    friendly: bool
 
     stats: Optional[PlayerStats] = None
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
+
+    def resolve_name_from_killfeed(self, frames: List[Frame]):
+        names = []
+        for f in frames:
+            if f.valorant.killfeed:
+                for k in f.valorant.killfeed.kills:
+                    if self.friendly == k.killer_friendly:
+                        killfeed_player = k.killer
+                    else:
+                        killfeed_player = k.killed
+                    if killfeed_player.agent == self.agent and killfeed_player.name and len(killfeed_player.name) > 2:
+                        names.append(killfeed_player.name)
+        name = levenshtein.median(names)
+        self.logger.info(f'Resolving {self} name={name!r} from {Counter(names)}')
+        self.name = name
+
+    def __str__(self):
+        s = f'Player(agent={self.agent}, friendly={self.friendly}'
+        if self.name:
+            s += f', name={self.name!r}'
+        return s + ')'
+    __repr__ = __str__
+
+
+@dataclass
+class Kill:
+    round_timestamp: float
+    timestamp: float
+
+    killer: Player
+    killed: Player
+    weapon: str
+
+
+@dataclass
+class Kills:
+    kills: List[Kill]
+
+    def __iter__(self):
+        return iter(self.kills)
+    def __len__(self):
+        return len(self.kills)
+    def __getitem__(self, item):
+        return self.kills[item]
 
 
 @dataclass
@@ -58,6 +104,7 @@ class Teams:
     team2: List[Player]
 
     firstperson: Optional[Player]
+    have_scoreboard: bool
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
@@ -70,7 +117,11 @@ class Teams:
                     agent,
                     None,
                     i == 0,
-                ))
+                    ))
+
+        self.logger.info(f'Resolving player names')
+        for p in self.players:
+            p.resolve_name_from_killfeed(frames)
 
         # Work out which is the firstperson player by matching agent selected at game start against team1
         agent_select_frames = [f for f in frames if f.valorant.agent_select and f.valorant.agent_select.agent and f.valorant.agent_select.locked_in]
@@ -80,26 +131,32 @@ class Teams:
             self.firstperson = [p for p in self.team1 if p.agent == firstperson_agent][0]
         else:
             self.logger.info(f'Got no agent select frames - assuming game has no firstperson data')
+            self.firstperson = None
 
+        self.have_scoreboard = False
+        self.resolve_scoreboards(frames)
+
+    def resolve_scoreboards(self, frames):
         # Resolve names and stats from scoreboard
         scoreboards = [f.valorant.scoreboard for f in frames if f.valorant.scoreboard]
         if len(scoreboards):
-            self.logger.info(f'rResolving player stats from {len(scoreboards)} scoreboard frames')
+            self.logger.info(f'Resolving player stats from {len(scoreboards)} scoreboard frames')
             for player in self.players:
                 matching_stats = []
                 for scoreboard in scoreboards:
                     for stats in scoreboard.player_stats:
-                        if stats.agent == player.agent and stats.friendly == player.team1:
+                        if stats.agent == player.agent and stats.friendly == player.friendly:
                             matching_stats.append(stats)
                 if len(matching_stats):
                     self.logger.info(
-                        f'Resolving team {int(not player.team1) + 1} {player.agent} from {len(matching_stats)} scoreboard frames'
+                        f'Resolving team {int(not player.friendly) + 1} {player.agent} from {len(matching_stats)} scoreboard frames'
                     )
                     raw_names = [s.name for s in matching_stats]
-                    player.name = levenshtein.median(raw_names)
+                    player.name = levenshtein.median(raw_names).upper()
                     self.logger.info(f'  Resolved name: {Counter(raw_names)} -> {player.name}')
                     self.logger.info('  Resolving stats')
                     player.stats = PlayerStats(matching_stats)
+                    self.have_scoreboard = True
 
         else:
             self.logger.info(f'Got no scoreboard frames - not resolving stats')

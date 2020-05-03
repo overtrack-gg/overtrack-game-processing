@@ -1,13 +1,13 @@
 import logging
 import os
 from typing import Dict, Optional
-
+import Levenshtein as levenshtein
 import cv2
 import numpy as np
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import time_processing, imageops
+from overtrack.util import time_processing, imageops, debugops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.data import agents, AgentName
 from overtrack.valorant.game.agent_select.models import AgentSelect
@@ -48,7 +48,7 @@ class AgentSelectProcessor(Processor):
     }
     AGENT_TEMPLATE_REQUIRED_MATCH = 0.75
 
-    LOCK_IN_BUTTON_COLOR = (220, 210, 150)
+    LOCK_IN_BUTTON_COLOR = (180, 210, 140)
 
     def __init__(self):
         pass
@@ -77,13 +77,20 @@ class AgentSelectProcessor(Processor):
             # FIXME: locked in - only use if locked in in valorantgame
 
             lock_in_im = self.REGIONS['lock_in'].extract_one(frame.image)
-            lock_in_match = np.sum(
-                cv2.inRange(
-                    lock_in_im,
-                    (200, 200, 140),
-                    (255, 255, 175)
-                ) > 0
+            lock_in_col = np.median(lock_in_im, axis=(0, 1))
+            lock_in_match = np.linalg.norm(
+                lock_in_col - self.LOCK_IN_BUTTON_COLOR
             )
+            logger.debug(f'Lock in color={lock_in_col}, match={lock_in_match:.2f}')
+            can_see_lock_in = False
+            if lock_in_match < 100:
+                lock_in_gray = np.min(lock_in_im, axis=2)
+                lock_in_norm = 255 - imageops.normalise(lock_in_gray, bottom=70)
+                lock_in_text = imageops.tesser_ocr(lock_in_norm, engine=imageops.tesseract_lstm).replace(' ', '')
+                lock_in_text_match = levenshtein.ratio(lock_in_text, 'LOCKIN')
+                logger.debug(f'Lock in text={lock_in_text!r}, match={lock_in_text_match:.2f}')
+
+                can_see_lock_in = lock_in_match < 25 or lock_in_text_match > 0.75
 
             map_im = self.REGIONS['map'].extract_one(frame.image)
             map_im_gray = 255 - imageops.normalise(np.min(map_im, axis=2))
@@ -99,7 +106,7 @@ class AgentSelectProcessor(Processor):
 
             frame.valorant.agent_select = AgentSelect(
                 best_match,
-                locked_in=lock_in_match < 10_000,
+                locked_in=not can_see_lock_in,
 
                 map=map_text,
             )
@@ -113,7 +120,7 @@ def main():
     from overtrack.util.logging_config import config_logger
     from overtrack import util
     config_logger(os.path.basename(__file__), level=logging.DEBUG, write_to_file=False)
-    util.test_processor('agent_select', AgentSelectProcessor(), 'agent_select', game='valorant', test_all=False)
+    util.test_processor('agent_select', AgentSelectProcessor(), 'valorant.agent_select', game='valorant', test_all=False)
 
 
 if __name__ == '__main__':

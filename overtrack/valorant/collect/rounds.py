@@ -5,10 +5,11 @@ import numpy as np
 import re
 from dataclasses import dataclass
 from scipy.signal import find_peaks
-from typing import List, Optional, ClassVar, Union
+from typing import List, Optional, ClassVar, Union, Tuple
 
 from overtrack.frame import Frame
 from overtrack.util import ts2s
+from overtrack.valorant.collect.kills import Kills
 
 ROUND_ACTIVE_PHASE_DURATION = 100
 FIRST_BUY_PHASE_DURATION = 43
@@ -27,11 +28,14 @@ class Round:
 
     won: Optional[bool]
 
+    kills: Optional[Kills] = None
+
 
 @dataclass
 class Rounds:
 
     rounds: List[Round]
+    final_score: Optional[Tuple[int, int]]
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
@@ -78,7 +82,7 @@ class Rounds:
 
         self.logger.info(f'Parsing rounds from {len(countdown_values)} valid countdown strings')
 
-        round_started_accumulator = np.zeros((int(duration + 0.5),))
+        round_started_accumulator = np.zeros((int(duration + 120),))
         for f, countdown in zip(countdown_frames, countdown_values):
             if f.valorant.timer.buy_phase:
                 round_start = (f.timestamp - timestamp) + countdown
@@ -250,7 +254,39 @@ class Rounds:
                 self.logger.error('Game result disagreed with final round result')
                 have_unknown_rounds = False  # Only emit the one error
 
-        # TODO: infer unknown rounds from number of rounds e.g. if 12-5 and 1 more unknown its obvious who won...
+        penultimate_score = round_end_scores[self.rounds[-2].index]
+        self.logger.info(f'Penultimate score: {penultimate_score}')
+        if self.rounds[-1].won is None:
+            if penultimate_score[0] == 12 and penultimate_score[1] != 12:
+                self.logger.info(f'Final round was unknown, and team 0 had 12 other won rounds - setting final round = won')
+                self.rounds[-1].won = True
+                have_unknown_rounds = False
+            elif penultimate_score[0] != 12 and penultimate_score[1] == 12:
+                self.logger.info(f'Final round was unknown, and team 1 had 12 other won rounds - setting final round = lost')
+                self.rounds[-1].won = False
+                have_unknown_rounds = False
+            else:
+                self.logger.info(f'Unable to infer final round win from penultimate score')
+
+        self.final_score = None
+        if self.rounds[-1].won is not None and all(penultimate_score):
+            score = list(penultimate_score)
+            score[not self.rounds[-1].won] += 1
+            self.logger.info(f'Final score is {score} from penultimate score and final round {["LOSS", "WIN"][self.rounds[-1].won]}')
+            self.final_score = score[0], score[1]
+
+        if self.rounds[-1].won is not None:
+            score = [0, 0]
+            score[not self.rounds[-1].won] = 13
+            score[self.rounds[-1].won] = len(self.rounds) - 13
+            self.logger.info(
+                f'Resolved score={score} from known winning team (team {int(not self.rounds[-1].won) + 1}) '
+                f'and number of rounds ({len(self.rounds)})'
+            )
+            if not self.final_score:
+                self.final_score = score[0], score[1]
+            if self.final_score != (score[0], score[1]):
+                self.logger.error(f'Arrived at differing scores with alternate methods')
 
         if have_unknown_rounds:
             self.logger.error('Had rounds with unknown results')

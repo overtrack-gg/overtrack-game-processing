@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-COUNTDOWN_PATTERN = re.compile(r'(\d\.)|([01]:)\d\d')
+COUNTDOWN_PATTERN = re.compile(r'^(\d\.)|([01]:)\d\d$')
 
 @dataclass
 class Timer:
@@ -13,4 +13,4 @@ class Timer:
 
     @property
     def valid(self) -> bool:
-        return self.spike_planted or self.buy_phase or (self.countdown and COUNTDOWN_PATTERN.match(self.countdown) is not None)
+        return self.spike_planted or self.buy_phase or (self.countdown and COUNTDOWN_PATTERN.fullmatch(self.countdown) is not None)
