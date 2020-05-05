@@ -1,13 +1,14 @@
 import logging
 import os
 from typing import Dict, Optional
+
 import Levenshtein as levenshtein
 import cv2
 import numpy as np
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import time_processing, imageops, debugops
+from overtrack.util import time_processing, imageops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.data import agents, AgentName
 from overtrack.valorant.game.agent_select.models import AgentSelect
@@ -34,8 +35,8 @@ class AgentSelectProcessor(Processor):
 
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
     AGENT_NAME_TEMPLATES: Dict[AgentName, np.ndarray] = {
-        agent_name: cv2.imread(
-            os.path.join(os.path.dirname(__file__), 'data', 'agent_names', agent_name + '.png'),
+        agent_name: imageops.imread(
+            os.path.join(os.path.dirname(__file__), 'data', 'agent_names', agent_name.lower() + '.png'),
             0
         )
         #     cv2.resize(
@@ -58,8 +59,8 @@ class AgentSelectProcessor(Processor):
         agent_name_yuv = self.REGIONS['agent_name'].extract_one(frame.image_yuv)
         agent_name_thresh = cv2.inRange(
             agent_name_yuv,
-            (220, 90, 120),
-            (255, 110, 140)
+            (200, 85, 120),
+            (255, 115, 150)
         )
         # cv2.imshow('agent_name_thresh', agent_name_thresh)
         # cv2.imwrite(

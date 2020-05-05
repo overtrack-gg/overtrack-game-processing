@@ -53,7 +53,7 @@ def draw_scoreboard(debug_image: Optional[np.ndarray], scoreboard: Scoreboard) -
 
 
 def load_agent_template(path):
-    image = cv2.imread(path, -1)[5:-5, 5:-5]
+    image = imageops.imread(path, -1)[5:-5, 5:-5]
     return image[:, :, :3], cv2.cvtColor(image[:, :, 3], cv2.COLOR_GRAY2BGR)
 
 
@@ -62,8 +62,8 @@ class PostgameProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
     SCOREBOARD_REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', 'scoreboard', '16_9.zip'))
     RESULTS = {
-        'victory': cv2.imread(os.path.join(os.path.dirname(__file__), 'data', 'victory.png'), 0),
-        'defeat': cv2.imread(os.path.join(os.path.dirname(__file__), 'data', 'defeat.png'), 0),
+        'victory': imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'victory.png'), 0),
+        'defeat': imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'defeat.png'), 0),
     }
     RESULT_TEMPLATE_REQUIRED_MATCH = 0.8
 
@@ -78,7 +78,7 @@ class PostgameProcessor(Processor):
     ]
 
     AGENT_TEMPLATES = {
-        name: load_agent_template(os.path.join(os.path.dirname(__file__), 'data', 'agents', name + '.png'))
+        name: load_agent_template(os.path.join(os.path.dirname(__file__), 'data', 'agents', name.lower() + '.png'))
         for name in agents
     }
     AGENT_TEMPLATE_REQUIRED_MATCH = 50

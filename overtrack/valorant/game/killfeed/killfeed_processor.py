@@ -1,42 +1,21 @@
 import glob
-
-import itertools
+import logging
+import os
 import string
+from typing import Optional, NamedTuple, Tuple, Dict
 
 import cv2
-import logging
 import numpy as np
-import os
-import re
-from typing import Optional, NamedTuple, Tuple, cast, Dict
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import time_processing, imageops, debugops, textops
+from overtrack.util import time_processing, imageops, textops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.data import agents, AgentName
 from overtrack.valorant.game.killfeed.models import Kill, KillfeedPlayer, Killfeed
-from overtrack.valorant.game.killfeed.zernikemoment import Zernikemoment
-from overtrack.valorant.game.timer.models import Timer
 
+logger = logging.getLogger('KillfeedProcessor')
 
-logger = logging.getLogger('KillProcessor')
-
-
-# def draw_timer(debug_image: Optional[np.ndarray], timer: Timer) -> None:
-#     if debug_image is None:
-#         return
-#
-#     for c, t in ((0, 0, 0), 4), ((0, 255, 128), 2):
-#         cv2.putText(
-#             debug_image,
-#             str(timer),
-#             (700, 150),
-#             cv2.FONT_HERSHEY_SIMPLEX,
-#             0.75,
-#             c,
-#             t,
-#         )
 
 class KillRowPosition(NamedTuple):
     match: float
@@ -45,7 +24,7 @@ class KillRowPosition(NamedTuple):
 
 
 def load_agent_template(path) -> Tuple[np.ndarray, np.ndarray]:
-    image = cv2.imread(path, -1)[3:-3, 3:-3]
+    image = imageops.imread(path, -1)[3:-3, 3:-3]
     return image[:, :, :3], cv2.cvtColor(image[:, :, 3], cv2.COLOR_GRAY2BGR)
 
 
@@ -63,7 +42,7 @@ class KillfeedProcessor(Processor):
     KILL_THRESHOLD = 0.95
 
     AGENT_DEATH_TEMPLATES: Dict[AgentName, Tuple[np.ndarray, np.ndarray]] = {
-        name: load_agent_template(os.path.join(os.path.dirname(__file__), 'data', 'agents', name + '.png'))
+        name: load_agent_template(os.path.join(os.path.dirname(__file__), 'data', 'agents', name.lower() + '.png'))
         for name in agents
     }
     AGENT_KILLER_TEMPLATES: Dict[AgentName, Tuple[np.ndarray, np.ndarray]] = {
@@ -118,8 +97,8 @@ class KillfeedProcessor(Processor):
             ] = 0
 
             center = (
-                mxl[0] + x + 20,
-                mxl[1] + y + self.FRIENDLY_KILL_TEMPLATE.shape[0] // 2,
+                int(mxl[0] + x + 20),
+                int(mxl[1] + y + self.FRIENDLY_KILL_TEMPLATE.shape[0] // 2),
             )
             friendly_kill_v = friendly_kill_match[mxl[1], mxl[0]]
             enemy_kill_v = enemy_kill_match[mxl[1], mxl[0]]
@@ -127,9 +106,9 @@ class KillfeedProcessor(Processor):
 
             kill_rows.append(
                 KillRowPosition(
-                    match=mxv,
+                    match=round(float(mxv), 2),
                     center=center,
-                    friendly=friendly_kill_v > enemy_kill_v
+                    friendly=bool(friendly_kill_v > enemy_kill_v),
                 )
             )
 
@@ -159,7 +138,9 @@ class KillfeedProcessor(Processor):
 
             for row in kill_rows:
                 killed_agent, killed_agent_match, killed_agent_x = self._parse_agent(frame, row, True)
-                if killed_agent_match > self.AGENT_THRESHOLD:
+                if killed_agent_match > 65:
+                    continue
+                elif killed_agent_match > self.AGENT_THRESHOLD:
                     logger.warning(f'Ignoring kill {row} - killed_agent_match={killed_agent_match:.1f} ({killed_agent})')
                     continue
 
@@ -349,7 +330,7 @@ class KillfeedProcessor(Processor):
             160,
             200,
         )
-        weapon_thresh = ((weapon_gray - weapon_adapt_thresh > 20) * 255).astype(np.uint8)
+        weapon_thresh = ((weapon_gray - weapon_adapt_thresh > 30) * 255).astype(np.uint8)
 
         # import matplotlib.pyplot as plt
         # f, figs = plt.subplots(4)
@@ -358,6 +339,7 @@ class KillfeedProcessor(Processor):
         # figs[2].imshow(weapon_gray - weapon_adapt_thresh)
         # figs[3].imshow(weapon_thresh)
         # plt.show()
+        # cv2.imshow('weapon_thresh', weapon_thresh)
 
         weapon_image = cv2.dilate(
             cv2.copyMakeBorder(
@@ -382,14 +364,21 @@ class KillfeedProcessor(Processor):
             x1, y1, w, h = cv2.boundingRect(cnt)
             x2, y2 = x1 + w, y1 + h
 
-            if x2 > 165:
+            fromright = weapon_image.shape[1] - x2
+
+            if w > 145:
+                logger.warning(f'Ignoring weapon contour with w={w}')
+                continue
+            if fromright < 30:
                 # contour is far right - could be small agent ability, so be less strict
-                if a < 150 or h < 10:
-                    logger.debug(f'Ignoring weapon contour {cv2.boundingRect(cnt)}, x2={x2}, a={a}')
+                if a < 100 or h < 10:
+                    logger.debug(f'Ignoring right weapon contour {cv2.boundingRect(cnt)}, fromright={fromright}, a={a}')
                     continue
+                else:
+                    logger.debug(f'Allowing potential ability contour {cv2.boundingRect(cnt)}, fromright={fromright}, a={a}')
             elif a < 200 or h < 16:
                 # print('ignore', cv2.boundingRect(cnt), x2, a)
-                logger.debug(f'Ignoring weapon contour {cv2.boundingRect(cnt)}, x2={x2}, a={a}')
+                logger.debug(f'Ignoring weapon contour {cv2.boundingRect(cnt)}, fromright={fromright}, a={a}')
                 continue
 
             weapon_im = np.zeros((h + 2, w + 2), dtype=np.uint8)
@@ -414,7 +403,6 @@ class KillfeedProcessor(Processor):
                 cv2.TM_CCORR_NORMED,
                 template_in_image=False,
                 required_match=0.96,
-                verbose=True,
             )
             if best_weap_match < weapon_match:
                 best_weap_match, best_weap = weapon_match, weapon
@@ -463,7 +451,6 @@ class KillfeedProcessor(Processor):
 def main():
     import glob
     import random
-    import shutil
     from overtrack.util.logging_config import config_logger
     from overtrack import util
     config_logger(os.path.basename(__file__), level=logging.DEBUG, write_to_file=False)
@@ -474,6 +461,8 @@ def main():
     #     f = Frame.create(cv2.imread(p), 0)
     #     if proc.process(f):
     #         shutil.copy(p, os.path.join("C:/Users/simon/overtrack_2/valorant_images/killicons", os.path.basename(p)))
+
+    util.test_processor("D:/overtrack/valorant_stream_client/exceptions/*.png", proc, 'valorant.killfeed', game='valorant', wait=True, test_all=False)
 
     killicons = glob.glob("C:/Users/simon/overtrack_2/valorant_images/killicons/*.png")
     random.shuffle(killicons)

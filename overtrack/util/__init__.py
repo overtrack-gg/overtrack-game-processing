@@ -94,6 +94,19 @@ def validate_fields(a):
     return a
 
 
+# T = TypeVar['T']
+#
+# def copy_dataclass(dc: T) -> T:
+#     """
+#     Copies a dataclass (recursively) without using it's __init__ (i.e. by copying its fields).
+#
+#     Fields that are dataclasses will be copied using the same semantics as the parent, all other fields will be deep copied using copy.deepcopy.
+#     """
+#     assert dataclasses.is_dataclass(dc)
+#     type_ = dc.__class__
+#     result: T = type_.__new__(type_)
+#     for field in
+
 def big_noodle_digitsub(s: str) -> str:
     for c1, c2 in BIG_NOODLE_DIGITSUBS:
         s = s.replace(c1, c2)
@@ -232,10 +245,10 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
         paths = images
     else:
         config_logger(os.path.basename(images), logging.DEBUG, False)
-        if images.endswith('.png'):
-            paths = [images]
-        elif '*' in images:
+        if '*' in images:
             paths = glob.glob(images)
+        elif images.endswith('.png'):
+            paths = [images]
         elif images[1] == ':':
             paths = glob.glob(images + '/*.png')
         else:

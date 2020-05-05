@@ -1,18 +1,15 @@
-import string
+import logging
+import os
+from typing import Optional
 
 import cv2
-import logging
 import numpy as np
-import os
-import re
-from typing import Optional
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import time_processing, imageops, debugops
+from overtrack.util import time_processing, imageops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.game.timer.models import Timer
-
 
 logger = logging.getLogger('TimerProcessor')
 
@@ -36,9 +33,9 @@ def draw_timer(debug_image: Optional[np.ndarray], timer: Timer) -> None:
 class TimerProcessor(Processor):
 
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
-    SPIKE_PLANTED_TEMPLATE = cv2.imread(os.path.join(os.path.dirname(__file__), 'data', 'spike_planted.png'), 0)
+    SPIKE_PLANTED_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'spike_planted.png'), 0)
     SPIKE_PLANTED_REQUIRED_MATCH = 0.5
-    BUY_PHASE_TEMPLATE = cv2.imread(
+    BUY_PHASE_TEMPLATE = imageops.imread(
         os.path.join(os.path.dirname(__file__), 'data', 'buy_phase.png'),
         0
     )
