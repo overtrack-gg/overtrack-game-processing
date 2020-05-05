@@ -1,14 +1,20 @@
 import logging
 from collections import Counter
-from typing import List, Optional, Union, ClassVar, Tuple
+from typing import List, Optional, Union, ClassVar, Tuple, TYPE_CHECKING, Dict
 import Levenshtein as levenshtein
-from dataclasses import dataclass, fields, Field
+from dataclasses import dataclass, fields, Field, field
 
 from overtrack.frame import Frame
 from overtrack.valorant.collect.rounds import Rounds
 from overtrack.valorant.data import AgentName
 from overtrack.valorant.game.top_hud.models import TeamComp
 from overtrack.valorant.game.postgame import PlayerStats as PlayerStatsFrame
+
+
+if TYPE_CHECKING:
+    from overtrack.valorant.collect.kills import Kill
+else:
+    Kill = 'Kill'
 
 
 @dataclass
@@ -49,7 +55,11 @@ class Player:
     name: Optional[str]
     friendly: bool
 
-    stats: Optional[PlayerStats] = None
+    stats: Optional[PlayerStats] = field(repr=False, default=None)
+
+    kills: List[Kill] = field(repr=False, default_factory=list)
+    deaths: List[Kill] = field(repr=False, default_factory=list)
+    weaponkills: Dict[str, List[Kill]] = field(repr=False, default_factory=dict)
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
@@ -77,28 +87,6 @@ class Player:
 
 
 @dataclass
-class Kill:
-    round_timestamp: float
-    timestamp: float
-
-    killer: Player
-    killed: Player
-    weapon: str
-
-
-@dataclass
-class Kills:
-    kills: List[Kill]
-
-    def __iter__(self):
-        return iter(self.kills)
-    def __len__(self):
-        return len(self.kills)
-    def __getitem__(self, item):
-        return self.kills[item]
-
-
-@dataclass
 class Teams:
     team1: List[Player]
     team2: List[Player]
@@ -117,7 +105,7 @@ class Teams:
                     agent,
                     None,
                     i == 0,
-                    ))
+                ))
 
         self.logger.info(f'Resolving player names')
         for p in self.players:

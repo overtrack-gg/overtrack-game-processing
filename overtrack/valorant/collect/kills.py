@@ -20,12 +20,25 @@ else:
 
 @dataclass
 class Kill:
+    round: int
     round_timestamp: float
     timestamp: float
 
     killer: Player
     killed: Player
     weapon: Optional[str]
+
+    def __str__(self):
+        return (
+            f'Kill('
+                f'round={self.round}, '
+                f'{s2ts(self.round_timestamp)}, '
+                f'{["Enemy", "Ally"][self.killer.friendly]} {self.killer.agent} {self.killer.name!r} > '
+                f'{self.weapon} > '
+                f'{self.killed.agent} {self.killed.name!r}'
+            f')'
+        )
+    __repr__ = __str__
 
 
 @dataclass(frozen=True)
@@ -49,11 +62,11 @@ class UnresolvedKill:
         if len(self.timestamps):
             s += s2ts(self.timestamps[0]) + ', '
         s += (
-                ['Enemy', 'Ally'][self.key.killer_friendly] +
-                ' ' +
-                self.key.killer_agent +
-                ' > ' +
-                self.key.killed_agent
+            ['Enemy', 'Ally'][self.key.killer_friendly] +
+            ' ' +
+            self.key.killer_agent +
+            ' > ' +
+            self.key.killed_agent
         )
         s += f', {len(self)} observations'
         return s
@@ -67,7 +80,7 @@ class Kills:
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
-    def __init__(self, frames: List[Frame], teams: Teams, base_timestamp: float, round_start: float, round_end: float):
+    def __init__(self, frames: List[Frame], teams: Teams, round: int, base_timestamp: float, round_start: float, round_end: float):
         self.logger.info(f'Resolving kills for round staring at {s2ts(round_start)}')
 
         unresolved_kills = []
@@ -127,27 +140,27 @@ class Kills:
             self.logger.info(f'    Killed: {[r.killed.name for r in unresolved_kill.raw_kills]} > {killed_player}')
             self.logger.info(f'    Weapon: {[r.weapon for r in unresolved_kill.raw_kills]} > {weapon}')
 
+
             if not killer_player or not killed_player:
                 self.logger.warning(f'      > Unable to resolve kill')
-                # import cv2
-                # print(unresolved_kill.key)
-                # print(unresolved_kill.raw_kills[0])
-                # print(_k2f[id(unresolved_kill)].debug_image_path)
-                # cv2.imshow('kill', cv2.imread(_k2f[id(unresolved_kill)].debug_image_path))
-                # cv2.waitKey(0)
                 continue
 
             # killer_player_match = np.mean([levenshtein.ratio(r.killer.name, killer_player.name) for r in unresolved_kill.raw_kills])
             # killed_player_match = np.mean([levenshtein.ratio(r.killed.name, killed_player.name) for r in unresolved_kill.raw_kills])
             kill = Kill(
+                round,
                 unresolved_kill.timestamps[0] - round_start,
                 unresolved_kill.timestamps[0],
                 killer_player,
                 killed_player,
                 weapon,
-                )
-            self.logger.info(f'      > {kill}')
+            )
             self.kills.append(kill)
+            killer_player.kills.append(kill)
+            killer_player.weaponkills.setdefault(kill.weapon, []).append(kill)
+            killed_player.deaths.append(kill)
+
+            self.logger.info(f'      > {kill}')
 
     def _get_player_by_agent(self, team: List[Player], agent: AgentName) -> Optional[Player]:
         match = [p for p in team if p.agent == agent]

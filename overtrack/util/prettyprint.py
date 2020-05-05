@@ -24,6 +24,12 @@ class DataclassPrettyPrinter(PrettyPrinter):
         super().__init__(*args, **kwargs)
         self.visited = {}
 
+    def allow_use_repr(self, object):
+        return True
+
+    def force_use_repr(self, object):
+        return False
+
     def _format(self, object, stream, indent, allowance, context, level):
         if level == 0:
             self.visited.clear()
@@ -43,10 +49,15 @@ class DataclassPrettyPrinter(PrettyPrinter):
                 f'{k}={self._repr(getattr(object, k), context, level + 1)}' for k in object._attributes.keys()
             ) + ')'
 
-        if len(rep) > max_width:
+        if not self.force_use_repr(object) and (not self.allow_use_repr(object) or len(rep) > max_width):
             p = self._dispatch.get(type(object).__repr__, None)
             # Modification: use custom _pprint_dict before using from _dispatch
             # Modification: add _pprint_dataclass
+            if isinstance(object, list):
+                context[objid] = 1
+                self._pprint_list(object, stream, indent, allowance, context, level + 1)
+                del context[objid]
+                return
             if isinstance(object, dict):
                 context[objid] = 1
                 self._pprint_dict(object, stream, indent, allowance, context, level + 1)
@@ -106,12 +117,12 @@ class DataclassPrettyPrinter(PrettyPrinter):
             if not last:
                 write(delimnl)
 
-    def _pprint_dataclass(self, object, stream, indent, allowance, context, level):
+    def _pprint_dataclass(self, object, stream, indent, allowance, context, level, respect_repr_hint=True):
         write = stream.write
         write(f'{object.__class__.__qualname__}(')
         if self._indent_per_level > 1:
             write((self._indent_per_level - 1) * ' ')
-        object_fields: List[Field] = [f for f in fields(object) if f.repr]
+        object_fields: List[Field] = [f for f in fields(object) if f.repr or not respect_repr_hint]
         if len(object_fields):
             self._format_dataclass_fields(object, object_fields, stream, indent, allowance + 1, context, level)
         write(')')
