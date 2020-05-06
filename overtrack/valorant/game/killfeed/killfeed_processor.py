@@ -66,6 +66,7 @@ class KillfeedProcessor(Processor):
         )
         for w, image in WEAPON_IMAGES.items()
     }
+    WEAPON_THRESHOLD=0.85
 
     @time_processing
     def process(self, frame: Frame) -> bool:
@@ -138,20 +139,26 @@ class KillfeedProcessor(Processor):
 
             for row in kill_rows:
                 killed_agent, killed_agent_match, killed_agent_x = self._parse_agent(frame, row, True)
-                if killed_agent_match > 65:
+                if killed_agent_match > self.AGENT_THRESHOLD * 2:
+                    continue
+
+                killer_agent, killer_agent_match, killer_agent_x = self._parse_agent(frame, row, False)
+                if killer_agent_match > self.AGENT_THRESHOLD * 2:
+                    continue
+
+                if killed_agent_match > self.AGENT_THRESHOLD and killer_agent_match > self.AGENT_THRESHOLD:
+                    # both invalid - dont bother logging
                     continue
                 elif killed_agent_match > self.AGENT_THRESHOLD:
                     logger.warning(f'Ignoring kill {row} - killed_agent_match={killed_agent_match:.1f} ({killed_agent})')
+                    continue
+                elif killer_agent_match > self.AGENT_THRESHOLD:
+                    logger.warning(f'Ignoring kill {row} - killer_agent_match={killer_agent_match:.1f} ({killer_agent})')
                     continue
 
                 killed_name = self._parse_killed_name(frame, row, killed_agent_x)
                 if killed_name is None:
                     logger.warning(f'Ignoring kill {row} - killed name failed to parse')
-                    continue
-
-                killer_agent, killer_agent_match, killer_agent_x = self._parse_agent(frame, row, False)
-                if killer_agent_match > self.AGENT_THRESHOLD:
-                    logger.warning(f'Ignoring kill {row} - killer_agent_match={killer_agent_match:.1f} ({killer_agent})')
                     continue
 
                 weapon, weapon_match, weapon_x = self._parse_weapon(frame, row, killer_agent_x, killer_agent)
@@ -407,7 +414,7 @@ class KillfeedProcessor(Processor):
             if best_weap_match < weapon_match:
                 best_weap_match, best_weap = weapon_match, weapon
 
-            valid = weapon_match > 0.9
+            valid = weapon_match > self.WEAPON_THRESHOLD
 
             if frame.debug_image is not None and a > 1:
                 cv2.drawContours(
@@ -424,9 +431,11 @@ class KillfeedProcessor(Processor):
 
             if valid:
                 return weapon, float(weapon_match), int(weapon_region_left + x1)
+        else:
+            logger.warning(f'Unable to find weapon - no valid blobs')
+            return None, 0, weapon_region_right
 
-        logger.warning(f'Unable to find weapon - best match was {best_weap} match={best_weap_match:.2f}')
-
+        logger.warning(f'Unable to find weapon - best match was {best_weap!r} match={best_weap_match:.2f}')
         return None, 0, weapon_region_right
 
     def _parse_killer_name(self, frame, row, killer_agent_x, weapon_x) -> Optional[str]:
