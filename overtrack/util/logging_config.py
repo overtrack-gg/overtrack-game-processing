@@ -121,6 +121,7 @@ def config_logger(
 
         use_stackdriver: bool = False,
         stackdriver_level: int = logging.INFO,
+        stackdriver_name: Optional[str] = None,
 
         tracemalloc: bool = False,
 
@@ -242,7 +243,7 @@ def config_logger(
         client = google.cloud.logging.Client()
         # client.setup_logging()
 
-        handler = CloudLoggingHandler(client, name=name)
+        handler = CloudLoggingHandler(client, name=stackdriver_name or name)
         handler.setLevel(stackdriver_level)
         logger.addHandler(handler)
         for logger_name in EXCLUDED_LOGGER_DEFAULTS + ('urllib3.connectionpool', ):
