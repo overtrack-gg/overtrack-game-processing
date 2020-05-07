@@ -1,8 +1,8 @@
 import base64
 import bz2
-from typing import Any, Dict, Type, TypeVar, Union
+from typing import Any, Dict, Type, TypeVar, Union, NamedTuple, Optional
 
-from dataclasses import fields
+from dataclasses import fields, dataclass
 
 import overtrack.apex.game.apex_metadata
 import overtrack.apex.game.combat.models
@@ -109,6 +109,28 @@ try:
 except ImportError:
     pass
 
+class Segment(NamedTuple):
+    uri: Optional[str]
+    duration: float
+    title: str
+    key: Optional[Any]
+    discontinuity: bool
+    ad: Optional[bool]
+    byterange: Optional[Any]
+    date: Optional[str]
+    map: Optional[Any]
+class Sequence(NamedTuple):
+    num: int
+    segment: Segment
+@dataclass
+class FrameInfo:
+    type: str
+    type: str
+    key_frame: int
+    format: str
+    dts: Optional[float]
+    pts: Optional[float]
+
 _TYPES = {
     'objective': overtrack.overwatch.game.objective.models.Objective,
     'objective2': Union[overtrack.overwatch.game.objective_2.Objective3, overtrack.overwatch.game.objective_2.Objective2],
@@ -145,6 +167,9 @@ _TYPES = {
 
     'source': _Source,
     'current_game': CurrentGame,
+
+    'sequence': Sequence,
+    'frame_info': FrameInfo,
 }
 
 class FrameLoader(ReferencedLoader):
