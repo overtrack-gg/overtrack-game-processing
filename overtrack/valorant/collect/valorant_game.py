@@ -8,7 +8,7 @@ import shortuuid
 from dataclasses import dataclass, Field, fields
 
 from overtrack.frame import Frame
-from overtrack.util import textops
+from overtrack.util import textops, humansize
 from overtrack.util.prettyprint import pprint, DataclassPrettyPrinter
 from overtrack.valorant import data
 from overtrack.valorant.collect.kills import Kills, Kill
@@ -17,7 +17,7 @@ from overtrack.valorant.collect.teams import Teams, Player
 from overtrack_models.dataclasses.typedload import referenced_typedload
 from overtrack_models.dataclasses.valorant import MapName
 
-VERSION = '1.0.0'
+VERSION = '0.9.0'
 
 
 class GameParseError(Exception):
@@ -55,6 +55,9 @@ class ValorantGame:
         return datetime.datetime.fromtimestamp(self.timestamp)
 
     def __init__(self, frames: List[Frame], key: Optional[str] = None, debug: Union[bool, str] = False):
+        self.logger.info(f'Resolving valorant game from {len(frames)} frames')
+        self.logger.info(f'Resolving frames {frames[0].timestamp_str} -> {frames[-1].timestamp_str}')
+
         self.timestamp = frames[0].timestamp
         if key:
             self.key = key
