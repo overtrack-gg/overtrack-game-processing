@@ -23,7 +23,8 @@ class ValorantGameExtractor:
         self,
         *,
         debug_frames_path: Optional[str] = None,
-        save_images: bool = False
+        save_images: bool = False,
+        imshow: bool = False,
     ):
         self.ingame_pipeline = self.make_pipeline()
         self.outofgame_pipeline = self.make_outofgame_pipeline()
@@ -35,6 +36,8 @@ class ValorantGameExtractor:
         self.save_images = save_images
         if self.save_images and not self.debug_frames_path:
             raise ValueError('Cannot have save_images=True without a debug_frames_path')
+
+        self.imshow = imshow
 
         self.on_game_complete = []
 
@@ -64,14 +67,19 @@ class ValorantGameExtractor:
             os.makedirs(destdir, exist_ok=True)
             destprefix = os.path.join(destdir, ts.strftime('%M-%S-%f')[:-3]).replace('\\', '/')
             if self.save_images:
-                frame.image_path = destprefix + '.image.png'
+                frame.image_path = os.path.abspath(destprefix + '.image.png').replace('\\', '/')
                 cv2.imwrite(frame.image_path, image)
                 if debug_image is not None:
-                    frame.debug_image_path = destprefix + '.debug.png'
+                    frame.debug_image_path = os.path.abspath(destprefix + '.debug.png').replace('\\', '/')
                     cv2.imwrite(frame.debug_image_path, debug_image)
-            with open(destprefix + '.frame.json', 'w') as f:
+            frame.frame_path = os.path.abspath(destprefix + '.frame.json').replace('\\', '/')
+            with open(frame.frame_path, 'w') as f:
                 json.dump(frameload.frames_dump(frame), f, indent=2)
 
+        if self.imshow:
+            cv2.imshow('frame', debug_image if debug_image is not None else image)
+
+    def add(self, frame: Frame) -> None:
         if len(self.frames):
             logstr = (
                 f'have_game={self.have_game}, len(frames)={len(self.frames)}, '
