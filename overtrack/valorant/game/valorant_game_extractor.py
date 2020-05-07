@@ -14,8 +14,6 @@ from overtrack.util.logging_config import intermittent_log
 from overtrack.valorant.game.agent_select.agent_select_processor import AgentSelectProcessor
 from overtrack.valorant.game.default_pipeline import create_pipeline
 
-logger = logging.getLogger('ValorantGameExtractor')
-
 
 class ValorantGameExtractor:
 
@@ -41,6 +39,8 @@ class ValorantGameExtractor:
 
         self.on_game_complete = []
 
+        self.logger = logging.getLogger('ValorantGameExtractor')
+
     def make_pipeline(self) -> Processor:
         return create_pipeline()
 
@@ -54,7 +54,7 @@ class ValorantGameExtractor:
             else:
                 self.outofgame_pipeline.process(frame)
         except:
-            logger.exception(f'Got exception processing frame')
+            self.logger.exception(f'Got exception processing frame')
             return
 
         image = frame.image
@@ -88,25 +88,25 @@ class ValorantGameExtractor:
         else:
             logstr = f'have_game={self.have_game}, len(frames)=0'
 
-        intermittent_log(logger, logstr)
+        intermittent_log(self.logger, logstr)
 
         end_game = False
         start_game = False
         if self.have_game and frame.valorant.home_screen:
-            logger.info(logstr)
-            logger.info(f'Got home screen - ending game')
+            self.logger.info(logstr)
+            self.logger.info(f'Got home screen - ending game')
             end_game = True
         elif frame.valorant.agent_select:
-            logger.info(logstr)
+            self.logger.info(logstr)
             if self.have_game:
                 agent_select_ago = frame.timestamp - self.frames[0].timestamp
-                logger.info(f'Got agent select, last agent select {agent_select_ago:.2f}s ago')
+                self.logger.info(f'Got agent select, last agent select {agent_select_ago:.2f}s ago')
                 if agent_select_ago > 100:
-                    logger.info(f'Got fresh agent select - starting game')
+                    self.logger.info(f'Got fresh agent select - starting game')
                     end_game = True
                     start_game = True
             else:
-                logger.info(f'Got agent select - starting game')
+                self.logger.info(f'Got agent select - starting game')
                 start_game = True
 
         if end_game:
