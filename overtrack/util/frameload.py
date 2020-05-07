@@ -103,7 +103,11 @@ try:
     _Source = Union[_Source, TSSource]
 except ImportError:
     pass
-
+try:
+    from overtrack.source.twitch_source import TwitchSource
+    _Source = Union[_Source, TwitchSource]
+except ImportError:
+    pass
 
 _TYPES = {
     'objective': overtrack.overwatch.game.objective.models.Objective,
