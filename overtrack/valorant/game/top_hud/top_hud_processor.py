@@ -1,32 +1,53 @@
 import logging
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TypeVar, Sequence, cast
 
 import cv2
 import numpy as np
-
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import time_processing, imageops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.data import agents
-from overtrack.valorant.game.top_hud.models import TopHud, TeamComp
+from overtrack.valorant.game.top_hud.models import TopHud, TeamComp, FiveOBool
 from overtrack.valorant.ocr import din_next_regular_digits
 
 logger = logging.getLogger('TopHudProcessor')
+
+T = TypeVar('T')
+FiveT = Tuple[T, T, T, T, T]
+def cast_teams(items: Sequence[Sequence[T]]) -> Tuple[FiveT, FiveT]:
+    assert len(items) == 2
+    assert len(items[0]) == 5
+    assert len(items[1]) == 5
+    return cast(FiveT, items[0]), cast(FiveT, items[1])
 
 
 def draw_top_hud(debug_image: Optional[np.ndarray], top_hud: TopHud) -> None:
     if debug_image is None:
         return
 
-    for c, t in ((0, 0, 0), 4), ((0, 128, 255), 2):
+    def strfb(*bls):
+        return ', '.join(
+            '(' + ', '.join(str(e)[0] for e in bl) + ')'
+            for bl in bls
+        )
+
+    top_hud_s = (
+        f'TopHud('
+        f'score={top_hud.score}, '
+        f'teams={top_hud.teams}, '
+        f'has_ult={strfb(*top_hud.has_ult)}, '
+        f'has_spike={strfb(top_hud.has_spike)}'
+        f')'
+    )
+    for c, t in ((0, 0, 0), 4), ((0, 128, 255), 1):
         cv2.putText(
             debug_image,
-            str(top_hud),
-            (300, 100),
+            top_hud_s,
+            (100, 100),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.75,
+            0.5,
             c,
             t,
         )
@@ -47,15 +68,24 @@ class TopHudProcessor(Processor):
     }
     AGENT_TEMPLATE_REQUIRED_MATCH = 50
 
+    HAVE_ULT_SIGNAL = np.array([1] * 5 + [0] * 44 + [1] * 5, dtype=np.float)
+    HAVE_ULT_THRESHOLD = 0.9
+
+    SPIKE_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'spike.png'), 0)
+    SPIKE_THRESHOLD = 0.75
+
     @time_processing
     def process(self, frame: Frame) -> bool:
+        teams = self._parse_teams(frame)
         frame.valorant.top_hud = TopHud(
             score=self.parse_score(frame),
-            teams=self._parse_teams(frame),
+            teams=teams,
+            has_ult=self._parse_ults(frame, teams),
+            has_spike=self._parse_spike(frame, teams),
         )
         draw_top_hud(frame.debug_image, frame.valorant.top_hud)
 
-        self.REGIONS.draw(frame.debug_image)
+        # self.REGIONS.draw(frame.debug_image)
 
         return frame.valorant.top_hud.score[0] is not None or frame.valorant.top_hud.score[1] is not None
 
@@ -110,16 +140,94 @@ class TopHudProcessor(Processor):
 
                 logger.debug(f'Got agent {i}={agent} (best={r_agent}, match={match:.3f}, blurlevel={blurlevel:.1f})')
                 agents.append(agent)
-        return tuple(agents[:5]), tuple(agents[5:])
+        return cast_teams((agents[:5], agents[5:]))
+
+    def _parse_ults(self, frame: Frame, teams: Tuple[TeamComp, TeamComp]) -> Tuple[FiveOBool, FiveOBool]:
+        ults = []
+        for i, ult_im in enumerate(self.REGIONS['has_ult'].extract(frame.image)):
+            if not teams[i // 5][i % 5]:
+                ults.append(None)
+                continue
+
+            matches = [0.]
+            ult_hsv = cv2.cvtColor(ult_im, cv2.COLOR_BGR2HSV_FULL)
+
+            ult_col = np.median(ult_hsv, axis=(0, ))
+            ult_col = ult_col.astype(np.float)
+
+            # The median pixel value for each channel should be the value of the "yellow"
+            # Compute the abs offset from this value
+            ult_col = np.abs(ult_col - np.median(ult_col, axis=(0, )))
+
+            for c in range(3):
+                # Compute the maximum (filtered with a width 5 bloxfilter) value and normalize by this
+                # Check both sides of the image, as they may be different and use the lower of the two then clip the higher so it matches
+                ult_col_hi = np.convolve(ult_col[:, c], [1/5] * 5)
+                avg_diff_at_edge = min(np.max(ult_col_hi[:len(ult_col_hi) // 2]), np.max(ult_col_hi[len(ult_col_hi) // 2:]))
+                # print(i, c, avg_diff_at_edge)
+                if avg_diff_at_edge < 15:
+                    # Not significant difference
+                    continue
+
+                have_ult_thresh_1d = np.clip(ult_col[:, c] / avg_diff_at_edge, 0, 1)
+
+                # This leaves have_ult_thresh_1d as a signal [0, 1] where 0 is match to the has ult colour,
+                # and 1 is match to the outside
+
+                # Correlate this (normalizing to [-1, 1] to make the correlation normalized) with the expected width for the has ult block
+                have_ult_correlation = np.correlate(
+                    have_ult_thresh_1d * 2 - 1,
+                    self.HAVE_ULT_SIGNAL * 2 - 1
+                ) / len(self.HAVE_ULT_SIGNAL)
+                have_ult_match = np.max(have_ult_correlation)
+                #
+                # if not frame.get('warmup') and i == 2:
+                #     import matplotlib.pyplot as plt
+                #     plt.figure()
+                #     plt.imshow(ult_im)
+                #     plt.figure()
+                #     plt.plot(have_ult_thresh_1d)
+                #     plt.plot(have_ult_correlation)
+                #     plt.show()
+
+                matches.append(have_ult_match)
+            have_ult_match = np.max(matches)
+            logger.debug(f'Got player {i} has ult match={have_ult_match:.3f}')
+            ults.append(bool(have_ult_match > self.HAVE_ULT_THRESHOLD))
+
+        return cast_teams((ults[:5], ults[5:]))
+
+    def _parse_spike(self, frame: Frame, teams: Tuple[TeamComp, TeamComp]) -> FiveOBool:
+        ults = []
+        for i, ult_im in enumerate(self.REGIONS['has_spike'].extract(frame.image_yuv[:, :, 0])[:5]):
+            if not teams[0][i % 5]:
+                ults.append(None)
+                continue
+
+            _, thresh = cv2.threshold(ult_im, 240, 255, cv2.THRESH_BINARY)
+            match = np.max(cv2.matchTemplate(thresh, self.SPIKE_TEMPLATE, cv2.TM_CCORR_NORMED))
+            print(i, match)
+            # if match > 0.5:
+            #     cv2.imshow('match', thresh)
+            #     cv2.waitKey(0)
+            ults.append(bool(match > self.SPIKE_THRESHOLD))
+
+        return cast(FiveOBool, ults)
+
 
 def main():
     from overtrack.util.logging_config import config_logger
     from overtrack import util
     import glob
     config_logger(os.path.basename(__file__), level=logging.DEBUG, write_to_file=False)
-    util.test_processor('ingame', TopHudProcessor(), 'valorant.top_hud', game='valorant', test_all=False)
 
-    paths = glob.glob("D:/overtrack/valorant/*.png")
+    # util.test_processor([
+    #     r'C:/Users/simon/overtrack_2/valorant_images/ingame\00-41-617.image.png'
+    # ], TopHudProcessor(), 'valorant.top_hud', game='valorant', test_all=False, wait=True)
+    #
+    util.test_processor('ingame', TopHudProcessor(), 'valorant.top_hud', game='valorant', test_all=False, wait=True)
+
+    paths = glob.glob("D:/overtrack/valorant_stream_client/frames/*/*/*.png", recursive=True)
     paths = [p for p in paths if 'debug' not in p]
     paths.sort()
     paths = paths[::500]
