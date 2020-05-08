@@ -7,11 +7,11 @@ import numpy as np
 from dataclasses import dataclass, field
 
 from overtrack.frame import Frame
-from overtrack.util import s2ts, arrayops, textops
+from overtrack.util import s2ts, arrayops
 from overtrack.valorant.game.killfeed import Kill as FrameKill
 
 if TYPE_CHECKING:
-    from overtrack.valorant.collect.teams import Teams, Player, AgentName
+    from overtrack.valorant.collect.valorant_game.teams import Teams, Player, AgentName
 else:
     Teams = 'Teams'
     Player = 'Player'
@@ -140,6 +140,16 @@ class Kills:
             self.logger.info(f'    Killed: {[r.killed.name for r in unresolved_kill.raw_kills]} > {killed_player}')
             self.logger.info(f'    Weapon: {[r.weapon for r in unresolved_kill.raw_kills]} > {weapon}')
 
+            # if not weapon or (killer_player and not killed_player) or (not killer_player and killed_player):
+            #     # import cv2
+            #     # print(unresolved_kill.key)
+            #     # print(unresolved_kill.raw_kills[0])
+            #     # print(_k2f[id(unresolved_kill)].debug_image_path)
+            #     # cv2.imshow('kill', cv2.imread(_k2f[id(unresolved_kill)].debug_image_path))
+            #     # cv2.waitKey(0)
+            #     import shutil, os
+            #     f = _k2f[id(unresolved_kill)]
+            #     shutil.copy(f.image_path, os.path.join(f"D:/overtrack/valorant_stream_client/unknownkills/{f.timestamp}.png"))
 
             if not killer_player or not killed_player:
                 self.logger.warning(f'      > Unable to resolve kill')

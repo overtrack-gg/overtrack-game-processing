@@ -12,24 +12,33 @@ from overtrack.valorant.game.top_hud.top_hud_processor import TopHudProcessor
 def create_pipeline(extra_processors: Sequence[Processor] = (), aggressive=False) -> Processor:
     pipeline = OrderedProcessor(
         ShortCircuitProcessor(
-            ShortCircuitProcessor(
-                AgentSelectProcessor(),
-                TimerProcessor(),
-                PostgameProcessor(),
-                order_defined=False,
-            ),
-            EveryN(
-                HomeScreenProcessor(),
-                3 if not aggressive else 1,
-            ),
+            AgentSelectProcessor(),
+            TimerProcessor(),
+            PostgameProcessor(),
             order_defined=False,
+        ),
+        EveryN(
+            ConditionalProcessor(
+                HomeScreenProcessor(),
+                condition=lambda f: (
+                    not (f.valorant.timer and f.valorant.timer.valid) and
+                    not (f.valorant.top_hud and f.valorant.top_hud.score and f.valorant.top_hud.score[0] is not None and f.valorant.top_hud.score[1] is not None)
+                ),
+                lookbehind=5,
+                lookbehind_behaviour=lambda l: len(l) and sum(l) > 3,
+            ),
+            3 if not aggressive else 1
         ),
         ConditionalProcessor(
             OrderedProcessor(
                 EveryN(TopHudProcessor(), 5 if not aggressive else 1),
                 KillfeedProcessor(),
             ),
-            condition=lambda f: lambda f: aggressive or ('timer' in f and f.timer.valid) or 'top_hud' in f,
+            condition=lambda f: lambda f: (
+                aggressive or
+                (f.valorant.timer and f.valorant.timer.valid) or
+                f.valorant.top_hud
+            ),
             lookbehind=7,
             lookbehind_behaviour=any,
             default_without_history=True,

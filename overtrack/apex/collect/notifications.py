@@ -19,7 +19,6 @@ class DiscordMessage:
     DISCORD_BOT_TOKEN = os.environ['DISCORD_BOT_TOKEN']
     CHANNEL_CREATE_MESSAGE = '**REMOVED**'
 
-    GAME_PREFIX = 'https://apex.overtrack.gg/game/'
     IMAGE_PREFIX = 'http://apextrack-web-poc-assets.s3-us-west-2.amazonaws.com/1/images/'
 
     COLOR_BASE = int('992e26', base=16)
@@ -56,7 +55,7 @@ class DiscordMessage:
         self.game_embed = {
             'author': {
                 'name': 'overtrack.gg',
-                'url': 'https://apex.overtrack.gg/',
+                'url': 'https://overtrack.gg/',
                 'icon_url': 'https://overtrack.gg/favicon.png'
             },
             'color': self.colors.get(game.placed, self.COLOR_BASE),
@@ -162,7 +161,7 @@ class TwitchMessage:
 
 def send_notifications(user_id: int, game: ApexGame, summary: ApexGameSummary, url: str, username: str, dev_embed: Optional[Dict]) -> None:
     discord_message = DiscordMessage(game, summary, url, username)
-    for discord_integration in DiscordBotNotification.user_id_index.query(user_id):
+    for discord_integration in DiscordBotNotification.user_id_index.query(user_id, DiscordBotNotification.game == 'apex'):
         top3_only = discord_integration.notification_data.get('top3_only', False)
         if (top3_only and summary.placed <= 3) or not top3_only:
             logger.info(f'Sending {summary} to {discord_integration}')
@@ -176,7 +175,7 @@ def send_notifications(user_id: int, game: ApexGame, summary: ApexGameSummary, u
     else:
         discord_message.post_to_webhook(APEX_GAMES_WEBHOOK)
 
-    for twitch_integration in TwitchBotNotification.user_id_index.query(user_id):
+    for twitch_integration in TwitchBotNotification.user_id_index.query(user_id, TwitchBotNotification.game == 'apex'):
         twitch_message = TwitchMessage(game, summary, url, twitch_integration.twitch_channel_name)
         top3_only = twitch_integration.notification_data.get('top3_only', False)
         if (top3_only and summary.placed <= 3) or not top3_only:
