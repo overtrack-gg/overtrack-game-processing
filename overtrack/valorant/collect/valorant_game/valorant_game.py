@@ -94,20 +94,20 @@ class ValorantGame:
             elif f.valorant.postgame and f.valorant.postgame.map:
                 map_texts.append(f.valorant.postgame.map)
         map_texts = map_texts[-50:]
-        map_ = None
         for map_text in map_texts:
             map_ = textops.best_match(
                 map_text,
                 data.maps,
                 threshold=0.75,
-                disable_log=True,
+                disable_log=False,
             )
             if map_:
                 mapcounter[map_] += 1
-        if not map_:
+        if not len(mapcounter):
             raise NoMapError()
-        self.logger.info(f'Resolving map {mapcounter} -> {map_}')
-        return map_
+        bestmap, _ = mapcounter.most_common(1)[0]
+        self.logger.info(f'Resolving map {mapcounter} -> {bestmap}')
+        return bestmap
 
     def asdict(self) -> Dict[str, Any]:
         return referenced_typedload.dump(self)
