@@ -16,7 +16,7 @@ from overtrack.valorant.collect.valorant_game.teams import Teams, Player
 from overtrack_models.dataclasses.typedload import referenced_typedload
 from overtrack_models.dataclasses.valorant import MapName
 
-VERSION = '0.9.0'
+VERSION = '0.9.1'
 
 
 class GameParseError(Exception):
@@ -41,6 +41,7 @@ class ValorantGame:
     rounds: Rounds
     teams: Teams
 
+    frames_count: int
     version: str
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
@@ -83,6 +84,7 @@ class ValorantGame:
         else:
             self.won = None
 
+        self.frames_count = len(frames)
         self.version = VERSION
 
     def _resolve_map(self, frames):
