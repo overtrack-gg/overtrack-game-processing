@@ -16,7 +16,7 @@ from overtrack.valorant.collect.valorant_game.teams import Teams, Player
 from overtrack_models.dataclasses.typedload import referenced_typedload
 from overtrack_models.dataclasses.valorant import MapName
 
-VERSION = '0.9.1'
+VERSION = '0.9.2'
 
 
 class GameParseError(Exception):
