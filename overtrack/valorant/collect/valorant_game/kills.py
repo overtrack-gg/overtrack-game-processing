@@ -110,9 +110,9 @@ class Kills:
                     _k2f[id(kill)] = f
 
         self.kills = []
-        self.logger.info(f'Got {len(unresolved_kills)} kills to resolve:')
+        self.logger.debug(f'Got {len(unresolved_kills)} kills to resolve:')
         for unresolved_kill in unresolved_kills:
-            self.logger.info(f'  {s2ts(unresolved_kill.timestamps[0])} {unresolved_kill}')
+            self.logger.debug(f'  {s2ts(unresolved_kill.timestamps[0])} {unresolved_kill}')
 
             killer_player = self._get_player_by_agent(
                 teams[not unresolved_kill.key.killer_friendly],
@@ -136,9 +136,9 @@ class Kills:
 
             weapon = arrayops.most_common([r.weapon for r in unresolved_kill.raw_kills if r.weapon])
 
-            self.logger.info(f'    Killer: {[r.killer.name for r in unresolved_kill.raw_kills]} > {killer_player}')
-            self.logger.info(f'    Killed: {[r.killed.name for r in unresolved_kill.raw_kills]} > {killed_player}')
-            self.logger.info(f'    Weapon: {[r.weapon for r in unresolved_kill.raw_kills]} > {weapon}')
+            self.logger.debug(f'    Killer: {[r.killer.name for r in unresolved_kill.raw_kills]} > {killer_player}')
+            self.logger.debug(f'    Killed: {[r.killed.name for r in unresolved_kill.raw_kills]} > {killed_player}')
+            self.logger.debug(f'    Weapon: {[r.weapon for r in unresolved_kill.raw_kills]} > {weapon}')
 
             # if not weapon or (killer_player and not killed_player) or (not killer_player and killed_player):
             #     # import cv2
@@ -152,7 +152,7 @@ class Kills:
             #     shutil.copy(f.image_path, os.path.join(f"D:/overtrack/valorant_stream_client/unknownkills/{f.timestamp}.png"))
 
             if not killer_player or not killed_player:
-                self.logger.warning(f'      > Unable to resolve kill')
+                self.logger.warning(f'      > Unable to resolve kill {unresolved_kill.key}')
                 continue
 
             # killer_player_match = np.mean([levenshtein.ratio(r.killer.name, killer_player.name) for r in unresolved_kill.raw_kills])
