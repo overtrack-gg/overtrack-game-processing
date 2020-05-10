@@ -114,9 +114,28 @@ class Teams:
         # Work out which is the firstperson player by matching agent selected at game start against team1
         agent_select_frames = [f for f in frames if f.valorant.agent_select and f.valorant.agent_select.agent and f.valorant.agent_select.locked_in]
         if len(agent_select_frames):
-            firstperson_agent, count = Counter([f.valorant.agent_select.agent for f in agent_select_frames]).most_common(1)[0]
-            self.logger.info(f'Got firstperson agent={firstperson_agent!r} with {count} observations')
-            self.firstperson = [p for p in self.team1 if p.agent == firstperson_agent][0]
+            agent_select = [f.valorant.agent_select.agent for f in agent_select_frames]
+            self.logger.info(f'Resolving firstperson agent from agent select: {agent_select}')
+            agent_select_counter = Counter(agent_select)
+            if agent_select_counter[agent_select[0]] != len(agent_select):
+                self.logger.warning(f'Got multiple agents selected')
+            done = set()
+            for firstperson_agent in reversed(agent_select):
+                if firstperson_agent in done:
+                    continue
+                done.add(firstperson_agent)
+                self.logger.info(f'Checking agent select {firstperson_agent}')
+                firstperson_match = [p for p in self.team1 if p.agent == firstperson_agent]
+                if not len(firstperson_match):
+                    self.logger.warning(f'{firstperson_agent} selected, but not observed on team - trying next most recent')
+                    continue
+                else:
+                    self.logger.info(f'Using firstperson agent={firstperson_agent} from last observed agent')
+                    self.firstperson = firstperson_match[0]
+                    break
+            else:
+                self.logger.error(f'Could not find agent matching agent select frames')
+                self.firstperson = None
         else:
             self.logger.info(f'Got no agent select frames - assuming game has no firstperson data')
             self.firstperson = None
