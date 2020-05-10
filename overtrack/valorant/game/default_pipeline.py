@@ -22,16 +22,15 @@ def create_pipeline(extra_processors: Sequence[Processor] = (), aggressive=False
                 HomeScreenProcessor(),
                 condition=lambda f: (
                     not (f.valorant.timer and f.valorant.timer.valid) and
-                    not (f.valorant.top_hud and f.valorant.top_hud.score and f.valorant.top_hud.score[0] is not None and f.valorant.top_hud.score[1] is not None)
+                    not (f.valorant.top_hud and f.valorant.top_hud.score and f.valorant.top_hud.score[0] is not None and f.valorant.top_hud.score[1] is not None) and
+                    not f.valorant.postgame
                 ),
-                lookbehind=5,
-                lookbehind_behaviour=lambda l: len(l) and sum(l) > 3,
             ),
-            3 if not aggressive else 1
+            5 if not aggressive else 1
         ),
         ConditionalProcessor(
             OrderedProcessor(
-                EveryN(TopHudProcessor(), 5 if not aggressive else 1),
+                EveryN(TopHudProcessor(), 3 if not aggressive else 1),
                 KillfeedProcessor(),
             ),
             condition=lambda f: lambda f: (
