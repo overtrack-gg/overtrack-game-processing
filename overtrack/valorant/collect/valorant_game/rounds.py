@@ -149,61 +149,68 @@ class Rounds:
             score[winner_index] += 1
             last_round_end_index = edge
 
-        self.logger.info(f'Trying to identify final round winner')
-        final_round_won = None
-
-        # Attempt to derive final round winner (and game winner) by if one team was up by more than 1 point
-        if score[0] == 12 and score[1] != 12:
-            self.logger.info(f'Deriving final round win=True from score={score[0]}-{score[1]}')
-            final_round_won = True
-        elif score[0] != 12 and score[1] == 12:
-            self.logger.info(f'Deriving final round win=False from score={score[0]}-{score[1]}')
-            final_round_won = False
-        else:
-            self.logger.warning(f'Could not resolve final round winner from {score[0]}-{score[1]}')
-
-        # Attempt to derive final round winner by postgame game winner
-        final_scores_observed = [Counter(), Counter()]
-        game_results_observed = Counter()
-        for f in frames:
-            if f.valorant.postgame:
-                for i in range(2):
-                    if f.valorant.postgame.score[i] is not None:
-                        final_scores_observed[i][f.valorant.postgame.score[i]] += 1
-                game_results_observed[f.valorant.postgame.victory] += 1
-        if sum(game_results_observed.values()):
-            postgame_result_game_won = game_results_observed.most_common(1)[0][0]
-            self.logger.info(f'Got final game result: {game_results_observed} -> win={postgame_result_game_won}')
-            if final_round_won is not None:
-                if postgame_result_game_won != final_round_won:
-                    self.logger.error('Got inconsistent game result from final round derived result')
-            else:
-                final_round_won = postgame_result_game_won
-        else:
-            self.logger.warning(f'Unable to get final game result - no game result')
-
-        if not len(rounds):
-            raise NoRounds()
-
-        # Add the final round
-        final_round = Round(
-            len(rounds),
-            round(float(rounds[-1].end + INTER_PHASE_DURATION), 1),
-            round(float(rounds[-1].end + INTER_PHASE_DURATION + BUY_PHASE_DURATION), 1),
-            round(float(score_timestamps[-1]), 1),
-            final_round_won,
-            None
-        )
-        self.logger.info(f'Adding final round: {final_round}')
-        rounds.append(final_round)
-
-        # Update the score using the final round
-        # If the final round result is unknown, so is the final score
-        if final_round_won is not None:
-            score[not final_round_won] += 1
+        if score[0] == 13 or score[1] == 13:
+            # Captured final score transision
+            self.logger.info(f'Final round score transition was captured - final round was included, final score={score[0]}-{score[1]}')
             score = score[0], score[1]
         else:
-            score = None
+            self.logger.info(f'Final round score transition was not captured - resolving final round')
+
+            self.logger.info(f'Trying to identify final round winner')
+            final_round_won = None
+
+            # Attempt to derive final round winner (and game winner) by if one team was up by more than 1 point
+            if score[0] == 12 and score[1] != 12:
+                self.logger.info(f'Deriving final round win=True from score={score[0]}-{score[1]}')
+                final_round_won = True
+            elif score[0] != 12 and score[1] == 12:
+                self.logger.info(f'Deriving final round win=False from score={score[0]}-{score[1]}')
+                final_round_won = False
+            else:
+                self.logger.warning(f'Could not resolve final round winner from {score[0]}-{score[1]}')
+
+            # Attempt to derive final round winner by postgame game winner
+            final_scores_observed = [Counter(), Counter()]
+            game_results_observed = Counter()
+            for f in frames:
+                if f.valorant.postgame:
+                    for i in range(2):
+                        if f.valorant.postgame.score[i] is not None:
+                            final_scores_observed[i][f.valorant.postgame.score[i]] += 1
+                    game_results_observed[f.valorant.postgame.victory] += 1
+            if sum(game_results_observed.values()):
+                postgame_result_game_won = game_results_observed.most_common(1)[0][0]
+                self.logger.info(f'Got final game result: {game_results_observed} -> win={postgame_result_game_won}')
+                if final_round_won is not None:
+                    if postgame_result_game_won != final_round_won:
+                        self.logger.error('Got inconsistent game result from final round derived result')
+                else:
+                    final_round_won = postgame_result_game_won
+            else:
+                self.logger.warning(f'Unable to get final game result - no game result')
+
+            if not len(rounds):
+                raise NoRounds()
+
+            # Add the final round
+            final_round = Round(
+                len(rounds),
+                round(float(rounds[-1].end + INTER_PHASE_DURATION), 1),
+                round(float(rounds[-1].end + INTER_PHASE_DURATION + BUY_PHASE_DURATION), 1),
+                round(float(score_timestamps[-1]), 1),
+                final_round_won,
+                None
+            )
+            self.logger.info(f'Adding final round: {final_round}')
+            rounds.append(final_round)
+
+            # Update the score using the final round
+            # If the final round result is unknown, so is the final score
+            if final_round_won is not None:
+                score[not final_round_won] += 1
+                score = score[0], score[1]
+            else:
+                score = None
 
         if debug in [True, self.__class__.__qualname__]:
             import matplotlib.pyplot as plt
