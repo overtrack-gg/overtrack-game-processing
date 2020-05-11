@@ -51,6 +51,11 @@ class Rounds:
         # TODO: check against count of rounds, final score seen
         self.final_score = score_from_rounds
 
+        if not self.final_score:
+            self.logger.error('Could not derive final score')
+        elif not (self.final_score[0] == 13 or self.final_score[1] == 13):
+            self.logger.error('Final score did not have team with 13 winser')
+
         if debug in [True, self.__class__.__qualname__]:
             import matplotlib.pyplot as plt
             plt.show()
@@ -143,14 +148,14 @@ class Rounds:
         final_round_won = None
 
         # Attempt to derive final round winner (and game winner) by if one team was up by more than 1 point
-        if score[0] == 12 and not score[1] != 12:
+        if score[0] == 12 and score[1] != 12:
             self.logger.info(f'Deriving final round win=True from score={score[0]}-{score[1]}')
             final_round_won = True
         elif score[0] != 12 and score[1] == 12:
             self.logger.info(f'Deriving final round win=True from score={score[0]}-{score[1]}')
             final_round_won = True
         else:
-            self.logger.warning(f'Could not resolve final round winner from ={score[0]}-{score[1]}')
+            self.logger.warning(f'Could not resolve final round winner from {score[0]}-{score[1]}')
 
         # Attempt to derive final round winner by postgame game winner
         final_scores_observed = [Counter(), Counter()]
@@ -164,7 +169,7 @@ class Rounds:
         if sum(game_results_observed.values()):
             postgame_result_game_won = game_results_observed.most_common(1)[0][0]
             self.logger.info(f'Got final game result: {game_results_observed} -> win={postgame_result_game_won}')
-            if not final_round_won:
+            if final_round_won is not None:
                 if postgame_result_game_won != final_round_won:
                     self.logger.error('Got inconsistent game result from final round derived result')
             else:
@@ -187,7 +192,7 @@ class Rounds:
         # Update the score using the final round
         # If the final round result is unknown, so is the final score
         if final_round_won is not None:
-            score[final_round_won] += 1
+            score[not final_round_won] += 1
             score = score[0], score[1]
         else:
             score = None
