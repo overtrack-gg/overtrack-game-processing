@@ -1,0 +1,2 @@
+class InvalidGame(ValueError):
+    pass

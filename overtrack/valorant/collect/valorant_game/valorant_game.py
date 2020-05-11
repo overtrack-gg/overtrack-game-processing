@@ -10,20 +10,17 @@ from overtrack.frame import Frame
 from overtrack.util import textops
 from overtrack.util.prettyprint import DataclassPrettyPrinter
 from overtrack.valorant import data
+from overtrack.valorant.collect.valorant_game.game_parse_error import InvalidGame
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
 from overtrack.valorant.collect.valorant_game.rounds import Rounds
 from overtrack.valorant.collect.valorant_game.teams import Teams, Player
 from overtrack_models.dataclasses.typedload import referenced_typedload
 from overtrack_models.dataclasses.valorant import MapName
 
-VERSION = '0.9.2'
+VERSION = '0.9.3'
 
 
-class GameParseError(Exception):
-    pass
-
-
-class NoMapError(GameParseError):
+class NoMap(InvalidGame):
     pass
 
 
@@ -106,7 +103,7 @@ class ValorantGame:
             if map_:
                 mapcounter[map_] += 1
         if not len(mapcounter):
-            raise NoMapError()
+            raise NoMap()
         bestmap, _ = mapcounter.most_common(1)[0]
         self.logger.info(f'Resolving map {mapcounter} -> {bestmap}')
         return bestmap

@@ -6,7 +6,7 @@ import numpy as np
 import re
 from dataclasses import dataclass
 from overtrack.util.arrayops import modefilt
-from scipy.signal import find_peaks
+from overtrack.valorant.collect.valorant_game.valorant_game import InvalidGame
 from typing import List, Optional, ClassVar, Union, Tuple
 
 from overtrack.frame import Frame
@@ -19,6 +19,11 @@ BUY_PHASE_DURATION = 30
 INTER_PHASE_DURATION = 6
 
 COUNTDOWN_PATTERN = re.compile(r'^[01]:\d\d$')
+
+
+class NoRounds(InvalidGame):
+    pass
+
 
 @dataclass
 class Round:
@@ -54,7 +59,7 @@ class Rounds:
         if not self.final_score:
             self.logger.error('Could not derive final score')
         elif not (self.final_score[0] == 13 or self.final_score[1] == 13):
-            self.logger.error('Final score did not have team with 13 winser')
+            self.logger.error('Final score did not have team with 13 wins')
 
         if debug in [True, self.__class__.__qualname__]:
             import matplotlib.pyplot as plt
@@ -152,8 +157,8 @@ class Rounds:
             self.logger.info(f'Deriving final round win=True from score={score[0]}-{score[1]}')
             final_round_won = True
         elif score[0] != 12 and score[1] == 12:
-            self.logger.info(f'Deriving final round win=True from score={score[0]}-{score[1]}')
-            final_round_won = True
+            self.logger.info(f'Deriving final round win=False from score={score[0]}-{score[1]}')
+            final_round_won = False
         else:
             self.logger.warning(f'Could not resolve final round winner from {score[0]}-{score[1]}')
 
@@ -176,6 +181,9 @@ class Rounds:
                 final_round_won = postgame_result_game_won
         else:
             self.logger.warning(f'Unable to get final game result - no game result')
+
+        if not len(rounds):
+            raise NoRounds()
 
         # Add the final round
         final_round = Round(
