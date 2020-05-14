@@ -206,8 +206,6 @@ class TopHudProcessor(Processor):
 
             _, thresh = cv2.threshold(ult_im, 240, 255, cv2.THRESH_BINARY)
             match = np.max(cv2.matchTemplate(thresh, self.SPIKE_TEMPLATE, cv2.TM_CCORR_NORMED))
-            print(i, match)
-            # if match > 0.5:
             #     cv2.imshow('match', thresh)
             #     cv2.waitKey(0)
             ults.append(bool(match > self.SPIKE_THRESHOLD))
@@ -221,17 +219,33 @@ def main():
     import glob
     config_logger(os.path.basename(__file__), level=logging.DEBUG, write_to_file=False)
 
+    proc = TopHudProcessor()
+
+    agent_paths = [
+        os.path.join(
+            'C:/Users/simon/overtrack_2/valorant_images/top_hud_agents',
+            agent_name.lower() + '.png',
+        )
+        for agent_name in agents
+    ]
+    agent_frames = [
+        agent_path
+        for agent_path in agent_paths
+        if os.path.exists(agent_path)
+    ]
+    util.test_processor(agent_frames, proc, 'valorant.top_hud', game='valorant', test_all=False, wait=True)
+
     # util.test_processor([
     #     r'C:/Users/simon/overtrack_2/valorant_images/ingame\00-41-617.image.png'
     # ], TopHudProcessor(), 'valorant.top_hud', game='valorant', test_all=False, wait=True)
     #
-    util.test_processor('ingame', TopHudProcessor(), 'valorant.top_hud', game='valorant', test_all=False, wait=True)
+    util.test_processor('ingame', proc, 'valorant.top_hud', game='valorant', test_all=False, wait=True)
 
     paths = glob.glob("D:/overtrack/valorant_stream_client/frames/*/*/*.png", recursive=True)
     paths = [p for p in paths if 'debug' not in p]
     paths.sort()
     paths = paths[::500]
-    util.test_processor(paths, TopHudProcessor(), 'valorant.top_hud', game='valorant')
+    util.test_processor(paths, proc, 'valorant.top_hud', game='valorant')
 
 
 if __name__ == '__main__':

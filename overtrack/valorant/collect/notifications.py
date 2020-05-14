@@ -80,9 +80,15 @@ class ValorantTwitchMessage:
             if k.weapon:
                 weaponcounters[k.weapon] += 1
         bestweap, bestweap_count = weaponcounters.most_common(1)[0]
+
+        if game.score:
+            scorestr = f'{game.score[0]}-{game.score[1]} '
+        else:
+            scorestr = ' '
+
         self.message = (
-            f'{name} just {result} {game.score[0]}-{game.score[1]} on {game.map}. '
-            f'{np.mean([len(ks) for ks in kills_by_round]):.1f} kills/round, {len(firstbloods)} first bloods. '
+            f'{name} just {result} {scorestr}on {game.map}. '
+            f'{len(game.teams.firstperson.kills)} kills, {np.mean([len(ks) for ks in kills_by_round]):.1f} kills/round, {len(firstbloods)} first bloods. '
             f'Best weapon: {bestweap.title()} with {bestweap_count} kills. Best round: {np.max([len(ks) for ks in kills_by_round])} kills'
         )
         self.color = 'Goldenrod'

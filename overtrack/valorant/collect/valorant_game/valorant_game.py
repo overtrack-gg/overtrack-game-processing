@@ -17,7 +17,7 @@ from overtrack.valorant.collect.valorant_game.teams import Teams, Player
 from overtrack_models.dataclasses.typedload import referenced_typedload
 from overtrack_models.dataclasses.valorant import MapName
 
-VERSION = '0.9.3'
+VERSION = '0.10.0'
 
 
 class NoMap(InvalidGame):
@@ -74,6 +74,8 @@ class ValorantGame:
         for r in self.rounds:
             r.kills = Kills(frames, self.teams, r.index, self.timestamp, r.start, r.end)
 
+        self.teams.resolve_performance(self.rounds)
+
         if self.rounds[-1].won is not None:
             self.won = self.rounds[-1].won
         elif self.score:
@@ -96,7 +98,8 @@ class ValorantGame:
         for map_text in map_texts:
             map_ = textops.best_match(
                 map_text,
-                data.maps,
+                [f'MAP - {m.upper()}' for m in data.maps] + data.maps,
+                data.maps + data.maps,
                 threshold=0.75,
                 disable_log=False,
             )

@@ -10,6 +10,7 @@ import numpy as np
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import time_processing, imageops, textops
+from overtrack.util.prettyprint import pprint
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.data import agents, AgentName
 from overtrack.valorant.game.killfeed.models import Kill, KillfeedPlayer, Killfeed
@@ -51,10 +52,59 @@ class KillfeedProcessor(Processor):
     }
     AGENT_THRESHOLD = 50
 
+    WEAPON_NAMES = [
+        'classic',
+        'shorty',
+        'frenzy',
+        'ghost',
+        'sheriff',
+
+        'stinger',
+        'spectre',
+
+        'bucky',
+        'judge',
+
+        'bulldog',
+        'guardian',
+        'phantom',
+        'vandal',
+
+        'marshal',
+        'operator',
+
+        'ares',
+        'odin',
+
+        'knife',
+
+        'brimstone.incendiary',
+        'brimstone.orbital_strike',
+
+        'jett.blade_storm',
+
+        'phoenix.blaze',
+        'phoenix.hot_hands',
+
+        'raze.blast_pack',
+        'raze.boom_bot',
+        'raze.paint_shells',
+        'raze.showstopper',
+
+        'sova.hunters_fury',
+        'sova.shock_dart',
+
+        'breach.aftershock',
+
+        'viper.snake_bite',
+    ]
     WEAPON_IMAGES = {
-        os.path.basename(p).rsplit('.', 1)[0]: imageops.imread(p, 0)
-        for p in glob.glob(os.path.join(os.path.dirname(__file__), 'data', 'weapons', '*.png'))
+        n: imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'weapons', n + '.png'), 0)
+        for n in WEAPON_NAMES
     }
+    for n, im in WEAPON_IMAGES.items():
+        assert im.shape[1] <= 145, f'{n} image dimensions too high: {im.shape[1]}'
+    pprint(list(reversed(WEAPON_NAMES)))
     WEAPON_TEMPLATES = {
         w: cv2.GaussianBlur(
             cv2.dilate(
@@ -66,7 +116,7 @@ class KillfeedProcessor(Processor):
         )
         for w, image in WEAPON_IMAGES.items()
     }
-    WEAPON_THRESHOLD=0.85
+    WEAPON_THRESHOLD = 0.9
 
     @time_processing
     def process(self, frame: Frame) -> bool:
@@ -275,6 +325,7 @@ class KillfeedProcessor(Processor):
                 debug_name='killer_agent',
                 debug_image=frame.debug_image,
             )
+        # cv2.imwrite(f'C:/tmp/agents2/{region_x}.png', agent_im)
         agent_matches = {}
         agent_match_m = []
         t = None
@@ -338,6 +389,7 @@ class KillfeedProcessor(Processor):
             200,
         )
         weapon_thresh = ((weapon_gray - weapon_adapt_thresh > 30) * 255).astype(np.uint8)
+        # cv2.imwrite(f'C:/tmp/agents2/weap.png', weapon_thresh)
 
         # import matplotlib.pyplot as plt
         # f, figs = plt.subplots(4)
@@ -410,6 +462,7 @@ class KillfeedProcessor(Processor):
                 cv2.TM_CCORR_NORMED,
                 template_in_image=False,
                 required_match=0.96,
+                verbose=True,
             )
             if best_weap_match < weapon_match:
                 best_weap_match, best_weap = weapon_match, weapon
@@ -431,9 +484,6 @@ class KillfeedProcessor(Processor):
 
             if valid:
                 return weapon, float(weapon_match), int(weapon_region_left + x1)
-        else:
-            logger.warning(f'Unable to find weapon - no valid blobs')
-            return None, 0, weapon_region_right
 
         logger.warning(f'Unable to find weapon - best match was {best_weap!r} match={best_weap_match:.2f}')
         return None, 0, weapon_region_right
@@ -465,19 +515,7 @@ def main():
     config_logger(os.path.basename(__file__), level=logging.DEBUG, write_to_file=False)
     proc = KillfeedProcessor()
 
-    # paths = glob.glob("D:/overtrack/valorant_agent_killfeed/*_image.png")
-    # for p in paths:
-    #     f = Frame.create(cv2.imread(p), 0)
-    #     if proc.process(f):
-    #         shutil.copy(p, os.path.join("C:/Users/simon/overtrack_2/valorant_images/killicons", os.path.basename(p)))
-
-    util.test_processor("D:/overtrack/valorant_stream_client/exceptions/*.png", proc, 'valorant.killfeed', game='valorant', wait=True, test_all=False)
-
-    killicons = glob.glob("C:/Users/simon/overtrack_2/valorant_images/killicons/*.png")
-    random.shuffle(killicons)
-    killicons.insert(0, r'C:/Users/simon/overtrack_2/valorant_images/killicons\1588417689.59_image.png')
-    killicons.insert(0, r'D:\overtrack\valorant_stream_client\frames\2020-05-03\04\26-05-446.image.png')
-    util.test_processor(killicons, proc, 'valorant.killfeed', game='valorant', wait=True, test_all=False)
+    # util.test_processor('weapon_kills', proc, 'valorant.killfeed', game='valorant', wait=True, test_all=False)
     util.test_processor('ingame', proc, 'valorant.killfeed', game='valorant', wait=True, test_all=False)
 
 

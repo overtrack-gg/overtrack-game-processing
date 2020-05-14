@@ -1,10 +1,12 @@
+import itertools
 import logging
 from collections import Counter
 from typing import List, Optional, Union, ClassVar, Tuple, TYPE_CHECKING, Dict
 import Levenshtein as levenshtein
-from dataclasses import dataclass, fields, Field, field
+from dataclasses import dataclass, fields, Field, field, InitVar
 
 from overtrack.frame import Frame
+from overtrack.valorant.collect.valorant_game.performance_stats import PerformanceStats
 from overtrack.valorant.collect.valorant_game.rounds import Rounds
 from overtrack.valorant.data import AgentName
 from overtrack.valorant.game.top_hud.models import TeamComp
@@ -61,6 +63,8 @@ class Player:
     deaths: List[Kill] = field(repr=False, default_factory=list)
     weaponkills: Dict[str, List[Kill]] = field(repr=False, default_factory=dict)
 
+    performance: Optional[PerformanceStats] = None
+
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def resolve_name_from_killfeed(self, frames: List[Frame]):
@@ -78,6 +82,11 @@ class Player:
         self.logger.info(f'Resolving {self} name={name!r} from {Counter(names)}')
         self.name = name
 
+    def resolve_performance(self, rounds: Rounds):
+        self.logger.info(f'Resolving performance for {self.name}')
+        self.performance = PerformanceStats(self.friendly, self.kills, self.deaths, rounds, self.friendly)
+        self.logger.info(f'    {self.performance}')
+
     def __str__(self):
         s = f'Player(agent={self.agent}, friendly={self.friendly}'
         if self.name:
@@ -87,9 +96,41 @@ class Player:
 
 
 @dataclass
+class Team:
+    players: List[Player]
+    friendly: bool
+
+    performance: Optional[PerformanceStats] = None
+
+    def resolve_performance(self, rounds: Rounds):
+        self.performance = PerformanceStats(
+            self.friendly,
+            list(itertools.chain(*[
+                p.kills for p in self.players
+            ])),
+            list(itertools.chain(*[
+                p.deaths for p in self.players
+            ])),
+            rounds,
+            None,
+        )
+        for p in self.players:
+            p.resolve_performance(rounds)
+
+    def __iter__(self):
+        return iter(self.players)
+
+    def __len__(self):
+        return len(self.players)
+
+    def __getitem__(self, item):
+        return self.players[item]
+
+
+@dataclass
 class Teams:
-    team1: List[Player]
-    team2: List[Player]
+    team1: Team
+    team2: Team
 
     firstperson: Optional[Player]
     have_scoreboard: bool
@@ -98,14 +139,16 @@ class Teams:
 
     def __init__(self, frames: List[Frame], rounds: Rounds, debug: Union[bool, str] = False):
         # Resolve agents from top HUD
-        self.team1, self.team2 = [], []
+        teams = [], []
         for i, teamcomp in enumerate(self._parse_teamcomps(frames, rounds)):
             for agent in teamcomp:
-                self.teams[i].append(Player(
+                teams[i].append(Player(
                     agent,
                     None,
                     i == 0,
                 ))
+        self.team1 = Team(teams[0], True)
+        self.team2 = Team(teams[1], False)
 
         self.logger.info(f'Resolving player names')
         for p in self.players:
@@ -168,6 +211,10 @@ class Teams:
         else:
             self.logger.info(f'Got no scoreboard frames - not resolving stats')
 
+    def resolve_performance(self, rounds: Rounds):
+        for t in self.teams:
+            t.resolve_performance(rounds)
+
     def _parse_teamcomps(self, frames: List[Frame], rounds: Rounds) -> Tuple[TeamComp, TeamComp]:
         timestamp = frames[0].timestamp
         team_agents_seen = [[Counter() for _ in range(5)] for _ in range(2)]
@@ -197,12 +244,12 @@ class Teams:
         return teams[0], teams[1]
 
     @property
-    def teams(self) -> List[List[Player]]:
-        return [self.team1, self.team2]
+    def teams(self) -> Tuple[Team, Team]:
+        return self.team1, self.team2
 
     @property
     def players(self) -> List[Player]:
-        return self.team1 + self.team2
+        return self.team1.players + self.team2.players
 
     def __iter__(self):
         return iter(self.teams)

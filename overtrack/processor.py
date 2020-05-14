@@ -1,8 +1,8 @@
+import logging
 from collections import deque
 from typing import Callable, Iterable, Any, Optional
 
 from overtrack.frame import Frame
-
 
 class Processor:
 
@@ -45,18 +45,22 @@ class ConditionalProcessor(Processor):
     If this is a lookbehind ConditionalProcessor, run the processor if the condition was true for any of the frames in the lookbehind window.
     Note that condition evaluation is cached
     """
-    def __init__(
-            self,
-            processor: Processor,
-            condition: Callable[[Frame], object],  # condition may return falsey objects
-            lookbehind: Optional[int] = None,
-            lookbehind_behaviour: Callable[[Iterable[Any]], bool] = any,
-            default_without_history: bool = True):
+    logger = logging.getLogger(__qualname__)
 
+    def __init__(
+        self,
+        processor: Processor,
+        condition: Callable[[Frame], object],  # condition may return falsey objects
+        lookbehind: Optional[int] = None,
+        lookbehind_behaviour: Callable[[Iterable[Any]], bool] = any,
+        default_without_history: bool = True,
+        log: bool = False,
+    ):
         self.processor = processor
         self.condition = condition
         self.lookbehind = lookbehind
         self.lookbehind_behaviour = lookbehind_behaviour
+        self.log = log
         if lookbehind:
             self.history = deque(
                 [default_without_history] * lookbehind,
@@ -69,11 +73,17 @@ class ConditionalProcessor(Processor):
         :return: The result of the processor, if it ran, otherwise False
         """
         if self.lookbehind:
+            # check before popleft in case checking raises and exception
+            val = bool(self.condition(frame))
             self.history.popleft()
-            self.history.append(bool(self.condition(frame)))
+            self.history.append(val)
             result = self.lookbehind_behaviour(self.history)
+            if self.log:
+                self.logger.info(f'ConditionalProcessor on {self.processor}: {self.history} => {result}')
         else:
             result = bool(self.condition(frame))
+            if self.log:
+                self.logger.info(f'ConditionalProcessor on {self.processor}: {result}')
         if result:
             return self.processor.process(frame)
         else:
@@ -91,10 +101,11 @@ class ShortCircuitProcessor(Processor):
 
     If order_defined=False then the processor that returned True on the previous frame is run first
     """
-    def __init__(self, *processors: Processor, order_defined: bool, invert: bool=False):
+    def __init__(self, *processors: Processor, order_defined: bool, invert: bool=False, log: bool = False):
         self.processors = processors
         self.order_defined = order_defined
         self.invert = invert
+        self.log = log
         if not self.order_defined:
             self.last_processor = processors[0]
 
@@ -114,14 +125,16 @@ class ShortCircuitProcessor(Processor):
             return self.should_bail(any(self.should_bail(p.process(frame)) for p in self.processors))
         else:
             # first check the last processor
-            if self.should_bail(self.last_processor.process(frame)):
+            bail = self.should_bail(self.last_processor.process(frame))
+            if bail:
                 return True
             else:
                 # if the "last_processor" did not return True this frame, check all the others
                 for processor in self.processors:
                     if processor is self.last_processor:
                         continue
-                    elif self.should_bail(processor.process(frame)):
+                    bail = self.should_bail(processor.process(frame))
+                    if bail:
                         # save the previous processor
                         self.last_processor = processor
                         return True
@@ -138,22 +151,40 @@ class ShortCircuitProcessor(Processor):
 
 class EveryN(Processor):
 
-    def __init__(self, processor: Processor, n: int, offset: int = 0, return_last: bool = True, override_condition: Callable[[Frame], bool] = lambda f: False):
+    logger = logging.getLogger(__qualname__)
+
+    def __init__(
+        self,
+        processor: Processor,
+        n: int,
+        offset: int = 0,
+        return_last: bool = True,
+        override_condition: Callable[[Frame], bool] = lambda f: False,
+        log: bool = False
+    ):
         self.processor = processor
         self.return_last = return_last
         self.override_condition = override_condition
+        self.log = log
         self.n = n
         self.i = offset - 1
         self.last = False
 
     def process(self, frame: Frame) -> bool:
         self.i += 1
-        if self.i % self.n == 0 or self.override_condition(frame):
+        force = self.override_condition(frame)
+        if self.i % self.n == 0 or force:
+            if self.log:
+                self.logger.info(f'EverrN({self.processor}) {self.i} / {self.n} or {force} => True')
             self.last = self.processor.process(frame)
             return self.last
         if self.return_last:
+            if self.log:
+                self.logger.info(f'EverrN({self.processor}) {self.i} / {self.n} => False')
             return self.last
         else:
+            if self.log:
+                self.logger.info(f'EverrN({self.processor}) {self.i} / {self.n} => False')
             return False
 
     def eager_load(self):

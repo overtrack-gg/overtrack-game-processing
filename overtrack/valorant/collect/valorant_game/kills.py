@@ -78,6 +78,13 @@ class Kills:
 
     kills: List[Kill]
 
+    def firstblood(self, for_team: Optional[bool] = None) -> Optional[Kill]:
+        km = [k for k in self.kills if for_team is None or k.killer.friendly == for_team]
+        if not len(km):
+            return None
+        else:
+            return km[0]
+
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def __init__(self, frames: List[Frame], teams: Teams, round: int, base_timestamp: float, round_start: float, round_end: float):

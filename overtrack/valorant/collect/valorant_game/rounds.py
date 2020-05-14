@@ -11,7 +11,7 @@ from typing import List, Optional, ClassVar, Union, Tuple
 
 from overtrack.frame import Frame
 from overtrack.util import ts2s, s2ts
-from overtrack.valorant.collect.valorant_game.kills import Kills
+from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
 
 ROUND_ACTIVE_PHASE_DURATION = 100
 FIRST_BUY_PHASE_DURATION = 43
@@ -45,6 +45,14 @@ class Rounds:
     final_score: Optional[Tuple[int, int]]
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
+
+    @property
+    def all_kills(self) -> List[Kill]:
+        return list(itertools.chain(*[r.kills for r in self.rounds]))
+
+    def firstbloods(self, for_team: Optional[bool] = None) -> List[Kill]:
+        fbs = [r.kills.firstblood(for_team) for r in self.rounds]
+        return [fb for fb in fbs if fb]
 
     def __init__(self, frames: List[Frame], debug: Union[bool, str] = False):
         timestamp = frames[0].timestamp
