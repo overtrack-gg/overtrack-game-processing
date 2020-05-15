@@ -1,4 +1,3 @@
-import glob
 import logging
 import os
 import string
@@ -462,7 +461,6 @@ class KillfeedProcessor(Processor):
                 cv2.TM_CCORR_NORMED,
                 template_in_image=False,
                 required_match=0.96,
-                verbose=True,
             )
             if best_weap_match < weapon_match:
                 best_weap_match, best_weap = weapon_match, weapon

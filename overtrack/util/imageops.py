@@ -402,9 +402,14 @@ def match_templates(
             best = match, key
 
     if verbose:
-        import tabulate
         matches.sort(key=lambda e: e[1])
-        logger.info(f'Got matches:\n{tabulate.tabulate(matches)}')
+        try:
+            import tabulate
+            logger.info(f'Got matches:\n{tabulate.tabulate(matches)}')
+        except:
+            logger.info(f'Got matches:')
+            for n, m in matches:
+                logger.info(f'    {n}: {m}')
 
     assert best is not None
     return best
