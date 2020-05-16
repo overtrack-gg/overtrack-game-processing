@@ -9,7 +9,7 @@ import cv2
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import frameload
+from overtrack.util import frameload, uploadable_image
 from overtrack.util.logging_config import intermittent_log
 from overtrack.valorant.game.agent_select.agent_select_processor import AgentSelectProcessor
 from overtrack.valorant.game.default_pipeline import create_pipeline
@@ -24,6 +24,8 @@ class ValorantGameExtractor:
         save_images: bool = False,
         imshow: bool = False,
     ):
+        self.imshow = imshow
+
         self.ingame_pipeline = self.make_pipeline()
         self.outofgame_pipeline = self.make_outofgame_pipeline()
 
@@ -35,14 +37,12 @@ class ValorantGameExtractor:
         if self.save_images and not self.debug_frames_path:
             raise ValueError('Cannot have save_images=True without a debug_frames_path')
 
-        self.imshow = imshow
-
         self.on_game_complete = []
 
         self.logger = logging.getLogger('ValorantGameExtractor')
 
     def make_pipeline(self) -> Processor:
-        return create_pipeline()
+        return create_pipeline(aggressive=self.imshow)
 
     def make_outofgame_pipeline(self) -> Processor:
         return AgentSelectProcessor()
@@ -112,6 +112,11 @@ class ValorantGameExtractor:
         if end_game:
             for ogc in self.on_game_complete:
                 ogc(list(self.frames))
+            for imageid, image in list(uploadable_image.active_images.items()):
+                if len(self.frames) and image.timestamps[0] < self.frames[0].timestamp:
+                    self.logger.info(f'Dropping uploadable image {imageid} - predates current game')
+                    del uploadable_image.active_images[imageid]
+                uploadable_image.active_images.clear()
             self.frames.clear()
             self.have_game = False
         if start_game:
