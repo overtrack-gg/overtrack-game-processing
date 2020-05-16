@@ -1,17 +1,17 @@
-import itertools
-from collections import Counter
-
+import bisect
+import heapq
 import logging
-import numpy as np
 import re
-from dataclasses import dataclass
-from overtrack.util.arrayops import modefilt
-from overtrack.valorant.collect.valorant_game.valorant_game import InvalidGame
+from collections import Counter
 from typing import List, Optional, ClassVar, Union, Tuple
 
+import itertools
+import numpy as np
+from dataclasses import dataclass
 from overtrack.frame import Frame
-from overtrack.util import ts2s, s2ts
+from overtrack.util import s2ts
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
+from overtrack.valorant.collect.valorant_game.valorant_game import InvalidGame
 
 ROUND_ACTIVE_PHASE_DURATION = 100
 FIRST_BUY_PHASE_DURATION = 43
@@ -20,6 +20,43 @@ INTER_PHASE_DURATION = 6
 
 COUNTDOWN_PATTERN = re.compile(r'^[01]:\d\d$')
 
+
+def isotonic_regression(y, _=None, __=None, ___=None):
+    """Finds a non-decreasing fit for the specified `y` under L1 norm.
+
+    The O(n log n) algorithm is described in:
+    "Isotonic Regression by Dynamic Programming", Gunter Rote, SOSA@SODA 2019.
+
+    Args:
+    y: The values to be fitted, 1d-numpy array.
+    w: The loss weights vector, 1d-numpy array.
+
+    Returns:
+    An isotonic fit for the specified `y` which minimizies the weighted
+    L1 norm of the fit's residual.
+
+    Copyright 2020 Google LLC.
+    SPDX-License-Identifier: Apache-2.0
+    """
+    w = np.ones(y.shape)
+
+    h = []  # max heap of values
+    p = np.zeros_like(y)  # breaking position
+    for i in range(y.size):
+        a_i = y[i]
+        w_i = w[i]
+        heapq.heappush(h, (-a_i, 2 * w_i))
+        s = -w_i
+        b_position, b_value = h[0]
+        while s + b_value <= 0:
+            s += b_value
+            heapq.heappop(h)
+            b_position, b_value = h[0]
+        b_value += s
+        h[0] = (b_position, b_value)
+        p[i] = -b_position
+    z = np.flip(np.minimum.accumulate(np.flip(p)))  # right_to_left_cumulative_min
+    return z
 
 class NoRounds(InvalidGame):
     pass
@@ -33,6 +70,7 @@ class Round:
     start: float
     end: float
 
+    attacking: bool
     won: Optional[bool]
 
     kills: Kills
@@ -43,6 +81,10 @@ class Rounds:
 
     rounds: List[Round]
     final_score: Optional[Tuple[int, int]]
+
+    attacking_first: bool
+    attack_wins: int
+    defence_wins: int
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
@@ -69,16 +111,48 @@ class Rounds:
         elif not (self.final_score[0] == 13 or self.final_score[1] == 13):
             self.logger.error('Final score did not have team with 13 wins')
 
+        spike_carriers_per_side = [0, 0]
+        for f in frames:
+            if f.valorant.top_hud and (len(self.rounds) < 25 or f.timestamp - timestamp < self.rounds[24].end):
+                spike_carriers_per_side[f.timestamp - timestamp > self.rounds[11].end] += any(f.valorant.top_hud.has_spike)
+        self.logger.info(f'Had {spike_carriers_per_side[0]} spike carriers in first half, and {spike_carriers_per_side[1]} in second')
+        attacker_match = spike_carriers_per_side[0] / 12, spike_carriers_per_side[1] / (len(self.rounds) - 12)
+        self.attacking_first = attacker_match[0] > attacker_match[1]
+        self.logger.info(f'Attack match: {attacker_match[0]:.2f} / {attacker_match[1]:.2f} -> attacking_first={self.attacking_first}')
+        if self.attacking_first:
+            self.logger.info(f'Marking first 12 rounds as attack')
+            for r in self.rounds[:12]:
+                r.attacking = True
+        else:
+            self.logger.info(f'Marking last {len(self.rounds) - 12} rounds as attack')
+            for r in self.rounds[12:]:
+                r.attacking = True
+        if len(self.rounds) >= 25:
+            self.logger.error(f'Final round attack/defend detection not implemented')
+
+        self.attack_wins = sum(r.won for r in self.rounds if r.attacking)
+        self.defence_wins = sum(r.won for r in self.rounds if not r.attacking)
+
         if debug in [True, self.__class__.__qualname__]:
             import matplotlib.pyplot as plt
+
+            hs = [[], []]
+            for f in frames:
+                if f.valorant.top_hud and any(f.valorant.top_hud.has_spike):
+                    hs[0].append(f.timestamp - timestamp)
+                    hs[1].append(0.5)
+            plt.scatter(*hs)
+            plt.axvline(self.rounds[11].end)
+
             plt.show()
 
     def _parse_rounds_from_scores(
         self,
         frames: List[Frame],
-        timestamp: float,
+        start: float,
         debug: Union[bool, str] = False
     ) -> Tuple[List[Round], Optional[Tuple[int, int]]]:
+
         score_timestamps = []
         frame_scores_data = []
         for f in frames:
@@ -88,43 +162,60 @@ class Rounds:
                     if f.valorant.top_hud.score[side] is not None and f.valorant.top_hud.score[side] <= 13:
                         scores[side] = f.valorant.top_hud.score[side]
                 if any(s is not None for s in scores):
-                    score_timestamps.append(f.timestamp - timestamp)
+                    score_timestamps.append(f.timestamp - start)
                     frame_scores_data.append(scores)
 
+        score_timestamps = np.array(score_timestamps)
         frame_scores = np.array(frame_scores_data, dtype=np.float).T
-        scores_filt = np.array([
-            modefilt(frame_scores[i], 7)
-            for i in range(2)
-        ])
+
+        valid_timestamps = []
+        valid_scores = []
+        for i in range(2):
+            isvalid = ~np.isnan(frame_scores[i])
+            filtered = isotonic_regression(frame_scores[i, isvalid].astype(np.int), 0, 13)
+            valid_timestamps.append(score_timestamps[isvalid])
+            valid_scores.append(filtered)
+        valid_timestamps = np.array(valid_timestamps)
+
+        # TODO: find places where score incremented by more than one
+        # Possibly best option is to use multiple methods to find round ends
+        # (score increase, buy phase hud started, bomb planted hud ended) then resolve scores from the isotonic
 
         rounds = []
         score = [0, 0]
 
         self.logger.info(f'Searching for round ends:')
-        last_round_end_index = 0
+        round_start_timestamp = 0
         for round_index in range(25):
+            round_start_index = [
+                bisect.bisect_left(valid_timestamps[i], round_start_timestamp)
+                for i in range(2)
+            ]
+
             # Find all potential round ends where score increases by one for one team
             edges = [
                 list(np.where(
-                    (scores_filt[i, last_round_end_index    : -1] == score[i]) &
-                    (scores_filt[i, last_round_end_index + 1:] == score[i] + 1)
-                )[0] + last_round_end_index) if score[i] <= 12 else []
-                for i in range(2)
+                    (valid_scores[i][s    : -1] == score[i]) &
+                    (valid_scores[i][s + 1:   ] == score[i] + 1)
+                )[0] + s) if score[i] <= 12 else []
+                for i, s in enumerate(round_start_index)
             ]
+
             # For each teams edges, rank these by how well they match a score increase
             # i.e. [0, 0, 1, 1, 1] will match a score of 0-> better than [0, 0, 1, 0, 0]
             edgematch_ranks = [
                 [
                     (
                         np.mean(np.concatenate((
-                            scores_filt[i, last_round_end_index:e] == score[i],
-                            scores_filt[i, e+1:] >= score[i] + 1
+                            valid_scores[i][s  :e] == score[i],
+                            valid_scores[i][e+1: ] >= score[i] + 1
                         ))),
                         e,
                         i,
                     ) for e in edges[i]
-                ] for i in range(2)
+                ] for i, s in enumerate(round_start_index)
             ]
+
             # For each team, find the best matching edge by the above criteria
             edgematch_best = [
                 sorted(edgematch_ranks[i], reverse=True)
@@ -138,27 +229,34 @@ class Rounds:
                 break
             edgematch, edge, winner_index = best_edges[0]
 
-            last_round_end_timestamp = score_timestamps[last_round_end_index]
+            round_end_timestamp = valid_timestamps[winner_index][edge]
             found_round = Round(
-                round_index,
-                round(float(last_round_end_timestamp + INTER_PHASE_DURATION), 1),
-                round(float(last_round_end_timestamp + INTER_PHASE_DURATION + (FIRST_BUY_PHASE_DURATION if round_index == 0 else BUY_PHASE_DURATION)), 1),
-                round(float(score_timestamps[edge]), 1),
-                winner_index == 0,
-                None,
+                index=round_index,
+                buy_phase_start=round(float(round_start_timestamp + INTER_PHASE_DURATION), 1),
+                start=round(float(round_start_timestamp + INTER_PHASE_DURATION + (FIRST_BUY_PHASE_DURATION if round_index == 0 else BUY_PHASE_DURATION)), 1),
+                end=round(float(round_end_timestamp), 1),
+                attacking=False,
+                won=winner_index == 0,
+                kills=None,
             )
             rounds.append(found_round)
             self.logger.info(
-                f'    {s2ts(score_timestamps[edge])}, match={edgematch:.3f}, winner={["Team1", "Team2"][winner_index]}, '
-                f'score={score[winner_index]}->{score[winner_index] + 1}: '
+                f'    {s2ts(score_timestamps[edge])} ({score_timestamps[edge]:.0f}s i={edge}), match={edgematch:.3f}, '
+                f'winner={["Team1", "Team2"][winner_index]}, score={score[winner_index]}->{score[winner_index] + 1}: '
                 f'{found_round}'
             )
+            self.logger.info(f'        New score: {valid_scores[winner_index][edge + 1]} - {valid_scores[winner_index][edge: edge + 2]}')
+            prior_score = [
+                Counter(frame_scores[i, edge - 15:edge])
+                for i in range(2)
+            ]
+            self.logger.info(f'        Previous score: {prior_score[0]}, {prior_score[1]}')
 
             score[winner_index] += 1
-            last_round_end_index = edge
+            round_start_timestamp = round_end_timestamp
 
         if score[0] == 13 or score[1] == 13:
-            # Captured final score transision
+            # Captured final score transition
             self.logger.info(f'Final round score transition was captured - final round was included, final score={score[0]}-{score[1]}')
             score = score[0], score[1]
         else:
@@ -202,12 +300,13 @@ class Rounds:
 
             # Add the final round
             final_round = Round(
-                len(rounds),
-                round(float(rounds[-1].end + INTER_PHASE_DURATION), 1),
-                round(float(rounds[-1].end + INTER_PHASE_DURATION + BUY_PHASE_DURATION), 1),
-                round(float(score_timestamps[-1]), 1),
-                final_round_won,
-                None
+                index=len(rounds),
+                buy_phase_start=round(float(rounds[-1].end + INTER_PHASE_DURATION), 1),
+                start=round(float(rounds[-1].end + INTER_PHASE_DURATION + BUY_PHASE_DURATION), 1),
+                end=round(float(score_timestamps[-1]), 1),
+                attacking=False,
+                won=final_round_won,
+                kills=None
             )
             self.logger.info(f'Adding final round: {final_round}')
             rounds.append(final_round)
@@ -222,7 +321,7 @@ class Rounds:
 
         if debug in [True, self.__class__.__qualname__]:
             import matplotlib.pyplot as plt
-            from matplotlib import patches, lines
+            from matplotlib import patches
 
             plt.figure()
 
@@ -237,7 +336,7 @@ class Rounds:
                         edgecolor='blue',
                         color='blue',
                         alpha=0.25,
-                    ))
+                        ))
                     plt.gca().add_patch(patches.Rectangle(
                         (r.start, y),
                         r.end - r.start,
@@ -246,13 +345,18 @@ class Rounds:
                         edgecolor='green',
                         color='green',
                         alpha=0.25,
-                    ))
+                        ))
+
+            # for f in frames:
+            #     if f.valorant.timer and f.valorant.timer.buy_phase:
+            #         plt.axvline(f.timestamp - start)
 
             draw_rounds(-1, np.nanmax(frame_scores) + 1)
-            plt.plot(score_timestamps, frame_scores[0], color='b', linestyle='--')
-            plt.plot(score_timestamps, scores_filt[0], color='b')
-            plt.plot(score_timestamps, frame_scores[1], color='orange', linestyle='--')
-            plt.plot(score_timestamps, scores_filt[1], color='orange')
+            plt.scatter(score_timestamps, frame_scores[0], color='b', marker='v')
+            plt.plot(valid_timestamps[0], valid_scores[0], color='b', label='team1')
+            plt.scatter(score_timestamps, frame_scores[1], color='orange', marker='^')
+            plt.plot(valid_timestamps[1], valid_scores[1], color='orange', label='team2')
+            plt.legend()
 
         return rounds, score
 
@@ -264,3 +368,17 @@ class Rounds:
 
     def __getitem__(self, item):
         return self.rounds[item]
+
+
+if __name__ == '__main__':
+
+    dat = np.arange(10).astype(np.float)
+    dat += 2 * np.random.randn(10)  # add noise
+
+    dat_hat = isotonic_regression(dat)
+
+    import pylab as pl
+    pl.close('all')
+    pl.plot(dat, 'ro')
+    pl.plot(dat_hat, 'b')
+    pl.show()

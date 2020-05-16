@@ -17,7 +17,7 @@ from overtrack.valorant.collect.valorant_game.teams import Teams, Player
 from overtrack_models.dataclasses.typedload import referenced_typedload
 from overtrack_models.dataclasses.valorant import MapName
 
-VERSION = '0.10.0'
+VERSION = '0.11.0'
 
 
 class NoMap(InvalidGame):
