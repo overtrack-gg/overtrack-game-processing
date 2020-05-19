@@ -23,6 +23,11 @@ class Kill:
 	weapon: Optional[str]
 	weapon_match: float
 
+	wallbang: bool = False
+	wallbang_match: float = 0.
+	headshot: bool = False
+	headshot_match: float = 0.
+
 
 @dataclass
 class Killfeed:

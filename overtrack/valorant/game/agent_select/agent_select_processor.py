@@ -97,8 +97,8 @@ class AgentSelectProcessor(Processor):
                 best_match,
                 locked_in=not can_see_lock_in,
 
-                map=self.ocr_text(frame, 'map'),
-                game_mode=self.ocr_text(frame, 'game_mode'),
+                map=imageops.ocr_region(frame, self.REGIONS, 'map'),
+                game_mode=imageops.ocr_region(frame, self.REGIONS, 'game_mode'),
             )
             draw_agent_select(frame.debug_image, frame.valorant.agent_select)
             self.REGIONS.draw(frame.debug_image)
@@ -106,19 +106,6 @@ class AgentSelectProcessor(Processor):
 
         return False
 
-    def ocr_text(self, frame: Frame, region: str) -> Optional[str]:
-        map_im = self.REGIONS[region].extract_one(frame.image)
-        map_im_gray = 255 - imageops.normalise(np.min(map_im, axis=2))
-        map_text = imageops.tesser_ocr(
-            map_im_gray,
-            engine=imageops.tesseract_lstm,
-        )
-        map_confidence = np.mean(imageops.tesseract_lstm.AllWordConfidences())
-        logger.debug(f'Got {region}={map_text!r}, confidence={map_confidence}')
-        if map_confidence < 50:
-            logger.warning(f'Map confidence for {region}: {map_text!r} below 50 (confidence={map_confidence}) - rejecting')
-            return None
-        return map_text
 
 
 def main():

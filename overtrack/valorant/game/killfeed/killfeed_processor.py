@@ -410,7 +410,7 @@ class KillfeedProcessor(Processor):
         # figs[2].imshow(weapon_gray - weapon_adapt_thresh)
         # figs[3].imshow(weapon_thresh)
         # plt.show()
-        cv2.imshow('weapon_thresh', weapon_thresh)
+        # cv2.imshow('weapon_thresh', weapon_thresh)
 
         weapon_image = cv2.dilate(
             cv2.copyMakeBorder(

@@ -25,6 +25,8 @@ class Postgame:
     score: Tuple[Optional[int], Optional[int]]
     map: Optional[str]
 
+    game_mode: Optional[str] = None
+
     image: Optional[UploadableImage] = None
 
 

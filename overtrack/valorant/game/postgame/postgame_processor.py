@@ -108,22 +108,11 @@ class PostgameProcessor(Processor):
             )
             logger.debug(f'Round score is {scores}')
 
-            map_im = self.REGIONS['map'].extract_one(frame.image)
-            map_im_gray = 255 - imageops.normalise(np.min(map_im, axis=2))
-            map_text = imageops.tesser_ocr(
-                map_im_gray,
-                engine=imageops.tesseract_lstm,
-            )
-            map_confidence = np.mean(imageops.tesseract_lstm.AllWordConfidences())
-            logger.debug(f'Got map={map_text!r}, confidence={map_confidence}')
-            if map_confidence < 50:
-                logger.warning(f'Map confidence for {map_text!r} below 50 (confidence={map_confidence}) - rejecting')
-                map_text = None
-
             frame.valorant.postgame = Postgame(
                 victory=result == 'victory',
                 score=(scores[0], scores[1]),
-                map=map_text,
+                map=imageops.ocr_region(frame, self.REGIONS, 'map'),
+                game_mode=imageops.ocr_region(frame, self.REGIONS, 'game_mode'),
                 image=lazy_upload('postgame', self.REGIONS.blank_out(frame.image), frame.timestamp),
             )
             draw_postgame(frame.debug_image, frame.valorant.postgame)

@@ -9,6 +9,8 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, 
 import cv2
 import numpy as np
 import tesserocr
+from overtrack.frame import Frame
+from overtrack.util.region_extraction import ExtractionRegionsCollection
 
 logger = logging.getLogger(__name__)
 
@@ -415,8 +417,19 @@ def match_templates(
     return best
 
 
-def bgr_2hsv(colour):
-    return cv2.cvtColor(np.array(colour, np.uint8)[np.newaxis, np.newaxis, :], cv2.COLOR_BGR2HSV_FULL)[0, 0]
+def ocr_region(frame: Frame, regions: ExtractionRegionsCollection, region: str, engine: tesserocr.PyTessBaseAPI = tesseract_lstm, threshold: Optional[int] = 50) -> Optional[str]:
+    map_im = regions[region].extract_one(frame.image)
+    map_im_gray = 255 - normalise(np.min(map_im, axis=2))
+    map_text = tesser_ocr(
+        map_im_gray,
+        engine=engine,
+    )
+    map_confidence = np.mean(engine.AllWordConfidences())
+    logger.debug(f'Got {region}={map_text!r}, confidence={map_confidence}')
+    if threshold is not None and map_confidence < threshold:
+        logger.warning(f'Map confidence for {region}: {map_text!r} below {threshold} (confidence={map_confidence}) - rejecting')
+        return None
+    return map_text
 
 
 # if __name__ == '__main__':
@@ -439,6 +452,10 @@ def bgr_2hsv(colour):
 #     print('--')
 #     print(tesser_ocr(gray, whitelist=string.ascii_uppercase))
 #     print(tesser_ocr(gray, invert=True, whitelist=string.ascii_uppercase))
+
+
+def bgr_2hsv(colour):
+    return cv2.cvtColor(np.array(colour, np.uint8)[np.newaxis, np.newaxis, :], cv2.COLOR_BGR2HSV_FULL)[0, 0]
 
 
 def hsv2bgr(colour):
