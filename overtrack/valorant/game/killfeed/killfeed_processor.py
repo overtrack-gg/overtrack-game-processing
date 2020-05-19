@@ -103,7 +103,6 @@ class KillfeedProcessor(Processor):
     }
     for n, im in WEAPON_IMAGES.items():
         assert im.shape[1] <= 145, f'{n} image dimensions too high: {im.shape[1]}'
-    pprint(list(reversed(WEAPON_NAMES)))
     WEAPON_TEMPLATES = {
         w: cv2.GaussianBlur(
             cv2.dilate(
@@ -115,7 +114,11 @@ class KillfeedProcessor(Processor):
         )
         for w, image in WEAPON_IMAGES.items()
     }
-    WEAPON_THRESHOLD = 0.9
+    WEAPON_THRESHOLD = 0.85
+
+    WALLBANG_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'kill_modifiers', 'wallbang.png'), 0)
+    HEADSHOT_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'kill_modifiers', 'headshot.png'), 0)
+    KILL_MODIFIER_THRESHOLD = 0.75
 
     @time_processing
     def process(self, frame: Frame) -> bool:
@@ -210,7 +213,7 @@ class KillfeedProcessor(Processor):
                     logger.warning(f'Ignoring kill {row} - killed name failed to parse')
                     continue
 
-                weapon, weapon_match, weapon_x = self._parse_weapon(frame, row, killer_agent_x, killer_agent)
+                weapon, weapon_match, wallbang_match, headshot_match, weapon_x = self._parse_weapon(frame, row, killer_agent_x, killer_agent)
 
                 killer_name = self._parse_killer_name(frame, row, killer_agent_x, weapon_x)
                 if killer_name is None:
@@ -237,12 +240,22 @@ class KillfeedProcessor(Processor):
 
                     weapon=weapon,
                     weapon_match=round(weapon_match, 2),
+
+                    wallbang=wallbang_match > self.KILL_MODIFIER_THRESHOLD,
+                    wallbang_match=wallbang_match,
+                    headshot=headshot_match > self.KILL_MODIFIER_THRESHOLD,
+                    headshot_match=headshot_match,
                 )
                 kills.append(kill)
                 logger.debug(f'Got kill: {kill}')
 
                 if frame.debug_image is not None:
-                    s = f'{row.match:.2f} | {killer_agent} ({killer_agent_match:.2f}) {killer_name!r} > {weapon} > {killed_agent} ({killed_agent_match:.2f}) {killed_name!r}'
+                    s = (
+                        f'{row.match:.2f} | '
+                        f'{killer_agent} ({killer_agent_match:.2f}) {killer_name!r} >'
+                        f' {weapon} {"* " if kill.headshot else ""}{"- " if kill.wallbang else ""}> '
+                        f'{killed_agent} ({killed_agent_match:.2f}) {killed_name!r}'
+                    )
                     (w, _), _ = (cv2.getTextSize(s, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1))
                     for c, t in ((0, 0, 0), 3), ((0, 255, 128), 1):
                         cv2.putText(
@@ -361,7 +374,7 @@ class KillfeedProcessor(Processor):
             alphabet=string.ascii_uppercase + string.digits + '#',
         )
 
-    def _parse_weapon(self, frame, row, killer_agent_x, killer_agent) -> Tuple[Optional[str], float, int]:
+    def _parse_weapon(self, frame, row, killer_agent_x, killer_agent) -> Tuple[Optional[str], float, float, float, int]:
         weapon_region_left = killer_agent_x + 60
         weapon_region_right = row.center[0] - 20
         weapon_gray = self._get_region(
@@ -373,7 +386,7 @@ class KillfeedProcessor(Processor):
             debug_image=frame.debug_image,
         )
         if weapon_gray.shape[1] == 0:
-            return None, 0, weapon_region_right
+            return None, 0, 0, 0, weapon_region_right
         weapon_adapt_thresh = np.clip(
             np.convolve(
                 np.percentile(
@@ -397,7 +410,7 @@ class KillfeedProcessor(Processor):
         # figs[2].imshow(weapon_gray - weapon_adapt_thresh)
         # figs[3].imshow(weapon_thresh)
         # plt.show()
-        # cv2.imshow('weapon_thresh', weapon_thresh)
+        cv2.imshow('weapon_thresh', weapon_thresh)
 
         weapon_image = cv2.dilate(
             cv2.copyMakeBorder(
@@ -424,19 +437,35 @@ class KillfeedProcessor(Processor):
 
             fromright = weapon_image.shape[1] - x2
 
+            ignore = False
             if w > 145:
                 logger.warning(f'Ignoring weapon contour with w={w}')
-                continue
+                ignore = True
             if fromright < 30:
                 # contour is far right - could be small agent ability, so be less strict
                 if a < 100 or h < 10:
                     logger.debug(f'Ignoring right weapon contour {cv2.boundingRect(cnt)}, fromright={fromright}, a={a}')
-                    continue
+                    ignore = True
                 else:
                     logger.debug(f'Allowing potential ability contour {cv2.boundingRect(cnt)}, fromright={fromright}, a={a}')
             elif a < 200 or h < 16:
                 # print('ignore', cv2.boundingRect(cnt), x2, a)
                 logger.debug(f'Ignoring weapon contour {cv2.boundingRect(cnt)}, fromright={fromright}, a={a}')
+                ignore = True
+
+            if ignore:
+                if frame.debug_image is not None and a > 1:
+                    cv2.drawContours(
+                        frame.debug_image,
+                        [cnt],
+                        -1,
+                        (0, 128, 255),
+                        1,
+                        offset=(
+                            weapon_region_left - 5,
+                            row.center[1] - 20,
+                        )
+                    )
                 continue
 
             weapon_im = np.zeros((h + 2, w + 2), dtype=np.uint8)
@@ -461,6 +490,7 @@ class KillfeedProcessor(Processor):
                 cv2.TM_CCORR_NORMED,
                 template_in_image=False,
                 required_match=0.96,
+                # verbose=True,
             )
             if best_weap_match < weapon_match:
                 best_weap_match, best_weap = weapon_match, weapon
@@ -481,10 +511,15 @@ class KillfeedProcessor(Processor):
                 )
 
             if valid:
-                return weapon, float(weapon_match), int(weapon_region_left + x1)
+                kill_modifiers_thresh = weapon_thresh[:, -75:]
+                wallbang_match = np.max(cv2.matchTemplate(kill_modifiers_thresh, self.WALLBANG_TEMPLATE, cv2.TM_CCORR_NORMED))
+                headshot_match = np.max(cv2.matchTemplate(kill_modifiers_thresh, self.HEADSHOT_TEMPLATE, cv2.TM_CCORR_NORMED))
+                logger.debug(f'wallbang_match={wallbang_match:.2f}, headshot_match={headshot_match:.2f}')
+
+                return weapon, float(weapon_match), float(wallbang_match), float(headshot_match), int(weapon_region_left + x1)
 
         logger.warning(f'Unable to find weapon - best match was {best_weap!r} match={best_weap_match:.2f}')
-        return None, 0, weapon_region_right
+        return None, 0, 0, 0, weapon_region_right
 
     def _parse_killer_name(self, frame, row, killer_agent_x, weapon_x) -> Optional[str]:
         killer_name_gray = self._get_region(
