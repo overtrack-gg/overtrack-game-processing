@@ -20,13 +20,13 @@ def draw_agent_select(debug_image: Optional[np.ndarray], agent_select: AgentSele
     if debug_image is None:
         return
 
-    for c, t in ((0, 0, 0), 4), ((0, 255, 64), 2):
+    for c, t in ((0, 0, 0), 4), ((0, 255, 64), 1):
         cv2.putText(
             debug_image,
             str(agent_select),
-            (1100, 70),
+            (700, 70),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
+            0.6,
             c,
             t,
         )
@@ -93,28 +93,32 @@ class AgentSelectProcessor(Processor):
 
                 can_see_lock_in = lock_in_match < 25 or lock_in_text_match > 0.75
 
-            map_im = self.REGIONS['map'].extract_one(frame.image)
-            map_im_gray = 255 - imageops.normalise(np.min(map_im, axis=2))
-            map_text = imageops.tesser_ocr(
-                map_im_gray,
-                engine=imageops.tesseract_lstm,
-            )
-            map_confidence = np.mean(imageops.tesseract_lstm.AllWordConfidences())
-            logger.debug(f'Got map={map_text!r}, confidence={map_confidence}')
-            if map_confidence < 50:
-                logger.warning(f'Map confidence for {map_text!r} below 50 (confidence={map_confidence}) - rejecting')
-                map_text = None
-
             frame.valorant.agent_select = AgentSelect(
                 best_match,
                 locked_in=not can_see_lock_in,
 
-                map=map_text,
+                map=self.ocr_text(frame, 'map'),
+                game_mode=self.ocr_text(frame, 'game_mode'),
             )
             draw_agent_select(frame.debug_image, frame.valorant.agent_select)
+            self.REGIONS.draw(frame.debug_image)
             return True
 
         return False
+
+    def ocr_text(self, frame: Frame, region: str) -> Optional[str]:
+        map_im = self.REGIONS[region].extract_one(frame.image)
+        map_im_gray = 255 - imageops.normalise(np.min(map_im, axis=2))
+        map_text = imageops.tesser_ocr(
+            map_im_gray,
+            engine=imageops.tesseract_lstm,
+        )
+        map_confidence = np.mean(imageops.tesseract_lstm.AllWordConfidences())
+        logger.debug(f'Got {region}={map_text!r}, confidence={map_confidence}')
+        if map_confidence < 50:
+            logger.warning(f'Map confidence for {region}: {map_text!r} below 50 (confidence={map_confidence}) - rejecting')
+            return None
+        return map_text
 
 
 def main():

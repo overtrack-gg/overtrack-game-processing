@@ -10,5 +10,6 @@ class AgentSelect:
     locked_in: bool
 
     map: Optional[str]
+    game_mode: Optional[str] = None
     # TODO: other player names? - include which one is first person?
     # TODO: other agents?
