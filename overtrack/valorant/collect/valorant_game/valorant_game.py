@@ -4,9 +4,9 @@ from collections import Counter
 from typing import List, ClassVar, Tuple, Union, Optional, Dict, Any
 
 import shortuuid
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
-from overtrack.frame import Frame
+from overtrack.frame import Frame, ValorantData
 from overtrack.util import textops
 from overtrack.util.prettyprint import DataclassPrettyPrinter
 from overtrack.valorant import data
@@ -14,13 +14,16 @@ from overtrack.valorant.collect.valorant_game.game_parse_error import InvalidGam
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
 from overtrack.valorant.collect.valorant_game.rounds import Rounds
 from overtrack.valorant.collect.valorant_game.teams import Teams, Player
+from overtrack.valorant.data import MapName, GameModeName, game_modes
 from overtrack_models.dataclasses.typedload import referenced_typedload
-from overtrack_models.dataclasses.valorant import MapName
 
 VERSION = '0.11.1'
 
 
 class NoMap(InvalidGame):
+    pass
+
+class NoMode(InvalidGame):
     pass
 
 
@@ -35,9 +38,11 @@ class ValorantGame:
     won: Optional[bool]
 
     map: MapName
+    game_mode: GameModeName
     rounds: Rounds
     teams: Teams
 
+    season_mode_id: int
     frames_count: int
     version: str
 
@@ -55,6 +60,13 @@ class ValorantGame:
         self.logger.info(f'Resolving valorant game from {len(frames)} frames')
         self.logger.info(f'Resolving frames {frames[0].timestamp_str} -> {frames[-1].timestamp_str}')
 
+        framemakeup = Counter()
+        for frame in frames:
+            for f in fields(ValorantData):
+                if getattr(frame.valorant, f.name):
+                    framemakeup[f.name] += 1
+        self.logger.info(f'Frame data seen: {framemakeup}')
+
         self.timestamp = frames[0].timestamp
         if key:
             self.key = key
@@ -64,8 +76,8 @@ class ValorantGame:
 
         self.spectated = False
 
-        map_ = self._resolve_map(frames)
-        self.map = map_
+        self.map = self._resolve_map(frames)
+        self.game_mode = self._resolve_game_mode(frames)
 
         self.rounds = Rounds(frames, debug)
         self.duration = self.rounds[-1].end
@@ -83,10 +95,17 @@ class ValorantGame:
         else:
             self.won = None
 
+        if self.game_mode == game_modes.custom:
+            self.season_mode_id = -1
+        elif self.game_mode == game_modes.unrated:
+            self.season_mode_id = 0
+        else:
+            self.season_mode_id = 1
+
         self.frames_count = len(frames)
         self.version = VERSION
 
-    def _resolve_map(self, frames):
+    def _resolve_map(self, frames: List[Frame]) -> Optional[MapName]:
         mapcounter = Counter()
         map_texts = []
         for f in frames:
@@ -94,7 +113,6 @@ class ValorantGame:
                 map_texts.append(f.valorant.agent_select.map)
             elif f.valorant.postgame and f.valorant.postgame.map:
                 map_texts.append(f.valorant.postgame.map)
-        map_texts = map_texts[-50:]
         for map_text in map_texts:
             map_ = textops.best_match(
                 map_text,
@@ -102,14 +120,41 @@ class ValorantGame:
                 data.maps + data.maps,
                 threshold=0.75,
                 disable_log=False,
-            )
+                )
             if map_:
                 mapcounter[map_] += 1
         if not len(mapcounter):
             raise NoMap()
-        bestmap, _ = mapcounter.most_common(1)[0]
+        bestmap, count = mapcounter.most_common(1)[0]
         self.logger.info(f'Resolving map {mapcounter} -> {bestmap}')
+        if len(mapcounter) > 1 and mapcounter.most_common(2)[1][1] > 0.25 * count:
+            self.logger.error('Got multiple matching maps')
         return bestmap
+
+    def _resolve_game_mode(self, frames: List[Frame]) -> Optional[GameModeName]:
+        modecounter = Counter()
+        mode_texts = []
+        for f in frames:
+            if f.valorant.agent_select and f.valorant.agent_select.game_mode:
+                mode_texts.append(f.valorant.agent_select.game_mode)
+            elif f.valorant.postgame and f.valorant.postgame.game_mode:
+                mode_texts.append(f.valorant.postgame.game_mode)
+        mode_texts = mode_texts[-50:]
+        for mode_text in mode_texts:
+            mode = textops.best_match(
+                mode_text,
+                [f'STANDARD - {m.upper()}' for m in data.modes],
+                data.modes + data.modes,
+                threshold=0.75,
+                disable_log=False,
+            )
+            if mode:
+                modecounter[mode] += 1
+        if not len(modecounter):
+            raise NoMode()
+        bestmode, _ = modecounter.most_common(1)[0]
+        self.logger.info(f'Resolving mode {modecounter} -> {bestmode}')
+        return bestmode
 
     def asdict(self) -> Dict[str, Any]:
         return referenced_typedload.dump(self)
@@ -157,7 +202,7 @@ class ValorantGame:
                 _entered.remove(id(object))
                 _printed.add(id(object))
 
-        printer = ValorantGamePrettyPrinter()
+        printer = ValorantGamePrettyPrinter(width=220)
         return printer.pformat(self)
 
     def print_summary(self) -> None:
