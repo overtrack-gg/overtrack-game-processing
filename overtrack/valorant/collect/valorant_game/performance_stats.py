@@ -56,7 +56,7 @@ class WinCorrelatedStat:
 class PerformanceStats:
     kills: Stat
     deaths: Stat
-    kills_per_death: float
+    kills_per_death: Optional[float]
 
     team_firstbloods: WinCorrelatedStat
     team_firstdeaths: WinCorrelatedStat
@@ -79,7 +79,7 @@ class PerformanceStats:
                 k for k in rounds.all_kills if k.killed.friendly == match_team
             ]),
         )
-        self.kills_per_death = round(self.kills.total / self.deaths.total, 3)
+        self.kills_per_death = round(self.kills.total / self.deaths.total, 3) if self.deaths.total else None
 
         self.team_firstbloods = WinCorrelatedStat(
             [r.kills.firstblood(friendly_team) in kills for r in rounds],
