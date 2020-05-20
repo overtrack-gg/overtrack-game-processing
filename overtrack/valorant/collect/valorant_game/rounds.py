@@ -111,24 +111,27 @@ class Rounds:
         elif not (self.final_score[0] == 13 or self.final_score[1] == 13):
             self.logger.error('Final score did not have team with 13 wins')
 
-        spike_carriers_per_side = [0, 0]
-        for f in frames:
-            if f.valorant.top_hud and (len(self.rounds) < 25 or f.timestamp - timestamp < self.rounds[24].end):
-                spike_carriers_per_side[f.timestamp - timestamp > self.rounds[11].end] += any(f.valorant.top_hud.has_spike)
-        self.logger.info(f'Had {spike_carriers_per_side[0]} spike carriers in first half, and {spike_carriers_per_side[1]} in second')
-        attacker_match = spike_carriers_per_side[0] / 12, spike_carriers_per_side[1] / (len(self.rounds) - 12)
-        self.attacking_first = attacker_match[0] > attacker_match[1]
-        self.logger.info(f'Attack match: {attacker_match[0]:.2f} / {attacker_match[1]:.2f} -> attacking_first={self.attacking_first}')
-        if self.attacking_first:
-            self.logger.info(f'Marking first 12 rounds as attack')
-            for r in self.rounds[:12]:
-                r.attacking = True
+        if len(self.rounds) >= 13:
+            spike_carriers_per_side = [0, 0]
+            for f in frames:
+                if f.valorant.top_hud and (len(self.rounds) < 25 or f.timestamp - timestamp < self.rounds[24].end):
+                    spike_carriers_per_side[f.timestamp - timestamp > self.rounds[11].end] += any(f.valorant.top_hud.has_spike)
+            self.logger.info(f'Had {spike_carriers_per_side[0]} spike carriers in first half, and {spike_carriers_per_side[1]} in second')
+            attacker_match = spike_carriers_per_side[0] / 12, spike_carriers_per_side[1] / (len(self.rounds) - 12)
+            self.attacking_first = attacker_match[0] > attacker_match[1]
+            self.logger.info(f'Attack match: {attacker_match[0]:.2f} / {attacker_match[1]:.2f} -> attacking_first={self.attacking_first}')
+            if self.attacking_first:
+                self.logger.info(f'Marking first 12 rounds as attack')
+                for r in self.rounds[:12]:
+                    r.attacking = True
+            else:
+                self.logger.info(f'Marking last {len(self.rounds) - 12} rounds as attack')
+                for r in self.rounds[12:]:
+                    r.attacking = True
+            if len(self.rounds) >= 25:
+                self.logger.error(f'Final round attack/defend detection not implemented')
         else:
-            self.logger.info(f'Marking last {len(self.rounds) - 12} rounds as attack')
-            for r in self.rounds[12:]:
-                r.attacking = True
-        if len(self.rounds) >= 25:
-            self.logger.error(f'Final round attack/defend detection not implemented')
+            self.logger.error('Had game with less than 13 rounds')
 
         self.attack_wins = sum(r.won for r in self.rounds if r.attacking)
         self.defence_wins = sum(r.won for r in self.rounds if not r.attacking)
@@ -142,7 +145,22 @@ class Rounds:
                     hs[0].append(f.timestamp - timestamp)
                     hs[1].append(0.5)
             plt.scatter(*hs)
-            plt.axvline(self.rounds[11].end)
+            if len(self.rounds) >= 13:
+                plt.axvline(self.rounds[11].end)
+
+            pg = [[], []]
+            for f in frames:
+                if f.valorant.postgame:
+                    pg[0].append(f.timestamp - timestamp)
+                    pg[1].append(1.5)
+            plt.scatter(*pg)
+
+            th = [[], []]
+            for f in frames:
+                if f.valorant.top_hud and sum(e is not None for e in itertools.chain(*f.valorant.top_hud.teams)) >= 2:
+                    th[0].append(f.timestamp - timestamp)
+                    th[1].append(2.5)
+            plt.scatter(*th)
 
             plt.show()
 
@@ -156,7 +174,7 @@ class Rounds:
         score_timestamps = []
         frame_scores_data = []
         for f in frames:
-            if f.valorant.top_hud:
+            if f.valorant.top_hud and sum(e is not None for e in itertools.chain(*f.valorant.top_hud.teams)) >= 2:
                 scores = [None, None]
                 for side in range(2):
                     if f.valorant.top_hud.score[side] is not None and f.valorant.top_hud.score[side] <= 13:
