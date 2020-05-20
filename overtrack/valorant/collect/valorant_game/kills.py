@@ -28,13 +28,16 @@ class Kill:
     killed: Player
     weapon: Optional[str]
 
+    wallbang: bool = False
+    headshot: bool = False
+
     def __str__(self):
         return (
             f'Kill('
                 f'round={self.round}, '
                 f'{s2ts(self.round_timestamp)}, '
                 f'{["Enemy", "Ally"][self.killer.friendly]} {self.killer.agent} {self.killer.name!r} > '
-                f'{self.weapon} > '
+                f'{self.weapon} {"- " if self.wallbang else ""}{"* " if self.headshot else ""}> '
                 f'{self.killed.agent} {self.killed.name!r}'
             f')'
         )
@@ -142,6 +145,8 @@ class Kills:
                 )
 
             weapon = arrayops.most_common([r.weapon for r in unresolved_kill.raw_kills if r.weapon])
+            wallbang = sum(r.wallbang for r in unresolved_kill.raw_kills) > 0.25 * len(unresolved_kill.raw_kills)
+            headshot = sum(r.headshot for r in unresolved_kill.raw_kills) > 0.25 * len(unresolved_kill.raw_kills)
 
             self.logger.debug(f'    Killer: {[r.killer.name for r in unresolved_kill.raw_kills]} > {killer_player}')
             self.logger.debug(f'    Killed: {[r.killed.name for r in unresolved_kill.raw_kills]} > {killed_player}')
@@ -171,6 +176,8 @@ class Kills:
                 killer_player,
                 killed_player,
                 weapon,
+                wallbang=wallbang,
+                headshot=headshot,
             )
             self.kills.append(kill)
             killer_player.kills.append(kill)
