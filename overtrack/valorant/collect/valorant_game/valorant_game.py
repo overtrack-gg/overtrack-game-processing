@@ -143,8 +143,8 @@ class ValorantGame:
         for mode_text in mode_texts:
             mode = textops.best_match(
                 mode_text,
-                [f'STANDARD - {m.upper()}' for m in data.modes],
-                data.modes + data.modes,
+                [f'STANDARD - {m.upper()}' for m in data.game_modes],
+                data.game_modes + data.game_modes,
                 threshold=0.75,
                 disable_log=False,
             )

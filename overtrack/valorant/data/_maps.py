@@ -3,7 +3,7 @@ from typing import List
 from overtrack.util.compat import Literal
 
 MapName = Literal['Split', 'Bind', 'Haven']
-class _Maps(list, List[MapName]):
+class _Maps(List[MapName]):
     split: MapName = 'Split'
     bind: MapName = 'Bind'
     haven: MapName = 'Haven'
@@ -12,7 +12,7 @@ class _Maps(list, List[MapName]):
 maps = _Maps()
 
 GameModeName = Literal['unrated', 'competitive', 'custom']
-class _GameModes(list, List[GameModeName]):
+class _GameModes(List[GameModeName]):
     unrated: GameModeName = 'unrated'
     competitive: GameModeName = 'competitive'
     custom: GameModeName = 'custom'
