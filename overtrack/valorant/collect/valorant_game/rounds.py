@@ -111,12 +111,16 @@ class Rounds:
         elif not (self.final_score[0] == 13 or self.final_score[1] == 13):
             self.logger.error('Final score did not have team with 13 wins')
 
-        if len(self.rounds) >= 13:
+        if len(self.rounds) < 13:
+            self.logger.error('Had game with less than 13 rounds')
+        elif len(self.rounds) > 25:
+            self.logger.error('Had game with more than 25 rounds')
+        else:
             spike_carriers_per_side = [0, 0]
             for f in frames:
-                if f.valorant.top_hud and (len(self.rounds) < 25 or f.timestamp - timestamp < self.rounds[24].end):
+                if f.valorant.top_hud and (len(self.rounds) < 25 or f.timestamp - timestamp < self.rounds[24].start):
                     spike_carriers_per_side[f.timestamp - timestamp > self.rounds[11].end] += any(f.valorant.top_hud.has_spike)
-            self.logger.info(f'Had {spike_carriers_per_side[0]} spike carriers in first half, and {spike_carriers_per_side[1]} in second')
+            self.logger.info(f'Had {spike_carriers_per_side[0]} spikes seen in first half, and {spike_carriers_per_side[1]} in second')
             attacker_match = spike_carriers_per_side[0] / 12, spike_carriers_per_side[1] / (len(self.rounds) - 12)
             self.attacking_first = attacker_match[0] > attacker_match[1]
             self.logger.info(f'Attack match: {attacker_match[0]:.2f} / {attacker_match[1]:.2f} -> attacking_first={self.attacking_first}')
@@ -125,42 +129,49 @@ class Rounds:
                 for r in self.rounds[:12]:
                     r.attacking = True
             else:
-                self.logger.info(f'Marking last {len(self.rounds) - 12} rounds as attack')
-                for r in self.rounds[12:]:
+                self.logger.info(f'Marking round 13->24 as attack')
+                for r in self.rounds[12:24]:
                     r.attacking = True
             if len(self.rounds) >= 25:
-                self.logger.error(f'Final round attack/defend detection not implemented')
-        else:
-            self.logger.error('Had game with less than 13 rounds')
+                self.logger.info(f'Game has sudden death round (round 25) - resolving attack defend')
+                spike_carriers_sudden_death = 0
+                for f in frames:
+                    if f.valorant.top_hud and f.timestamp - timestamp > self.rounds[24].start:
+                        spike_carriers_sudden_death += any(f.valorant.top_hud.has_spike)
+                self.logger.info(f'Sudden death round had {spike_carriers_sudden_death} spikes seen')
+                if spike_carriers_sudden_death > 0:
+                    self.logger.info(f'Marking round 25 as attack')
+                    self.rounds[24].attacking = True
+                    if spike_carriers_sudden_death < 3:
+                        self.logger.error(f'Sudden death round has low (but nonzero) spike carriers observed')
 
         self.attack_wins = sum(r.won for r in self.rounds if r.attacking)
         self.defence_wins = sum(r.won for r in self.rounds if not r.attacking)
 
         if debug in [True, self.__class__.__qualname__]:
             import matplotlib.pyplot as plt
+            from matplotlib import patches
+
+            for r in self.rounds:
+                if r.attacking:
+                    plt.gca().add_patch(patches.Rectangle(
+                        (r.buy_phase_start, 14.5),
+                        r.end - r.buy_phase_start,
+                        0.4,
+                        color='orange',
+                        fill=True,
+                        alpha=0.75,
+                    ))
 
             hs = [[], []]
             for f in frames:
                 if f.valorant.top_hud and any(f.valorant.top_hud.has_spike):
                     hs[0].append(f.timestamp - timestamp)
-                    hs[1].append(0.5)
+                    hs[1].append(-0.5)
             plt.scatter(*hs)
+
             if len(self.rounds) >= 13:
                 plt.axvline(self.rounds[11].end)
-
-            pg = [[], []]
-            for f in frames:
-                if f.valorant.postgame:
-                    pg[0].append(f.timestamp - timestamp)
-                    pg[1].append(1.5)
-            plt.scatter(*pg)
-
-            th = [[], []]
-            for f in frames:
-                if f.valorant.top_hud and sum(e is not None for e in itertools.chain(*f.valorant.top_hud.teams)) >= 2:
-                    th[0].append(f.timestamp - timestamp)
-                    th[1].append(2.5)
-            plt.scatter(*th)
 
             plt.show()
 
@@ -264,8 +275,13 @@ class Rounds:
                 f'{found_round}'
             )
             self.logger.info(f'        New score: {valid_scores[winner_index][edge + 1]} - {valid_scores[winner_index][edge: edge + 2]}')
+
+            round_end_index = [
+                bisect.bisect_left(valid_timestamps[i], round_end_timestamp)
+                for i in range(2)
+            ]
             prior_score = [
-                Counter(frame_scores[i, edge - 15:edge])
+                Counter(valid_scores[i][round_start_index[i] + 1:round_end_index[i]])
                 for i in range(2)
             ]
             self.logger.info(f'        Previous score: {prior_score[0]}, {prior_score[1]}')
@@ -344,7 +360,6 @@ class Rounds:
             plt.figure()
 
             def draw_rounds(y, height):
-                print(y, height)
                 for r in rounds:
                     plt.gca().add_patch(patches.Rectangle(
                         (r.buy_phase_start, y),
@@ -364,12 +379,16 @@ class Rounds:
                         color='green',
                         alpha=0.25,
                         ))
+                    plt.gca().add_patch(patches.Rectangle(
+                        (r.buy_phase_start, height + 0.5),
+                        r.end - r.buy_phase_start,
+                        0.4,
+                        color='green' if r.won else 'red',
+                        fill=True,
+                        alpha=0.75,
+                    ))
 
-            # for f in frames:
-            #     if f.valorant.timer and f.valorant.timer.buy_phase:
-            #         plt.axvline(f.timestamp - start)
-
-            draw_rounds(-1, np.nanmax(frame_scores) + 1)
+            draw_rounds(-0.5, np.nanmax(frame_scores) + 0.5)
             plt.scatter(score_timestamps, frame_scores[0], color='b', marker='v')
             plt.plot(valid_timestamps[0], valid_scores[0], color='b', label='team1')
             plt.scatter(score_timestamps, frame_scores[1], color='orange', marker='^')
