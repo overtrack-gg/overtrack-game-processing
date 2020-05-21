@@ -30,6 +30,7 @@ class ValorantGameExtractor:
         self.outofgame_pipeline = self.make_outofgame_pipeline()
 
         self.have_game = False
+        self.end_game_frames = 0
         self.frames: Deque[Frame] = deque(maxlen=10_000)
 
         self.debug_frames_path = debug_frames_path
@@ -92,19 +93,32 @@ class ValorantGameExtractor:
 
         end_game = False
         start_game = False
+        ignore_frame = False
         if self.have_game and frame.valorant.home_screen:
             self.logger.info(logstr)
-            self.logger.info(f'Got home screen - ending game')
-            end_game = True
+            self.end_game_frames += 1
+            if self.end_game_frames >= 3:
+                self.logger.info(f'Got home screen, end_game_frames={self.end_game_frames} - ending game')
+                end_game = True
+                self.end_game_frames = 0
+            else:
+                self.logger.info(f'Got home screen, end_game_frames={self.end_game_frames} - waiting for more end-game frames')
+                ignore_frame = True
         elif frame.valorant.agent_select:
             self.logger.info(logstr)
             if self.have_game:
                 agent_select_ago = frame.timestamp - self.frames[0].timestamp
                 self.logger.info(f'Got agent select, last agent select {agent_select_ago:.2f}s ago')
                 if agent_select_ago > 100:
-                    self.logger.info(f'Got fresh agent select - starting game')
-                    end_game = True
-                    start_game = True
+                    self.end_game_frames += 1
+                    if self.end_game_frames >= 3:
+                        self.logger.info(f'Got fresh agent select, end_game_frames={self.end_game_frames} - ending game')
+                        end_game = True
+                        start_game = True
+                        self.end_game_frames = 0
+                    else:
+                        self.logger.info(f'Got fresh agent select, end_game_frames={self.end_game_frames} - waiting for more end-game frames')
+                        ignore_frame = True
             else:
                 self.logger.info(f'Got agent select - starting game')
                 start_game = True
@@ -122,5 +136,5 @@ class ValorantGameExtractor:
         if start_game:
             self.have_game = True
 
-        if self.have_game:
+        if self.have_game and not ignore_frame:
             self.frames.append(frame)
