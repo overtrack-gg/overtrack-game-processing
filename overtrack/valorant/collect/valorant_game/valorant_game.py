@@ -104,7 +104,7 @@ class ValorantGame:
         self.map = self._resolve_map(frames)
         self.game_mode = self._resolve_game_mode(frames)
 
-        self.rounds = Rounds(frames, debug)
+        self.rounds = Rounds(frames, self.game_mode == 'custom', debug)
         self.duration = self.rounds[-1].end
         self.teams = Teams(frames, self.rounds, debug)
 

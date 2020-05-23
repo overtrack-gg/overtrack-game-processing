@@ -3,13 +3,15 @@ import heapq
 import logging
 import re
 from collections import Counter
+
+from overtrack.util.arrayops import modefilt
 from typing import List, Optional, ClassVar, Union, Tuple
 
 import itertools
 import numpy as np
 from dataclasses import dataclass
 from overtrack.frame import Frame
-from overtrack.util import s2ts
+from overtrack.util import s2ts, arrayops
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
 from overtrack.valorant.collect.valorant_game.valorant_game import InvalidGame
 
@@ -101,11 +103,12 @@ class Rounds:
         fbs = [r.kills.firstblood(for_team) for r in self.rounds]
         return [fb for fb in fbs if fb]
 
-    def __init__(self, frames: List[Frame], debug: Union[bool, str] = False):
+    def __init__(self, frames: List[Frame], custom_game: bool, debug: Union[bool, str] = False):
         timestamp = frames[0].timestamp
         self.rounds, score_from_rounds = self._parse_rounds_from_scores(
             frames,
             timestamp,
+            custom_game,
             debug,
         )
         # TODO: check against count of rounds, final score seen
@@ -184,6 +187,7 @@ class Rounds:
         self,
         frames: List[Frame],
         start: float,
+        custom_game: bool,
         debug: Union[bool, str] = False
     ) -> Tuple[List[Round], Optional[Tuple[int, int]]]:
 
@@ -202,19 +206,73 @@ class Rounds:
         score_timestamps = np.array(score_timestamps)
         frame_scores = np.array(frame_scores_data, dtype=np.float).T
 
+        isvalid = []
         valid_timestamps = []
         valid_scores = []
         score_matches = []
         for i in range(2):
-            isvalid = ~np.isnan(frame_scores[i])
-            filtered = isotonic_regression(frame_scores[i, isvalid].astype(np.int), 0, 13)
-            valid_timestamps.append(score_timestamps[isvalid])
-            valid_scores.append(filtered)
-            score_matches.append(np.mean(frame_scores[i, isvalid] == filtered))
+            isvalid.append(~np.isnan(frame_scores[i]))
+            valid_timestamps.append(score_timestamps[isvalid[i]])
+            valid_scores.append(isotonic_regression(frame_scores[i, isvalid[i]].astype(np.int), 0, 13))
+            score_matches.append(np.mean(frame_scores[i, isvalid[i]] == valid_scores[i]))
         score_match = np.mean(score_matches)
         valid_timestamps = np.array(valid_timestamps)
 
-        self.logger.info(f'Score match is {score_match:.3f}')
+        self.logger.info(f'Score match for default game is {score_match:.3f}')
+
+        if custom_game and score_match < 0.9:
+            self.logger.info(f'Checking for score resets')
+            score_resets = [max(valid_timestamps[0][0], valid_timestamps[0][1])]
+            for i in range(2):
+                is_firstround = modefilt(frame_scores[i, isvalid[i]], 15) == 0
+                firstround_edges = arrayops.contiguous_regions(is_firstround)
+                firstround_edges_t = valid_timestamps[i][firstround_edges]
+                for firstround_start, firstround_end in sorted(
+                    firstround_edges_t,
+                    key=lambda pair: pair[1] - pair[0],
+                    reverse=True
+                ):
+                    if firstround_end - firstround_start < 60:
+                        # too short - ignore
+                        continue
+
+                    offset_from_closest = min(abs(firstround_start - existing_split) for existing_split in score_resets)
+                    if offset_from_closest < 240:
+                        # too close to existing split
+                        continue
+
+                    self.logger.info(f'  Found score reset at {s2ts(firstround_start)} - closest reset is {s2ts(offset_from_closest)} away')
+                    score_resets.append(firstround_start)
+
+            # remove first reset
+            score_resets = score_resets[1:]
+
+            if len(score_resets):
+                self.logger.warning(f'Detected score resets - attempting modified isotonic fit with {len(score_resets)} score resets')
+                valid_scores_split = []
+                score_matches_split = []
+                for i in range(2):
+                    valid_scores_partial = []
+                    last_score_reset = 0
+                    for score_reset_t in sorted(score_resets + [valid_timestamps[i][-1]]):
+                        score_reset_i = bisect.bisect_right(valid_timestamps[i], score_reset_t)
+                        scores_in_half = frame_scores[i, isvalid[i]][last_score_reset:score_reset_i]
+                        valid_scores_partial.append(isotonic_regression(scores_in_half.astype(np.int), 0, 13))
+                        last_score_reset = score_reset_i
+                    valid_scores_split.append(np.concatenate(valid_scores_partial))
+                    assert len(valid_scores_split[i]) == len(frame_scores[i, isvalid[i]])
+                    score_matches_split.append(np.mean(valid_scores_split[i] == frame_scores[i, isvalid[i]]))
+                score_match_split = np.mean(score_matches_split)
+                self.logger.info(f'Score match for game with resets is {score_match_split:.3f}')
+                if score_match_split > score_match:
+                    self.logger.warning(f'Assumong score resets')
+                    valid_scores = valid_scores_split
+                    score_match = score_match_split
+                else:
+                    self.logger.warning(f'Assuming no score resets')
+
+        if score_match < 0.75:
+            raise BadRoundMatch()
 
         # TODO: find places where score incremented by more than one
         # Possibly best option is to use multiple methods to find round ends
@@ -225,7 +283,7 @@ class Rounds:
 
         self.logger.info(f'Searching for round ends:')
         round_start_timestamp = 0
-        for round_index in range(25):
+        for round_index in range(99):
             round_start_index = [
                 bisect.bisect_left(valid_timestamps[i], round_start_timestamp)
                 for i in range(2)
@@ -235,38 +293,23 @@ class Rounds:
             edges = [
                 list(np.where(
                     (valid_scores[i][s    : -1] == score[i]) &
-                    (valid_scores[i][s + 1:   ] == score[i] + 1)
+                    (valid_scores[i][s + 1:   ] != score[i])
                 )[0] + s) if score[i] <= 12 else []
                 for i, s in enumerate(round_start_index)
             ]
-
-            # For each teams edges, rank these by how well they match a score increase
-            # i.e. [0, 0, 1, 1, 1] will match a score of 0-> better than [0, 0, 1, 0, 0]
-            edgematch_ranks = [
-                [
-                    (
-                        np.mean(np.concatenate((
-                            valid_scores[i][s  :e] == score[i],
-                            valid_scores[i][e+1: ] >= score[i] + 1
-                        ))),
-                        e,
-                        i,
-                    ) for e in edges[i]
-                ] for i, s in enumerate(round_start_index)
-            ]
+            self.logger.info(f'    Got edges: {edges}')
 
             # For each team, find the best matching edge by the above criteria
-            edgematch_best = [
-                sorted(edgematch_ranks[i], reverse=True)
-                for i in range(2)
-            ]
-            best_edges = list(sorted(
-                itertools.chain(*edgematch_best),
-                key=lambda e: e[1],
-            ))
-            if not len(best_edges):
+
+            all_edges = []
+            for i in range(2):
+                if edges[i]:
+                    all_edges.append((edges[i][0], i))
+            all_edges.sort()
+            if not all_edges:
                 break
-            edgematch, edge, winner_index = best_edges[0]
+
+            edge, winner_index = all_edges[0]
 
             round_end_timestamp = valid_timestamps[winner_index][edge]
             found_round = Round(
@@ -280,7 +323,7 @@ class Rounds:
             )
             rounds.append(found_round)
             self.logger.info(
-                f'    {s2ts(score_timestamps[edge])} ({score_timestamps[edge]:.0f}s i={edge}), match={edgematch:.3f}, '
+                f'    {s2ts(score_timestamps[edge])} ({score_timestamps[edge]:.0f}s i={edge}), '
                 f'winner={["Team1", "Team2"][winner_index]}, score={score[winner_index]}->{score[winner_index] + 1}: '
                 f'{found_round}'
             )
