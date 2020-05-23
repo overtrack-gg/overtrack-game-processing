@@ -60,7 +60,7 @@ class ValorantDiscordMessage(DiscordMessage):
 
 @dataclass
 class ValorantTwitchMessage:
-    message: str
+    messages: List[str]
     color: Optional[str] = None
 
     def __init__(self, game: ValorantGame, summary: ValorantGameSummary, url: str, username: Optional[str] = None):
@@ -86,18 +86,22 @@ class ValorantTwitchMessage:
         else:
             scorestr = ' '
 
-        self.message = (
-            f'{name} just {result} {scorestr}on {game.map}. '
-            f'{len(game.teams.firstperson.kills)} kills, {np.mean([len(ks) for ks in kills_by_round]):.1f} kills/round, {len(firstbloods)} first bloods. '
-            f'Best weapon: {bestweap.title()} with {bestweap_count} kills. Best round: {np.max([len(ks) for ks in kills_by_round])} kills'
-        )
+        self.messages = [
+            (
+                f'{name} just {result} {scorestr}on {game.map}. '
+                f'{len(game.teams.firstperson.kills)} kills, {np.mean([len(ks) for ks in kills_by_round]):.1f} kills/round, {len(firstbloods)} first bloods. '
+                f'Best weapon: {bestweap.title()} with {bestweap_count} kills. Best round: {np.max([len(ks) for ks in kills_by_round])} kills'
+            )
+        ]
+        if len(game.clips):
+            self.messages.append(game.clips[0].url)
         self.color = 'Goldenrod'
         logger.info(f'Prepared {self}')
 
     def send(self, channel: str) -> None:
-        twitch_bot.send_message(
+        twitch_bot.send_messages(
             channel,
-            self.message,
+            self.messages,
             colour=self.color
         )
 
