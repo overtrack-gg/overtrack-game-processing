@@ -58,7 +58,12 @@ def isotonic_regression(y, _=None, __=None, ___=None):
     z = np.flip(np.minimum.accumulate(np.flip(p)))  # right_to_left_cumulative_min
     return z
 
-class NoRounds(InvalidGame):
+
+class InvalidRounds(InvalidGame):
+    pass
+class NoRounds(InvalidRounds):
+    pass
+class BadRoundMatch(InvalidRounds):
     pass
 
 
@@ -145,8 +150,8 @@ class Rounds:
                     if spike_carriers_sudden_death < 3:
                         self.logger.error(f'Sudden death round has low (but nonzero) spike carriers observed')
 
-        self.attack_wins = sum(r.won for r in self.rounds if r.attacking)
-        self.defence_wins = sum(r.won for r in self.rounds if not r.attacking)
+        self.attack_wins = sum(r.won is True for r in self.rounds if r.attacking)
+        self.defence_wins = sum(r.won is True for r in self.rounds if not r.attacking)
 
         if debug in [True, self.__class__.__qualname__]:
             import matplotlib.pyplot as plt
@@ -199,12 +204,17 @@ class Rounds:
 
         valid_timestamps = []
         valid_scores = []
+        score_matches = []
         for i in range(2):
             isvalid = ~np.isnan(frame_scores[i])
             filtered = isotonic_regression(frame_scores[i, isvalid].astype(np.int), 0, 13)
             valid_timestamps.append(score_timestamps[isvalid])
             valid_scores.append(filtered)
+            score_matches.append(np.mean(frame_scores[i, isvalid] == filtered))
+        score_match = np.mean(score_matches)
         valid_timestamps = np.array(valid_timestamps)
+
+        self.logger.info(f'Score match is {score_match:.3f}')
 
         # TODO: find places where score incremented by more than one
         # Possibly best option is to use multiple methods to find round ends

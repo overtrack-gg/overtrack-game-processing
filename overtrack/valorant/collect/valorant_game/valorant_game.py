@@ -1,6 +1,11 @@
+import os
+
 import datetime
 import logging
 from collections import Counter
+
+import requests
+from overtrack.source.twitch_source import TwitchSource
 from typing import List, ClassVar, Tuple, Union, Optional, Dict, Any
 
 import shortuuid
@@ -14,14 +19,17 @@ from overtrack.valorant.collect.valorant_game.game_parse_error import InvalidGam
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
 from overtrack.valorant.collect.valorant_game.rounds import Rounds
 from overtrack.valorant.collect.valorant_game.teams import Teams, Player
+from overtrack.valorant.collect.valorant_game.clips import Clip, make_clips
 from overtrack.valorant.data import MapName, GameModeName, game_modes
 from overtrack_models.dataclasses.typedload import referenced_typedload
 
-VERSION = '0.11.1'
+VERSION = '0.11.2'
+GET_VOD_URL = os.environ.get('GET_VOD_URL', 'https://m9e3shy2el.execute-api.us-west-2.amazonaws.com/{twitch_user}/vod/{time}?pts={pts}')
 
 
 class NoMap(InvalidGame):
     pass
+
 
 class NoMode(InvalidGame):
     pass
@@ -42,6 +50,10 @@ class ValorantGame:
     rounds: Rounds
     teams: Teams
 
+    start_pts: Optional[float]
+    vod: Optional[str]
+    clips: Optional[List[Clip]]
+
     season_mode_id: int
     frames_count: int
     version: str
@@ -54,11 +66,24 @@ class ValorantGame:
 
     @property
     def time(self) -> datetime.datetime:
-        return datetime.datetime.fromtimestamp(self.timestamp)
+        return datetime.datetime.utcfromtimestamp(self.timestamp).replace(tzinfo=datetime.timezone(datetime.timedelta(hours=0)))
 
-    def __init__(self, frames: List[Frame], key: Optional[str] = None, debug: Union[bool, str] = False):
+    def __init__(
+        self,
+        frames: List[Frame],
+        key: Optional[str] = None,
+        resolve_vod: bool = True,
+        twitch_username: Optional[str] = None,
+        debug: Union[bool, str] = False
+    ):
         self.logger.info(f'Resolving valorant game from {len(frames)} frames')
         self.logger.info(f'Resolving frames {frames[0].timestamp_str} -> {frames[-1].timestamp_str}')
+
+        if 'frame_info' in frames[0]:
+            self.start_pts = round(frames[0].frame_info.pts, 2)
+            self.logger.info(f'Got game pts_timestamp={self.start_pts}')
+        else:
+            self.start_pts = None
 
         framemakeup = Counter()
         for frame in frames:
@@ -102,8 +127,17 @@ class ValorantGame:
         else:
             self.season_mode_id = 1
 
+        self.vod = None
+        self.clips = None
+
         self.frames_count = len(frames)
         self.version = VERSION
+
+        if resolve_vod:
+            vod_username = self.resolve_vod(frames, twitch_username)
+            if vod_username:
+                self.vod, twitch_username = vod_username
+                self.clips = make_clips(self, twitch_username)
 
     def _resolve_map(self, frames: List[Frame]) -> Optional[MapName]:
         mapcounter = Counter()
@@ -155,6 +189,42 @@ class ValorantGame:
         bestmode, _ = modecounter.most_common(1)[0]
         self.logger.info(f'Resolving mode {modecounter} -> {bestmode}')
         return bestmode
+
+    def resolve_vod(self, frames: List[Frame], twitch_username: Optional[str]) -> Optional[Tuple[str, str]]:
+        source = frames[0].source
+        if isinstance(source, TwitchSource):
+            self.logger.info(f'Resolving twitch username from {source}')
+            twitch_username = source.username
+
+        if not twitch_username:
+            return None
+
+        self.logger.info(f'Resolving VODs/clips for twitch user {twitch_username}')
+
+        try:
+            vod_r = requests.get(
+                GET_VOD_URL.format(
+                    twitch_user=twitch_username,
+                    time=self.time,
+                    pts=self.start_pts,
+                ),
+                timeout=30,
+            )
+            self.logger.info(f'{vod_r.url} -> {vod_r.status_code}: {vod_r.text[:100]}')
+            if vod_r.status_code == 404:
+                self.logger.warning(f'Could not resolve twitch user')
+                return None
+            else:
+                vod_r.raise_for_status()
+                vod_r.json()
+        except:
+            self.logger.exception('Got exception resolving vod')
+            return None
+
+        vod_url = vod_r.json()['vod_timestamp_url']
+        self.logger.info(f'Resolved vod_url={vod_url}')
+
+        return vod_url, twitch_username
 
     def asdict(self) -> Dict[str, Any]:
         return referenced_typedload.dump(self)
