@@ -72,7 +72,7 @@ class AgentSelectProcessor(Processor):
             agent_name_thresh,
             self.AGENT_NAME_TEMPLATES,
             method=cv2.TM_CCORR_NORMED,
-            required_match=self.AGENT_TEMPLATE_REQUIRED_MATCH
+            required_match=0.95,
         )
         if match > self.AGENT_TEMPLATE_REQUIRED_MATCH:
             # FIXME: locked in - only use if locked in in valorantgame
