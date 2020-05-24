@@ -64,7 +64,7 @@ def make_clips(game: ValorantGame, twitch_username: str,  minimum_kills_to_clip:
 
     multikills = []
     multikill = []
-    for k in game.teams.firstperson.kills:
+    for k in (game.teams.firstperson.kills if game.teams.firstperson else []):
         if multikill and k.timestamp - multikill[-1].timestamp > 7:
             if len(multikill) >= 2:
                 multikills.append(multikill)
