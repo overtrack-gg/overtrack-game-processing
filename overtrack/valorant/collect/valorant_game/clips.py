@@ -1,16 +1,11 @@
-from urllib.parse import urlencode
-
-import asyncio
 from collections import Counter
 
+import asyncio
 import logging
 import os
-import requests
-import requests_async
 from dataclasses import dataclass
 from datetime import timedelta
 from overtrack.util import s2ts
-from overtrack.valorant.collect.valorant_game.game_parse_error import InvalidGame
 from typing import TYPE_CHECKING, List, Dict, Union, Optional
 
 CLIP_URL = os.environ.get(
@@ -49,6 +44,7 @@ class Clip:
 
 
 async def create_clip(**kwargs) -> Optional[str]:
+    import requests_async
     try:
         create_clip_r = await requests_async.get(
             CLIP_URL.format(**kwargs)
@@ -104,6 +100,13 @@ def make_clips(game: ValorantGame, twitch_username: str,  minimum_kills_to_clip:
         duration = (multikill[-1].timestamp + 5) - game_offset
         time = game.time + timedelta(seconds=game_offset)
         pts = game.start_pts + game_offset
+
+        logger.info(
+            f'  '
+            f'timestamp={s2ts(multikill[0].timestamp)} ({multikill[0].timestamp:.2f}), '
+            f'time={game.time + timedelta(seconds=multikill[0].timestamp)}, '
+            f'pts={game.start_pts + game_offset}'
+        )
 
         clip_type: ClipType = 'multikill'
         clip_metadata: KillsMetadata = {
