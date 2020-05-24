@@ -33,6 +33,36 @@ def str2col(s):
     return tuple(cv2.cvtColor(np.array((s, 230, 255), dtype=np.uint8).reshape((1, 1, 3)), cv2.COLOR_HSV2BGR_FULL)[0, 0].tolist())
 
 
+def draw_weapon_templates(debug_image: Optional[np.ndarray], weapon_templates):
+    if debug_image is not None:
+        x, y = 300, 100
+        for w, t in weapon_templates.items():
+            if y > 1000:
+                break
+            debug_image[
+                y: y + t.shape[0],
+                x: x + t.shape[1]
+            ] = cv2.cvtColor(t, cv2.COLOR_GRAY2BGR)
+            cv2.putText(
+                debug_image,
+                w,
+                (
+                    x - cv2.getTextSize(
+                        w,
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.75,
+                        1,
+                    )[0][0],
+                    y + 20
+                ),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.75,
+                (0, 255, 255),
+                1
+            )
+            y += t.shape[0]
+
+
 class KillfeedProcessor(Processor):
 
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
@@ -136,6 +166,8 @@ class KillfeedProcessor(Processor):
 
         kill_rows = []
 
+        draw_weapon_templates(frame.debug_image, self.WEAPON_TEMPLATES)
+
         for _ in range(9):
             mnv, mxv, mnl, mxl = cv2.minMaxLoc(kill_match)
             if mxv < self.KILL_THRESHOLD:
@@ -164,26 +196,6 @@ class KillfeedProcessor(Processor):
                     friendly=bool(friendly_kill_v > enemy_kill_v),
                 )
             )
-
-            # if frame.debug_image is not None:
-            #     cv2.circle(
-            #         frame.debug_image,
-            #         center,
-            #         10,
-            #         (0, 255, 0),
-            #         1,
-            #         cv2.LINE_AA,
-            #     )
-            #     for c, t in ((0, 0, 0), 3), ((0, 255, 128), 1):
-            #         cv2.putText(
-            #             frame.debug_image,
-            #             f'{mxv:.4f}',
-            #             (center[0] + 20, center[1] + 20),
-            #             cv2.FONT_HERSHEY_SIMPLEX,
-            #             0.5,
-            #             c,
-            #             t,
-            #         )
 
         kill_rows.sort(key=lambda r: r.center[1])
         if len(kill_rows):
@@ -401,6 +413,22 @@ class KillfeedProcessor(Processor):
             200,
         )
         weapon_thresh = ((weapon_gray - weapon_adapt_thresh > 30) * 255).astype(np.uint8)
+
+        kill_modifiers_thresh = weapon_thresh[:, -75:]
+        _, wallbang_match, _, wallbang_loc = cv2.minMaxLoc(cv2.matchTemplate(kill_modifiers_thresh, self.WALLBANG_TEMPLATE, cv2.TM_CCORR_NORMED))
+        _, headshot_match, _, headshot_loc = cv2.minMaxLoc(cv2.matchTemplate(kill_modifiers_thresh, self.HEADSHOT_TEMPLATE, cv2.TM_CCORR_NORMED))
+        wallbang_match, headshot_match = float(wallbang_match), float(headshot_match)
+        logger.debug(f'wallbang_match={wallbang_match:.2f}, headshot_match={headshot_match:.2f}')
+
+        right = weapon_thresh.shape[1] - 1
+        if wallbang_match > self.KILL_MODIFIER_THRESHOLD:
+            right = min(right, (weapon_thresh.shape[1] - 75) + wallbang_loc[0])
+        if headshot_match > self.KILL_MODIFIER_THRESHOLD:
+            right = min(right, (weapon_thresh.shape[1] - 75) + headshot_loc[0])
+        if right != weapon_thresh.shape[1] - 1:
+            logger.debug(f'Using right={right} (clipping kill modifier)')
+            weapon_thresh = weapon_thresh[:, :right]
+
         # cv2.imwrite(f'C:/tmp/agents2/weap.png', weapon_thresh)
 
         # import matplotlib.pyplot as plt
@@ -421,19 +449,22 @@ class KillfeedProcessor(Processor):
                 5,
                 cv2.BORDER_CONSTANT,
             ),
-            None
+            np.ones((2,2))
         )
         contours, hierarchy = imageops.findContours(
             weapon_image,
             cv2.RETR_EXTERNAL,
             cv2.CHAIN_APPROX_SIMPLE
         )
+        contours_xywh = [
+            (cnt, cv2.boundingRect(cnt)) for cnt in contours
+        ]
 
         best_weap_match, best_weap = 0, None
-        for cnt in sorted(contours, key=lambda c: np.min(c[:, :, 0])):
-            a = cv2.contourArea(cnt)
-            x1, y1, w, h = cv2.boundingRect(cnt)
+
+        for cnt, (x1, y1, w, h) in sorted(contours_xywh, key=lambda cnt_xywh: cnt_xywh[1][0], reverse=True):
             x2, y2 = x1 + w, y1 + h
+            a = cv2.contourArea(cnt)
 
             fromright = weapon_image.shape[1] - x2
 
@@ -468,7 +499,9 @@ class KillfeedProcessor(Processor):
                     )
                 continue
 
-            weapon_im = np.zeros((h + 2, w + 2), dtype=np.uint8)
+            # Draw contour to image, padding l=5, r=10, t=2, b=2
+            # The extra width padding prevents abilities matching small parts of large guns
+            weapon_im = np.zeros((h + 4, w + 15), dtype=np.uint8)
             cv2.drawContours(
                 weapon_im,
                 [cnt],
@@ -476,8 +509,8 @@ class KillfeedProcessor(Processor):
                 255,
                 -1,
                 offset=(
-                    -x1 + 1,
-                    -y1 + 1,
+                    -x1 + 5,
+                    -y1 + 2,
                 )
             )
             weapon_match, weapon = imageops.match_templates(
@@ -490,7 +523,7 @@ class KillfeedProcessor(Processor):
                 cv2.TM_CCORR_NORMED,
                 template_in_image=False,
                 required_match=0.96,
-                # verbose=True,
+                verbose=True,
             )
             if best_weap_match < weapon_match:
                 best_weap_match, best_weap = weapon_match, weapon
@@ -511,10 +544,26 @@ class KillfeedProcessor(Processor):
                 )
 
             if valid:
-                kill_modifiers_thresh = weapon_thresh[:, -75:]
-                wallbang_match = np.max(cv2.matchTemplate(kill_modifiers_thresh, self.WALLBANG_TEMPLATE, cv2.TM_CCORR_NORMED))
-                headshot_match = np.max(cv2.matchTemplate(kill_modifiers_thresh, self.HEADSHOT_TEMPLATE, cv2.TM_CCORR_NORMED))
-                logger.debug(f'wallbang_match={wallbang_match:.2f}, headshot_match={headshot_match:.2f}')
+                if frame.debug_image is not None:
+                    x, y = 600, row.center[1] - 15
+                    frame.debug_image[
+                        y:y + weapon_thresh.shape[0],
+                        x:x + weapon_thresh.shape[1]
+                    ] = cv2.cvtColor(weapon_thresh, cv2.COLOR_GRAY2BGR)
+                    x -= (weapon_im.shape[1] + 10)
+                    frame.debug_image[
+                        y:y + weapon_im.shape[0],
+                        x:x + weapon_im.shape[1]
+                    ] = cv2.cvtColor(weapon_im, cv2.COLOR_GRAY2BGR)
+
+                    cv2.line(
+                        frame.debug_image,
+                        (x, y + weapon_im.shape[0] // 2),
+                        (450, self.WEAPON_NAMES.index(weapon) * 40 + 120),
+                        (0, 255, 0),
+                        2,
+                        cv2.LINE_AA,
+                    )
 
                 return weapon, float(weapon_match), float(wallbang_match), float(headshot_match), int(weapon_region_left + x1)
 
@@ -548,7 +597,7 @@ def main():
     config_logger(os.path.basename(__file__), level=logging.DEBUG, write_to_file=False)
     proc = KillfeedProcessor()
 
-    # util.test_processor('weapon_kills', proc, 'valorant.killfeed', game='valorant', wait=True, test_all=False)
+    util.test_processor('weapon_kills', proc, 'valorant.killfeed', game='valorant', wait=True, test_all=False)
     util.test_processor('ingame', proc, 'valorant.killfeed', game='valorant', wait=True, test_all=False)
 
 
