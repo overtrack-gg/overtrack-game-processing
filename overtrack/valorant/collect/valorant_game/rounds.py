@@ -93,6 +93,8 @@ class Rounds:
     attack_wins: int
     defence_wins: int
 
+    has_game_resets: bool = False
+
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     @property
@@ -105,19 +107,26 @@ class Rounds:
 
     def __init__(self, frames: List[Frame], custom_game: bool, debug: Union[bool, str] = False):
         timestamp = frames[0].timestamp
-        self.rounds, score_from_rounds = self._parse_rounds_from_scores(
+        self.rounds, score_from_rounds, self.has_game_resets = self._parse_rounds_from_scores(
             frames,
             timestamp,
             custom_game,
             debug,
         )
         # TODO: check against count of rounds, final score seen
-        self.final_score = score_from_rounds
+        if not self.has_game_resets:
+            self.final_score = score_from_rounds
 
-        if not self.final_score:
-            self.logger.error('Could not derive final score')
-        elif not (self.final_score[0] == 13 or self.final_score[1] == 13):
-            self.logger.error('Final score did not have team with 13 wins')
+            if not self.final_score:
+                self.logger.error('Could not derive final score')
+            elif not (self.final_score[0] == 13 or self.final_score[1] == 13):
+                self.logger.error('Final score did not have team with 13 wins')
+        else:
+            self.logger.info(f'Deriving score from sum of won rounds for custom game with resets')
+            self.final_score = (
+                sum(r.won is True for r in self.rounds),
+                sum(r.won is False for r in self.rounds),
+            )
 
         if len(self.rounds) < 13:
             self.logger.error('Had game with less than 13 rounds')
@@ -189,7 +198,7 @@ class Rounds:
         start: float,
         custom_game: bool,
         debug: Union[bool, str] = False
-    ) -> Tuple[List[Round], Optional[Tuple[int, int]]]:
+    ) -> Tuple[List[Round], Optional[Tuple[int, int]], bool]:
 
         score_timestamps = []
         frame_scores_data = []
@@ -220,6 +229,8 @@ class Rounds:
 
         self.logger.info(f'Score match for default game is {score_match:.3f}')
 
+        score_resets = None
+        has_score_resets = False
         if custom_game and score_match < 0.9:
             self.logger.info(f'Checking for score resets')
             score_resets = [max(valid_timestamps[0][0], valid_timestamps[0][1])]
@@ -265,9 +276,10 @@ class Rounds:
                 score_match_split = np.mean(score_matches_split)
                 self.logger.info(f'Score match for game with resets is {score_match_split:.3f}')
                 if score_match_split > score_match:
-                    self.logger.warning(f'Assumong score resets')
+                    self.logger.warning(f'Assuming score resets')
                     valid_scores = valid_scores_split
                     score_match = score_match_split
+                    has_score_resets = True
                 else:
                     self.logger.warning(f'Assuming no score resets')
 
@@ -284,12 +296,21 @@ class Rounds:
         self.logger.info(f'Searching for round ends:')
         round_start_timestamp = 0
         for round_index in range(99):
+            if has_score_resets and len(score_resets) and round_start_timestamp > score_resets[0] - 30:
+                self.logger.info(f'Got score reset for round starting at {s2ts(round_start_timestamp)}')
+                score = [0, 0]
+                score_resets.pop(0)
+
             round_start_index = [
                 bisect.bisect_left(valid_timestamps[i], round_start_timestamp)
                 for i in range(2)
             ]
 
             # Find all potential round ends where score increases by one for one team
+            self.logger.info(
+                f'    Checking for score transition from {score} '
+                f'starting at {round_start_index} / {(len(valid_timestamps[0]), len(valid_timestamps[1]))}'
+            )
             edges = [
                 list(np.where(
                     (valid_scores[i][s    : -1] == score[i]) &
@@ -299,7 +320,32 @@ class Rounds:
             ]
             self.logger.info(f'    Got edges: {edges}')
 
+            # # For each teams edges, rank these by how well they match a score increase
+            # # i.e. [0, 0, 1, 1, 1] will match a score of 0-> better than [0, 0, 1, 0, 0]
+            # edgematch_ranks = [
+            #     [
+            #         (
+            #             np.mean(np.concatenate((
+            #                 valid_scores[i][s  :e] == score[i],
+            #                 valid_scores[i][e+1: ] >= score[i] + 1
+            #             ))),
+            #             e,
+            #             i,
+            #         ) for e in edges[i]
+            #     ] for i, s in enumerate(round_start_index)
+            # ]
+            #
             # For each team, find the best matching edge by the above criteria
+            # edgematch_best = [
+            #     sorted(edgematch_ranks[i], reverse=True)
+            #     for i in range(2)
+            # ]
+            # best_edges = list(sorted(
+            #     itertools.chain(*edges),
+            #     key=lambda e: e[1],
+            # ))
+            # if not len(best_edges):
+            #     break
 
             all_edges = []
             for i in range(2):
@@ -312,8 +358,8 @@ class Rounds:
             edge, winner_index = all_edges[0]
 
             round_end_timestamp = valid_timestamps[winner_index][edge]
-            found_round = Round(
-                index=round_index,
+            latest_round = Round(
+                index=len(rounds),
                 buy_phase_start=round(float(round_start_timestamp + INTER_PHASE_DURATION), 1),
                 start=round(float(round_start_timestamp + INTER_PHASE_DURATION + (FIRST_BUY_PHASE_DURATION if round_index == 0 else BUY_PHASE_DURATION)), 1),
                 end=round(float(round_end_timestamp), 1),
@@ -321,12 +367,19 @@ class Rounds:
                 won=winner_index == 0,
                 kills=None,
             )
-            rounds.append(found_round)
             self.logger.info(
                 f'    {s2ts(score_timestamps[edge])} ({score_timestamps[edge]:.0f}s i={edge}), '
                 f'winner={["Team1", "Team2"][winner_index]}, score={score[winner_index]}->{score[winner_index] + 1}: '
-                f'{found_round}'
+                f'{latest_round}'
             )
+            if latest_round.end - latest_round.start < 15:
+                if has_score_resets:
+                    self.logger.warning(f'Ignoring {latest_round} - too short, likely game was reset (has_score_resets=True)')
+                else:
+                    self.logger.error('Got too short round')
+            else:
+                rounds.append(latest_round)
+
             self.logger.info(f'        New score: {valid_scores[winner_index][edge + 1]} - {valid_scores[winner_index][edge: edge + 2]}')
 
             round_end_index = [
@@ -342,7 +395,9 @@ class Rounds:
             score[winner_index] += 1
             round_start_timestamp = round_end_timestamp
 
-        if score[0] == 13 or score[1] == 13:
+        if has_score_resets:
+            self.logger.info(f'Not checking for final round for scrims/score reset game')
+        elif score[0] == 13 or score[1] == 13:
             # Captured final score transition
             self.logger.info(f'Final round score transition was captured - final round was included, final score={score[0]}-{score[1]}')
             score = score[0], score[1]
@@ -448,7 +503,7 @@ class Rounds:
             plt.plot(valid_timestamps[1], valid_scores[1], color='orange', label='team2')
             plt.legend()
 
-        return rounds, score
+        return rounds, score, has_score_resets
 
     def __iter__(self):
         return iter(self.rounds)

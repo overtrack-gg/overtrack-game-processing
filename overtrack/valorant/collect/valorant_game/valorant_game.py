@@ -113,7 +113,9 @@ class ValorantGame:
 
         self.teams.resolve_performance(self.rounds)
 
-        if self.rounds[-1].won is not None:
+        if self.rounds.has_game_resets:
+            self.won = None
+        elif self.rounds[-1].won is not None:
             self.won = self.rounds[-1].won
         elif self.score:
             self.won = self.score[0] > self.score[1]
