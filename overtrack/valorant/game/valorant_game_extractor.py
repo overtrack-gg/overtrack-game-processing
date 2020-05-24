@@ -138,3 +138,10 @@ class ValorantGameExtractor:
 
         if self.have_game and not ignore_frame:
             self.frames.append(frame)
+
+    def stop(self):
+        self.logger.info(f'Stopping')
+        if self.have_game:
+            self.logger.info(f'Calling on_game_complete for all handlers')
+            for ogc in self.on_game_complete:
+                ogc(list(self.frames))
