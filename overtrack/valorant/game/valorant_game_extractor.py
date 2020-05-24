@@ -48,7 +48,7 @@ class ValorantGameExtractor:
     def make_outofgame_pipeline(self) -> Processor:
         return AgentSelectProcessor()
 
-    def process(self, frame: Frame) -> None:
+    def process(self, frame: Frame) -> bool:
         try:
             if self.have_game:
                 self.ingame_pipeline.process(frame)
@@ -56,7 +56,7 @@ class ValorantGameExtractor:
                 self.outofgame_pipeline.process(frame)
         except:
             self.logger.exception(f'Got exception processing frame')
-            return
+            return False
 
         image = frame.image
         debug_image = frame.debug_image
@@ -80,7 +80,13 @@ class ValorantGameExtractor:
         if self.imshow:
             cv2.imshow('frame', debug_image if debug_image is not None else image)
 
+        return True
+
     def add(self, frame: Frame) -> None:
+        if frame.get('image', None) is not None:
+            self.logger.warning(f"Trying to add frame with non-stripped image - ignoring")
+            return
+
         if len(self.frames):
             logstr = (
                 f'have_game={self.have_game}, len(frames)={len(self.frames)}, '

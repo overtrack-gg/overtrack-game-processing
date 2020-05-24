@@ -513,6 +513,8 @@ class KillfeedProcessor(Processor):
                     -y1 + 2,
                 )
             )
+            if weapon_im.shape[1] > 150:
+                weapon_im = weapon_im[:, :150]
             weapon_match, weapon = imageops.match_templates(
                 weapon_im,
                 {
