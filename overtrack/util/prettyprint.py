@@ -47,7 +47,7 @@ class DataclassPrettyPrinter(PrettyPrinter):
         rep = self._repr(object, context, level)
         max_width = self._width - indent - allowance
 
-        if isinstance(object, (PynamoModel, MapAttribute)) and type(object) not in self.force_use_repr_types:
+        if isinstance(object, (PynamoModel, MapAttribute)) and type(object) not in (self.force_use_repr_types or []):
             # Don't use default repr
             rep = f'{object.__class__.__qualname__}(' + ', '.join(
                 f'{k}={self._repr(getattr(object, k), context, level + 1)}' for k in object._attributes.keys()

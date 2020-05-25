@@ -371,14 +371,16 @@ class Rounds:
             )
             self.logger.info(
                 f'    {s2ts(score_timestamps[edge])} ({score_timestamps[edge]:.0f}s i={edge}), '
-                f'winner={["Team1", "Team2"][winner_index]}, score={score[winner_index]}->{score[winner_index] + 1}: '
+                f'winner={["Team1", "Team2"][winner_index]}, '
+                f'score={valid_scores[winner_index][edge]}->{valid_scores[winner_index][edge + 1]}, '
+                f'duration={s2ts(score_timestamps[edge] - round_start_timestamp)}: '
                 f'{latest_round}'
             )
-            if latest_round.end - latest_round.start < 15:
-                if has_score_resets:
-                    self.logger.warning(f'Ignoring {latest_round} - too short, likely game was reset (has_score_resets=True)')
+            if valid_scores[winner_index][edge + 1] != valid_scores[winner_index][edge] + 1:
+                if not has_score_resets:
+                    raise InvalidRounds('Had round with no score increase')
                 else:
-                    self.logger.error('Got too short round')
+                    self.logger.warning(f'Ignoring round with no score increase - likely game was reset (has_score_resets=True)')
             else:
                 rounds.append(latest_round)
 
