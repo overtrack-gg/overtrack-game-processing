@@ -15,11 +15,22 @@ from overtrack_models.orm.notifications import DiscordBotNotification, TwitchBot
 from overtrack.twitch import twitch_bot
 from overtrack_models.orm.valorant_game_summary import ValorantGameSummary
 
-from overtrack.overwatch.collect.notifications import DiscordMessage
+from overtrack.overwatch.collect.notifications import DiscordMessage, hashtuple
 
 logger = logging.getLogger(__name__)
 
 VALORANT_GAMES_WEBHOOK = '**REMOVED**'
+
+SITE_URL = 'https://overtrack.gg/'
+ICON_URL = 'https://cdn.overtrack.gg/static/images/favicon.png'
+AVATAR_URL = 'https://overtrack.gg/assets/images/OT_logo.png'
+GAME_CARD_URL = 'https://overtrack.gg/valorant/games/{0}/card.png'
+GAME_URL = 'https://overtrack.gg/valorant/games/{0}'
+COLOURS = {
+    'WIN': 0x58a18e,
+    'LOSS': 0xe35e5b,
+    'SCRIM': 0xDDCE7A,
+}
 
 
 def get_values(game, username):
@@ -35,26 +46,37 @@ def get_values(game, username):
 class ValorantDiscordMessage(DiscordMessage):
 
     def __init__(self, game: ValorantGame, summary: ValorantGameSummary, url: str, username: Optional[str] = None):
-        name, result = get_values(game, username)
+        if game.won is not None:
+            result = ['LOSS', 'WIN'][game.won]
+        elif game.rounds.has_game_resets:
+            result = 'SCRIM'
+        else:
+            result = 'game'
+
+        title = f'{username}\'s {result} on {game.map.title()}'
 
         game_embed = {
-            'author': {
-                'name': 'overtrack.gg',
-                'url': 'https://overtrack.gg/',
-                'icon_url': 'https://overtrack.gg/favicon.png'
-            },
-            # 'color': self.colors.get(game.placed, self.COLOR_BASE),
-            'title': f'{name} {result} on {game.map}',
+            'color': COLOURS.get(result, 0),
+            'title': title,
             'url': url,
-            # 'thumbnail': {
-            #     'url': f'{self.IMAGE_PREFIX}{game.squad.player.champion}.png'
-            # },
-            # 'description': description,
+            'image': {
+                'url': GAME_CARD_URL.format(game.key) + '?_cachebust=' + hashtuple((game.won, game.game_mode, game.rounds.final_score, summary.agent)),
+            },
+            'author': {
+                'name': 'OverTrack.gg',
+                'url': SITE_URL,
+                'icon_url': ICON_URL,
+            },
             'timestamp': game.time.strftime('%Y-%m-%d %H:%M:%S'),
             'footer': {
                 'text': f'Duration {game.duration // 60:.0f}:{game.duration % 60:.0f}'
             }
         }
+        if game.vod:
+            description = f'**VOD:** {game.vod}'
+            for clip in game.clips:
+                description += f'\n**{clip.shorttitle}**: {clip.url}'
+            game_embed['description'] = description
         super().__init__(game_embed)
 
 
@@ -70,6 +92,9 @@ class ValorantTwitchMessage:
             [k for k in r.kills if k.killer == game.teams.firstperson]
             for r in game.rounds
         ]
+        print([len(ks) for ks in kills_by_round])
+        print(sum([len(ks) for ks in kills_by_round]))
+        print(len(kills_by_round))
         firstbloods = [
             r.kills[0]
             for r in game.rounds

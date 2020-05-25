@@ -40,6 +40,7 @@ else:
 class Clip:
     url: str
     title: str
+    shorttitle: str
 
     type: ClipType
     metadata: Union[KillsMetadata]
@@ -94,9 +95,12 @@ def make_clips(game: ValorantGame, frames: Optional[List[Frame]], twitch_usernam
             onlyweapon = None
 
         title = twitch_username + "'s "
+        shorttitle = ''
         if onlyweapon:
             title += onlyweapon + ' '
+            shorttitle += onlyweapon.title() + ' '
         title += f'{kills}K with {game.teams.firstperson.agent.title()} on {game.map.title()}'
+        shorttitle += f'{kills}K'
 
         game_offset = multikill[0].timestamp - 5
         duration = (multikill[-1].timestamp + 5) - game_offset
@@ -139,6 +143,7 @@ def make_clips(game: ValorantGame, frames: Optional[List[Frame]], twitch_usernam
                 'title': title.replace("'", '%27'),
             },
             title,
+            shorttitle,
             clip_type,
             clip_metadata,
         ))

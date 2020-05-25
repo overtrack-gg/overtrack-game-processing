@@ -114,6 +114,7 @@ class Rounds:
             debug,
         )
         # TODO: check against count of rounds, final score seen
+        self.final_score = None
         if not self.has_game_resets:
             self.final_score = score_from_rounds
 
@@ -121,8 +122,9 @@ class Rounds:
                 self.logger.error('Could not derive final score')
             elif not (self.final_score[0] == 13 or self.final_score[1] == 13):
                 self.logger.error('Final score did not have team with 13 wins')
-        else:
-            self.logger.info(f'Deriving score from sum of won rounds for custom game with resets')
+
+        if not self.final_score:
+            self.logger.info(f'Deriving score from sum of won rounds (fallback)')
             self.final_score = (
                 sum(r.won is True for r in self.rounds),
                 sum(r.won is False for r in self.rounds),

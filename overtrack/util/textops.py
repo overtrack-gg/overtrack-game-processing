@@ -171,7 +171,7 @@ def best_match(
             logger.log(
                 level,
                 f'Matched "{text if isinstance(text, str) else Counter(text)}" to "{options[index]}" -> '
-                f'{repr((choose_from or options)[index])} - match={match}'
+                f'{repr((choose_from or options)[index])} - match={match:.3f}'
             )
         if choose_from is not None:
             return choose_from[index]

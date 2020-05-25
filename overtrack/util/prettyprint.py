@@ -1,5 +1,5 @@
 from pprint import PrettyPrinter, _recursion
-from typing import List
+from typing import List, Optional
 
 from dataclasses import Field, dataclass, fields, is_dataclass
 
@@ -20,7 +20,11 @@ class PynamoField:
 class DataclassPrettyPrinter(PrettyPrinter):
 
     def __init__(self, *args, **kwargs):
-        kwargs['width'] = 120
+        if 'force_use_repr' in kwargs:
+            self.force_use_repr_types = kwargs.pop('force_use_repr')
+        else:
+            self.force_use_repr_types = None
+        kwargs['width'] = kwargs.get('width', 120)
         super().__init__(*args, **kwargs)
         self.visited = {}
 
@@ -28,7 +32,7 @@ class DataclassPrettyPrinter(PrettyPrinter):
         return True
 
     def force_use_repr(self, object):
-        return False
+        return self.force_use_repr_types and type(object) in self.force_use_repr_types
 
     def _format(self, object, stream, indent, allowance, context, level):
         if level == 0:
@@ -43,7 +47,7 @@ class DataclassPrettyPrinter(PrettyPrinter):
         rep = self._repr(object, context, level)
         max_width = self._width - indent - allowance
 
-        if isinstance(object, (PynamoModel, MapAttribute)):
+        if isinstance(object, (PynamoModel, MapAttribute)) and type(object) not in self.force_use_repr_types:
             # Don't use default repr
             rep = f'{object.__class__.__qualname__}(' + ', '.join(
                 f'{k}={self._repr(getattr(object, k), context, level + 1)}' for k in object._attributes.keys()
@@ -156,9 +160,9 @@ class DataclassPrettyPrinter(PrettyPrinter):
         write(')')
 
 
-def pprint(object, stream=None, indent=1, width=80, depth=None, *, compact=False):
+def pprint(object, stream=None, indent=1, width=80, depth=None, *, compact=False, force_use_repr: Optional[List] = None):
     """Pretty-print a Python object to a stream [default is sys.stdout]."""
-    printer = DataclassPrettyPrinter(stream=stream, indent=indent, width=width, depth=depth, compact=compact)
+    printer = DataclassPrettyPrinter(stream=stream, indent=indent, width=width, depth=depth, compact=compact, force_use_repr=force_use_repr)
     printer.pprint(object)
 
 
