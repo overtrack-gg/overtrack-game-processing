@@ -1,6 +1,10 @@
+import string
+
 import itertools
 import logging
 from collections import Counter
+
+from overtrack.util import textops
 from typing import List, Optional, Union, ClassVar, Tuple, TYPE_CHECKING, Dict
 import Levenshtein as levenshtein
 from dataclasses import dataclass, fields, Field, field, InitVar
@@ -63,7 +67,7 @@ class Player:
     deaths: List[Kill] = field(repr=False, default_factory=list)
     weaponkills: Dict[str, List[Kill]] = field(repr=False, default_factory=dict)
 
-    performance: Optional[PerformanceStats] = None
+    performance: Optional[PerformanceStats] = field(repr=False, default=None)
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
@@ -201,9 +205,9 @@ class Teams:
                     self.logger.info(
                         f'Resolving team {int(not player.friendly) + 1} {player.agent} from {len(matching_stats)} scoreboard frames'
                     )
-                    raw_names = [s.name for s in matching_stats]
-                    player.name = levenshtein.median(raw_names).upper()
-                    self.logger.info(f'  Resolved name: {Counter(raw_names)} -> {player.name}')
+                    raw_names = [textops.strip_string(s.name.upper(), alphabet=string.ascii_uppercase + string.digits + '#') for s in matching_stats]
+                    resolved_name = levenshtein.median(raw_names).upper()
+                    self.logger.info(f'  Got name: {Counter(raw_names)} -> {resolved_name!r} - not overriding {player.name!r}')
                     self.logger.info('  Resolving stats')
                     player.stats = PlayerStats(matching_stats)
                     self.have_scoreboard = True

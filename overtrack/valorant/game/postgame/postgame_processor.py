@@ -16,7 +16,7 @@ from overtrack.valorant.game.postgame import Postgame
 from overtrack.valorant.game.postgame.models import Scoreboard, PlayerStats
 from overtrack.valorant.ocr import din_next_regular_digits
 
-logger = logging.getLogger('TopHudProcessor')
+logger = logging.getLogger('PostgameProcessor')
 
 
 def draw_postgame(debug_image: Optional[np.ndarray], postgame: Postgame) -> None:
