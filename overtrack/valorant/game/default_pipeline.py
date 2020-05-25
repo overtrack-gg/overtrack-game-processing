@@ -17,17 +17,13 @@ def create_pipeline(extra_processors: Sequence[Processor] = (), aggressive=False
             PostgameProcessor(),
             order_defined=False,
         ),
-        EveryN(
-            ConditionalProcessor(
-                HomeScreenProcessor(),
-                condition=lambda f: (
-                    not (f.valorant.timer and f.valorant.timer.valid) and
-                    not (f.valorant.top_hud and f.valorant.top_hud.score and f.valorant.top_hud.score[0] is not None and f.valorant.top_hud.score[1] is not None) and
-                    not f.valorant.postgame
-                ),
-                log=False,
+        ConditionalProcessor(
+            HomeScreenProcessor(),
+            condition=lambda f: (
+                not (f.valorant.timer and f.valorant.timer.valid) and
+                not (f.valorant.top_hud and f.valorant.top_hud.score and f.valorant.top_hud.score[0] is not None and f.valorant.top_hud.score[1] is not None) and
+                not f.valorant.postgame
             ),
-            5 if not aggressive else 1,
             log=False,
         ),
         ConditionalProcessor(
