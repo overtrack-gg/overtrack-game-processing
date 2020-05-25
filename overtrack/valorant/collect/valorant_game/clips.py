@@ -5,6 +5,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import timedelta
+from overtrack.frame import Frame
 from overtrack.util import s2ts
 from typing import TYPE_CHECKING, List, Dict, Union, Optional
 
@@ -59,7 +60,7 @@ async def create_clip(**kwargs) -> Optional[str]:
         return create_clip_r.json()['clip_url']
 
 
-def make_clips(game: ValorantGame, twitch_username: str,  minimum_kills_to_clip: int = 3) -> List[Clip]:
+def make_clips(game: ValorantGame, frames: Optional[List[Frame]], twitch_username: str, minimum_kills_to_clip: int = 3) -> List[Clip]:
     desired_clips = []
 
     multikills = []
@@ -91,7 +92,7 @@ def make_clips(game: ValorantGame, twitch_username: str,  minimum_kills_to_clip:
         else:
             onlyweapon = None
 
-        title = game.teams.firstperson.name.title() + "'s "
+        title = twitch_username + "'s "
         if onlyweapon:
             title += onlyweapon + ' '
         title += f'{kills}K with {game.teams.firstperson.agent.title()} on {game.map.title()}'
@@ -100,13 +101,20 @@ def make_clips(game: ValorantGame, twitch_username: str,  minimum_kills_to_clip:
         duration = (multikill[-1].timestamp + 5) - game_offset
         time = game.time + timedelta(seconds=game_offset)
         pts = game.start_pts + game_offset
-
         logger.info(
             f'  '
             f'timestamp={s2ts(multikill[0].timestamp)} ({multikill[0].timestamp:.2f}), '
             f'time={game.time + timedelta(seconds=multikill[0].timestamp)}, '
             f'pts={game.start_pts + game_offset}'
         )
+
+        if frames:
+            fts = [f.timestamp - game.timestamp for f in frames]
+            frame_i = bisect.bisect_left(fts, game_offset)
+            frame = frames[frame_i]
+            if 'frame_info' in frames[0]:
+                pts = round(frame.frame_info.pts, 2)
+                logger.info(f'Overriding pts with {pts} from actual frame')
 
         clip_type: ClipType = 'multikill'
         clip_metadata: KillsMetadata = {

@@ -23,7 +23,7 @@ from overtrack.valorant.collect.valorant_game.clips import Clip, make_clips
 from overtrack.valorant.data import MapName, GameModeName, game_modes
 from overtrack_models.dataclasses.typedload import referenced_typedload
 
-VERSION = '0.11.2'
+VERSION = '0.11.3'
 GET_VOD_URL = os.environ.get('GET_VOD_URL', 'https://m9e3shy2el.execute-api.us-west-2.amazonaws.com/{twitch_user}/vod/{time}?pts={pts}')
 
 
@@ -117,8 +117,10 @@ class ValorantGame:
             self.won = None
         elif self.rounds[-1].won is not None:
             self.won = self.rounds[-1].won
-        elif self.score:
-            self.won = self.score[0] > self.score[1]
+        elif self.score and self.score[0] == 13:
+            self.won = True
+        elif self.score and self.score[1] == 13:
+            self.won = False
         else:
             self.won = None
 
@@ -139,7 +141,7 @@ class ValorantGame:
             vod_username = self.resolve_vod(frames, twitch_username)
             if vod_username:
                 self.vod, twitch_username = vod_username
-                self.clips = make_clips(self, twitch_username)
+                self.clips = make_clips(self, frames, twitch_username)
 
     def _resolve_map(self, frames: List[Frame]) -> Optional[MapName]:
         mapcounter = Counter()
