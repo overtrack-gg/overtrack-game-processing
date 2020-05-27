@@ -513,6 +513,14 @@ class Squad:
 
         if not solo:
             self.squad_kills = self._get_squad_kills(frames)
+            if self.squad_kills is None and self.player.stats and self.player.stats.kills is not None:
+                if self.squadmates[0] and self.squadmates[0].stats and self.squadmates[0].stats.kills is not None:
+                    if duos:
+                        self.logger.warning(f'Squad kills unresolved - resolving for duos from sum of kills')
+                        self.squad_kills = self.player.stats.kills + self.squadmates[0].stats.kills
+                    elif self.squadmates[1] and self.squadmates[1].stats and self.squadmates[1].stats.kills is not None:
+                        self.logger.warning(f'Squad kills unresolved - resolving for trios from sum of kills')
+                        self.squad_kills = self.player.stats.kills + self.squadmates[0].stats.kills + self.squadmates[1].stats.kills
         else:
             self.squad_kills = None
 
