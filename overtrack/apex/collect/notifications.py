@@ -19,7 +19,7 @@ class DiscordMessage:
     DISCORD_BOT_TOKEN = os.environ['DISCORD_BOT_TOKEN']
     CHANNEL_CREATE_MESSAGE = '**REMOVED**'
 
-    IMAGE_PREFIX = 'http://apextrack-web-poc-assets.s3-us-west-2.amazonaws.com/1/images/'
+    IMAGE_PREFIX = 'https://cdn.overtrack.gg/static/images/apex/'
 
     COLOR_BASE = int('992e26', base=16)
     COLOR_3 = int('0d95ff', base=16)
