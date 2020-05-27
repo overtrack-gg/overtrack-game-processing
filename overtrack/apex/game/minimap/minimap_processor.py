@@ -12,7 +12,7 @@ from overtrack.apex import ocr, data as apex_data
 from overtrack.apex.game.minimap.models import Circle, Location, Minimap, RingsComposite
 from overtrack.frame import CurrentGame, Frame, SerializableArray
 from overtrack.processor import Processor
-from overtrack.util import imageops, s2ts, time_processing
+from overtrack.util import imageops, s2ts, time_processing, debugops
 from overtrack.util.logging_config import config_logger
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 
@@ -33,6 +33,9 @@ def _draw_map_location(
     minimap: Minimap,
 
     map_image: np.ndarray,
+    offset_x: int,
+    offset_y: int,
+
     map_template: np.ndarray,
     filtered: np.ndarray,
     edges: Optional[np.ndarray],
@@ -44,7 +47,7 @@ def _draw_map_location(
 
     lines = [f'location={minimap.location}']
 
-    out = cv2.cvtColor(map_image[:-200, :-200], cv2.COLOR_GRAY2BGR)
+    out = cv2.cvtColor(map_image[offset_y:-200, offset_x:-200], cv2.COLOR_GRAY2BGR)
     overlay = np.zeros_like(out)
     cv2.circle(
         out,
@@ -147,6 +150,7 @@ def _draw_map_location(
             (0, 255, 255),
             4
         )
+        outtl = (minimap.location.coordinates[0] - int(240 * minimap.location.zoom) // 2, minimap.location.coordinates[1] - int(240 * minimap.location.zoom) // 2)
     else:
         # rotate the map so we can draw the synthetic minimap with matching rotation
         height, width, _ = out.shape
@@ -217,15 +221,20 @@ def _draw_map_location(
         tr = (minimap.location.coordinates[0] + (240 * minimap.location.zoom) // 2, minimap.location.coordinates[1] - (240 * minimap.location.zoom) // 2)
         bl = (minimap.location.coordinates[0] - (240 * minimap.location.zoom) // 2, minimap.location.coordinates[1] + (240 * minimap.location.zoom) // 2)
         br = (minimap.location.coordinates[0] + (240 * minimap.location.zoom) // 2, minimap.location.coordinates[1] + (240 * minimap.location.zoom) // 2)
+        points = cv2.transform(
+            np.array([[tl, tr, br, bl]]),
+            rot
+        ).astype(np.int32)
         cv2.polylines(
             out,
-            cv2.transform(
-                np.array([[tl, tr, br, bl]]),
-                rot
-            ).astype(np.int32),
+            points,
             True,
             (0, 255, 255),
             4,
+        )
+        outtl = (
+            np.min(points[:, :, 0]),
+            np.min(points[:, :, 1]),
         )
 
     if rings:
@@ -241,8 +250,11 @@ def _draw_map_location(
             im = cv2.resize(im, (out.shape[1], out.shape[0]))
             cv2.add(out, im, dst=out)
 
-    sout = cv2.resize(out, (0, 0), fx=0.25, fy=0.25)
-    debug_image[100:100 + sout.shape[0], 300:300 + sout.shape[1]] = sout
+    out = out[
+        outtl[1] - 50: outtl[1] + 50 + 240 + 50,
+        outtl[0] - 50: outtl[0] + 50 + 240 + 50,
+    ]
+    debug_image[100:100 + out.shape[0], 300:300 + out.shape[1]] = out
 
     for i, line in enumerate(lines):
         cv2.putText(
@@ -264,20 +276,22 @@ def _draw_map_location(
             1
         )
 
-template_blur_pre = 1.0
-template_canny_t1 = 30
-template_canny_t2 = 100
-template_blur_post = 2.0
-
 
 class MinimapProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), '..', 'data', 'regions', '16_9.zip'))
     SPECTATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'spectate.png'), 0)
     THRESHOLD = 0.3
 
+    offset_x = 0
+    offset_y = 0
+
     @classmethod
     def load_map(cls, path: str):
-        cls.MAP = cv2.copyMakeBorder(imageops.imread(path, 0), 0, 240, 0, 240, cv2.BORDER_CONSTANT)
+        im = imageops.imread(path, 0)
+        w_h = max(im.shape[0] + 480, im.shape[1] + 480)
+        cls.offset_y = (w_h - im.shape[0]) // 2
+        cls.offset_x = (w_h - im.shape[1]) // 2
+        cls.MAP = cv2.copyMakeBorder(im, cls.offset_y, cls.offset_y, cls.offset_x, cls.offset_x, cv2.BORDER_CONSTANT)
         cls.MAP_TEMPLATE = cv2.GaussianBlur(cls.MAP, (0, 0), 1.1).astype(np.float)
         cls.MAP_TEMPLATE *= 2
         cls.MAP_TEMPLATE = np.clip(cls.MAP_TEMPLATE, 0, 255).astype(np.uint8)
@@ -420,6 +434,7 @@ class MinimapProcessor(Processor):
                 logger.debug(f'Got unrotated location={alt_location}')
                 if location is None or alt_location.match < location.match:
                     location = alt_location
+                    bearing = None
         else:
             logger.debug(f'Checking unrotated first')
             location = self._get_location(filtered[:, :, 0], zoom=zoom)
@@ -431,6 +446,8 @@ class MinimapProcessor(Processor):
                     logger.debug(f'Got rotated location={alt_location}')
                     if alt_location.match < location.match:
                         location = alt_location
+                    else:
+                        bearing = None
         logger.debug(f'match {(time.perf_counter() - t0) * 1000:.2f}')
 
         logger.debug(f'Got location: {location}')
@@ -471,7 +488,7 @@ class MinimapProcessor(Processor):
                 # self._get_circle(edges[:, :, 2], location),
                 spectate=is_spectate,
                 rings_composite=self.current_composite,
-                version=2,
+                version=3,
             )
             logger.debug(f'get circles {(time.perf_counter() - t0) * 1000:.2f}')
 
@@ -481,6 +498,9 @@ class MinimapProcessor(Processor):
                     frame.minimap,
 
                     self.MAP,
+                    self.offset_x,
+                    self.offset_y,
+
                     self.MAP_TEMPLATE,
                     filtered,
                     edges,
@@ -508,6 +528,7 @@ class MinimapProcessor(Processor):
                 )
             except Exception as e:
                 pass
+                # traceback.print_exc(e)
         return False
 
     def _get_zoom(self, frame):
@@ -591,13 +612,17 @@ class MinimapProcessor(Processor):
         # plt.imshow(match, interpolation='none')
         # plt.show()
 
-        coords = min_loc[0] + int(240 * zoom) // 2 - 8, min_loc[1] + int(240 * zoom) // 2 - 8
+
+        coords = (
+            min_loc[0] + int(240 * zoom) // 2 - 8,
+            min_loc[1] + int(240 * zoom) // 2 - 8,
+        )
         if rot is not None:
             inv = cv2.invertAffineTransform(rot)
-            coords = tuple(cv2.transform(np.array([[coords]]), inv)[0][0])
+            coords = cv2.transform(np.array([[coords]]), inv)[0][0]
 
         return Location(
-            coords,
+            tuple(np.array(coords) - (self.offset_x, self.offset_y)),
             min_val,
             bearing=bearing,
             zoom=zoom

@@ -12,7 +12,6 @@ class RingsComposite:
     images: Dict[int, SerializableArray] = field(default_factory=dict)
 
     def __str__(self):
-        print()
         return (
             'RingsComposite(' +
             ', '.join(f'{k}=Composite(shape={v.array.shape}, pixels=~{(v.array >= 1).sum()})' for k, v in self.images.items()) +

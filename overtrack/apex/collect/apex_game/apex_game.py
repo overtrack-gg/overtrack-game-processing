@@ -182,14 +182,14 @@ class ApexGame:
             try:
                 client_date = datetime.datetime.strptime(self.client_version.replace('-beta', ''), "%Y-%m-%d-%H-%M-%S").timestamp()
             except:
-                treat_unknown_champion_as = 'revenant'
+                treat_unknown_champion_as = 'loba'
                 self.logger.info(
                     f'Got game from client version {self.client_version} with unknown release date - '
                     f'using {treat_unknown_champion_as!r} for unknown champions'
                 )
             else:
-                if self.season == 4 and client_date < data.seasons[4].start:
-                    treat_unknown_champion_as = 'revenant'
+                if self.season == 5 and client_date < data.seasons[5].start:
+                    treat_unknown_champion_as = 'loba'
                     self.logger.info(
                         f'Got game from client version {self.client_version} released before season {self.season} start - '
                         f'using {treat_unknown_champion_as!r} for unknown champions'

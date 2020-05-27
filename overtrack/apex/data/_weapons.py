@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class Weapon:
     name: str
@@ -28,8 +29,8 @@ pistols = [
 shotguns = [
     Weapon('Mozambique', 'shotgun', 'shotgun'),
     Weapon('EVA-8 Auto', 'shotgun', 'shotgun'),
-    Weapon('Peacekeeper', 'shotgun', 'shotgun'),
-    Weapon('Mastiff', 'shotgun', 'special'),
+    Weapon('Peacekeeper', 'shotgun', 'special'),
+    Weapon('Mastiff', 'shotgun', 'shotgun'),
 ]
 ars = [
     Weapon('Hemlock', 'ar', 'heavy'),

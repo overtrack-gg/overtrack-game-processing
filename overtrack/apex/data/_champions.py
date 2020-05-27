@@ -23,4 +23,5 @@ champions = {
     'wattson': Champion('Wattson'),
     'crypto': Champion('Crypto'),
     'revenant': Champion('Revenant'),
+    'loba': Champion('Loba'),
 }
