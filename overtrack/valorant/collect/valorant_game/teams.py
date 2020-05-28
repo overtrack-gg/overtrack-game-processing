@@ -184,7 +184,7 @@ class Teams:
                 self.logger.error(f'Could not find agent matching agent select frames')
                 self.firstperson = None
         else:
-            self.logger.info(f'Got no agent select frames - assuming game has no firstperson data')
+            self.logger.error(f'Got no agent select frames - assuming game has no firstperson data')
             self.firstperson = None
 
         self.have_scoreboard = False
