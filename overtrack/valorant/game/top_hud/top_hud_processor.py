@@ -9,7 +9,7 @@ from overtrack.processor import Processor
 from overtrack.util import time_processing, imageops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.data import agents
-from overtrack.valorant.game.top_hud.models import TopHud, TeamComp, FiveOBool
+from overtrack.valorant.game.top_hud.models import TopHud, TeamComp, FiveOBool, FiveOFloat
 from overtrack.valorant.ocr import din_next_regular_digits
 
 logger = logging.getLogger('TopHudProcessor')
@@ -23,6 +23,10 @@ def cast_teams(items: Sequence[Sequence[T]]) -> Tuple[FiveT, FiveT]:
     return cast(FiveT, items[0]), cast(FiveT, items[1])
 
 
+HAVE_ULT_THRESHOLD = 0.6
+SPIKE_THRESHOLD = 0.75
+
+
 def draw_top_hud(debug_image: Optional[np.ndarray], top_hud: TopHud) -> None:
     if debug_image is None:
         return
@@ -33,24 +37,52 @@ def draw_top_hud(debug_image: Optional[np.ndarray], top_hud: TopHud) -> None:
             for bl in bls
         )
 
+    def playerfield_str(val: Optional[float], t: float):
+        if val is None:
+            return '?'
+        elif val > t:
+            c = 'X'
+        else:
+            c = '-'
+        return f'{c} {val:.2f}'
+
     top_hud_s = (
         f'TopHud('
         f'score={top_hud.score}, '
-        f'teams={top_hud.teams}, '
-        f'has_ult={strfb(*top_hud.has_ult)}, '
-        f'has_spike={strfb(top_hud.has_spike)}'
+        # f'teams={top_hud.teams}, '
+        # f'has_ult={strfb(*top_hud.has_ult)}, '
+        # f'has_spike={strfb(top_hud.has_spike)}'
         f')'
     )
-    for c, t in ((0, 0, 0), 4), ((0, 128, 255), 1):
-        cv2.putText(
-            debug_image,
-            top_hud_s,
-            (100, 100),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            c,
-            t,
-        )
+    texts = [
+        (800, 90, top_hud_s),
+    ]
+    for t in range(2):
+        for i in range(5):
+            texts.append((440 + 730 * t + 70 * i, 95, top_hud.teams[t][i] or '?'))
+            texts.append((
+                440 + 730 * t + 70 * i,
+                112,
+                playerfield_str(top_hud.has_ult_match[t][i], HAVE_ULT_THRESHOLD)
+            ))
+            if t == 0:
+                texts.append((
+                    440 + 730 * t + 70 * i,
+                    130,
+                    playerfield_str(top_hud.has_spike_match[i], SPIKE_THRESHOLD)
+                ))
+
+    for x, y, t in texts:
+        for c, th in ((0, 0, 0), 4), ((0, 128, 255), 1):
+            cv2.putText(
+                debug_image,
+                t,
+                (x, y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                c,
+                th,
+            )
 
 
 def load_agent_template(path):
@@ -69,19 +101,18 @@ class TopHudProcessor(Processor):
     AGENT_TEMPLATE_REQUIRED_MATCH = 50
 
     HAVE_ULT_SIGNAL = np.array([1] * 5 + [0] * 44 + [1] * 5, dtype=np.float)
-    HAVE_ULT_THRESHOLD = 0.9
 
     SPIKE_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'spike.png'), 0)
-    SPIKE_THRESHOLD = 0.75
 
     @time_processing
     def process(self, frame: Frame) -> bool:
         teams = self._parse_teams(frame)
+
         frame.valorant.top_hud = TopHud(
             score=self.parse_score(frame),
             teams=teams,
-            has_ult=self._parse_ults(frame, teams),
-            has_spike=self._parse_spike(frame, teams),
+            has_ult_match=self._parse_ults(frame, teams),
+            has_spike_match=self._parse_spike(frame, teams),
         )
         draw_top_hud(frame.debug_image, frame.valorant.top_hud)
 
@@ -142,7 +173,7 @@ class TopHudProcessor(Processor):
                 agents.append(agent)
         return cast_teams((agents[:5], agents[5:]))
 
-    def _parse_ults(self, frame: Frame, teams: Tuple[TeamComp, TeamComp]) -> Tuple[FiveOBool, FiveOBool]:
+    def _parse_ults(self, frame: Frame, teams: Tuple[TeamComp, TeamComp]) -> Tuple[FiveOFloat, FiveOFloat]:
         ults = []
         for i, ult_im in enumerate(self.REGIONS['has_ult'].extract(frame.image)):
             if not teams[i // 5][i % 5]:
@@ -193,24 +224,24 @@ class TopHudProcessor(Processor):
                 matches.append(have_ult_match)
             have_ult_match = np.max(matches)
             logger.debug(f'Got player {i} has ult match={have_ult_match:.3f}')
-            ults.append(bool(have_ult_match > self.HAVE_ULT_THRESHOLD))
+            ults.append(round(float(have_ult_match), 3))
 
         return cast_teams((ults[:5], ults[5:]))
 
-    def _parse_spike(self, frame: Frame, teams: Tuple[TeamComp, TeamComp]) -> FiveOBool:
-        ults = []
+    def _parse_spike(self, frame: Frame, teams: Tuple[TeamComp, TeamComp]) -> FiveOFloat:
+        spikes = []
         for i, ult_im in enumerate(self.REGIONS['has_spike'].extract(frame.image_yuv[:, :, 0])[:5]):
             if not teams[0][i % 5]:
-                ults.append(None)
+                spikes.append(None)
                 continue
 
             _, thresh = cv2.threshold(ult_im, 240, 255, cv2.THRESH_BINARY)
             match = np.max(cv2.matchTemplate(thresh, self.SPIKE_TEMPLATE, cv2.TM_CCORR_NORMED))
             #     cv2.imshow('match', thresh)
             #     cv2.waitKey(0)
-            ults.append(bool(match > self.SPIKE_THRESHOLD))
+            spikes.append(round(float(match), 3))
 
-        return cast(FiveOBool, ults)
+        return cast(FiveOFloat, spikes)
 
 
 def main():
@@ -233,7 +264,7 @@ def main():
         for agent_path in agent_paths
         if os.path.exists(agent_path)
     ]
-    util.test_processor(agent_frames, proc, 'valorant.top_hud', game='valorant', test_all=False, wait=True)
+    # util.test_processor(agent_frames, proc, 'valorant.top_hud', game='valorant', test_all=False, wait=True)
 
     # util.test_processor([
     #     r'C:/Users/simon/overtrack_2/valorant_images/ingame\00-41-617.image.png'

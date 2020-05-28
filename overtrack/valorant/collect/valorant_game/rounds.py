@@ -138,7 +138,16 @@ class Rounds:
             spike_carriers_per_side = [0, 0]
             for f in frames:
                 if f.valorant.top_hud and (len(self.rounds) < 25 or f.timestamp - timestamp < self.rounds[24].start):
-                    spike_carriers_per_side[f.timestamp - timestamp > self.rounds[11].end] += any(f.valorant.top_hud.has_spike)
+                    if f.valorant.top_hud.has_spike_match:
+                        any_has_spike = any([
+                            m > 0.75 for m in f.valorant.top_hud.has_spike_match
+                        ])
+                    elif f.valorant.top_hud.has_spike:
+                        any_has_spike = any(f.valorant.top_hud.has_spike)
+                    else:
+                        any_has_spike = False
+                    spike_carriers_per_side[f.timestamp - timestamp > self.rounds[11].end] += any_has_spike
+
             self.logger.info(f'Had {spike_carriers_per_side[0]} spikes seen in first half, and {spike_carriers_per_side[1]} in second')
             attacker_match = spike_carriers_per_side[0] / 12, spike_carriers_per_side[1] / (len(self.rounds) - 12)
             self.attacking_first = attacker_match[0] > attacker_match[1]
