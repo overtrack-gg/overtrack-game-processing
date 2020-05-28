@@ -21,6 +21,7 @@ BUY_PHASE_DURATION = 30
 INTER_PHASE_DURATION = 6
 
 COUNTDOWN_PATTERN = re.compile(r'^[01]:\d\d$')
+HAS_SPIKE_THRESHOLD = 0.6
 
 
 def isotonic_regression(y, _=None, __=None, ___=None):
@@ -140,7 +141,7 @@ class Rounds:
                 if f.valorant.top_hud and (len(self.rounds) < 25 or f.timestamp - timestamp < self.rounds[24].start):
                     if f.valorant.top_hud.has_spike_match:
                         any_has_spike = any([
-                            m > 0.75 for m in f.valorant.top_hud.has_spike_match
+                            m and m > HAS_SPIKE_THRESHOLD for m in f.valorant.top_hud.has_spike_match
                         ])
                     elif f.valorant.top_hud.has_spike:
                         any_has_spike = any(f.valorant.top_hud.has_spike)
@@ -192,11 +193,21 @@ class Rounds:
                     ))
 
             hs = [[], []]
+            sm = [[], []]
             for f in frames:
-                if f.valorant.top_hud and any(f.valorant.top_hud.has_spike):
-                    hs[0].append(f.timestamp - timestamp)
-                    hs[1].append(-0.5)
-            plt.scatter(*hs)
+                if f.valorant.top_hud:
+                    if f.valorant.top_hud.has_spike and any(f.valorant.top_hud.has_spike):
+                        hs[0].append(f.timestamp - timestamp)
+                        hs[1].append(-0.5)
+                    if f.valorant.top_hud.has_spike_match:
+                        sm[0].append(f.timestamp - timestamp)
+                        sm[1].append(-(1 + max(v or 0 for v in f.valorant.top_hud.has_spike_match)))
+
+            if len(hs[0]) > 10:
+                plt.scatter(*hs)
+            else:
+                plt.plot(*sm)
+                plt.axhline(-(1 + HAS_SPIKE_THRESHOLD), linestyle='--', color='r')
 
             if len(self.rounds) >= 13:
                 plt.axvline(self.rounds[11].end)
@@ -479,6 +490,7 @@ class Rounds:
             from matplotlib import patches
 
             plt.figure()
+            plt.title(self.__class__.__qualname__)
 
             def draw_rounds(y, height):
                 for r in rounds:
