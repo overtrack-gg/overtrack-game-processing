@@ -92,9 +92,6 @@ class ValorantTwitchMessage:
             [k for k in r.kills if k.killer == game.teams.firstperson]
             for r in game.rounds
         ]
-        print([len(ks) for ks in kills_by_round])
-        print(sum([len(ks) for ks in kills_by_round]))
-        print(len(kills_by_round))
         firstbloods = [
             r.kills[0]
             for r in game.rounds
@@ -106,16 +103,16 @@ class ValorantTwitchMessage:
                 weaponcounters[k.weapon] += 1
         bestweap, bestweap_count = weaponcounters.most_common(1)[0]
 
-        if game.score:
+        if game.score and game.won is not None:
             scorestr = f'{game.score[0]}-{game.score[1]} '
         else:
             scorestr = ' '
 
         self.messages = [
             (
-                f'{name} just {result} {scorestr}on {game.map}. '
-                f'{len(game.teams.firstperson.kills)} kills, {np.mean([len(ks) for ks in kills_by_round]):.1f} kills/round, {len(firstbloods)} first bloods. '
-                f'Best weapon: {bestweap.title()} with {bestweap_count} kills. Best round: {np.max([len(ks) for ks in kills_by_round])} kills'
+                f'{name} just {result} {scorestr}on {game.map} | '
+                f'{len(game.teams.firstperson.kills)} kills, {np.mean([len(ks) for ks in kills_by_round]):.1f} kills/round | '
+                f'{url}'
             )
         ]
         if len(game.clips):
