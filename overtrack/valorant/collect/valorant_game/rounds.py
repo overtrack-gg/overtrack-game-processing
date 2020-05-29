@@ -224,13 +224,19 @@ class Rounds:
 
         score_timestamps = []
         frame_scores_data = []
+        last_invalid = 0
         for f in frames:
-            if f.valorant.top_hud and sum(e is not None for e in itertools.chain(*f.valorant.top_hud.teams)) >= 2:
+            if f.valorant.top_hud and not f.valorant.postgame and not f.valorant.agent_select:
+                if sum(e is not None for e in itertools.chain(*f.valorant.top_hud.teams)) >= 2:
+                    last_invalid = 0
+                else:
+                    last_invalid += 1
+
                 scores = [None, None]
                 for side in range(2):
                     if f.valorant.top_hud.score[side] is not None and f.valorant.top_hud.score[side] <= 13:
                         scores[side] = f.valorant.top_hud.score[side]
-                if any(s is not None for s in scores):
+                if any(s is not None for s in scores) and last_invalid < 10:
                     score_timestamps.append(f.timestamp - start)
                     frame_scores_data.append(scores)
 

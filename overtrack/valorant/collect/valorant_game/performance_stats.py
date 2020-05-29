@@ -1,9 +1,12 @@
 import numpy as np
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from dataclasses import dataclass, InitVar, field
-from overtrack.valorant.collect.valorant_game.rounds import Rounds
 from overtrack.valorant.game.killfeed import Kill
+
+
+if TYPE_CHECKING:
+    from overtrack.valorant.collect.valorant_game.rounds import Rounds
 
 
 @dataclass
@@ -43,7 +46,7 @@ class WinCorrelatedStat:
 
         self.total = int(np.sum(event_occurrence))
         self.per_round = round(float(np.mean(event_occurrence)), 3)
-        self.of_total = round(self.total / num_total, 3)
+        self.of_total = round(self.total / num_total, 3) if num_total else 0
 
         self.led_to_win = int(np.sum(event_occurrence & win_occurrence))
         self.led_to_win_ratio = round(self.led_to_win / self.total, 3) if self.total else None
@@ -64,7 +67,7 @@ class PerformanceStats:
     firstbloods: WinCorrelatedStat
     firstdeaths: WinCorrelatedStat
 
-    def __init__(self, friendly_team: bool, kills: List[Kill], deaths: List[Kill], rounds: Rounds, match_team: Optional[bool]):
+    def __init__(self, friendly_team: bool, kills: List[Kill], deaths: List[Kill], rounds: 'Rounds', match_team: Optional[bool]):
         self.kills = Stat(
             len(kills),
             len(rounds),
