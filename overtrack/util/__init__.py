@@ -214,7 +214,7 @@ def html2bgr(hex_str: str) -> Tuple[int, int, int]:
     return int(hex_str[4:6], 16), int(hex_str[2:4], 16), int(hex_str[0:2], 16)
 
 
-def test_processor(images: str, proc, *fields: str, game='overwatch', show=True, test_all=True, wait=True) -> None:
+def test_processor(images: str, proc, *fields: str, game='overwatch', show=True, test_all=True, wait=True, warmup=True) -> None:
     import glob
     import cv2
     import os
@@ -231,14 +231,15 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
 
     import numpy as np
 
-    # warm up
-    for _ in range(10):
-        proc.process(
-            Frame.create(
-                np.zeros((1080, 1920, 3), dtype=np.uint8),
-                0
+    if warmup:
+        for _ in range(10):
+            proc.process(
+                Frame.create(
+                    np.zeros((1080, 1920, 3), dtype=np.uint8),
+                    0,
+                    warmup=True,
+                )
             )
-        )
 
     if isinstance(images, list):
         config_logger('test_processor', logging.DEBUG, False)
@@ -287,7 +288,9 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
         def getval(f: Frame, n: str):
             v = f
             for p in n.split('.'):
-                v = getattr(v, p)
+                v = getattr(v, p, None)
+                if not v:
+                    return None
             return v
 
         print(tabulate.tabulate([

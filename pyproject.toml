@@ -5,10 +5,10 @@ description = ""
 authors = ["Simon Pinfold <simon@uint8.me>"]
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = "^3.8"
 setuptools = "^41"
 
-overtrack-models = { git = "git@gitlab.com:OverTrack/overtrack-models.git", branch = "master" }
+overtrack-models = { git = "https://gitlab.com/OverTrack/overtrack-models.git", branch = "master" }
 
 # base requirements
 requests = "^2"
@@ -27,16 +27,12 @@ tabulate = "*"
 numpy = "^1"
 scipy = "^1"
 opencv-python = "^4.0"
-# tensorflow = "==2.0.0"
-# tesserocr = "^2.4"
 # tesserocr = { url = "https://github.com/simonflueckiger/tesserocr-windows_build/releases/download/tesserocr-v2.4.0-tesseract-4.0.0/tesserocr-2.4.0-cp36-cp36m-win_amd64.whl", version="2.4" }
 editdistance = "*"
-# python-Levenshtein = "*"
-# python-Levenshtein-wheels = "*"
 
 # video/stream/vod extraction
 # av = "^6"  # extra dependency that is not required, but gives useful data sometimes
-streamlink = { git = "https://github.com/streamlink/streamlink.git" }
+# streamlink = { git = "https://github.com/streamlink/streamlink.git" }
 
 # extras used in some sub projects
 # pynamodb = "^4"

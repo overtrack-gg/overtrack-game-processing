@@ -4,6 +4,7 @@ from typing import Callable, Iterable, Any, Optional
 
 from overtrack.frame import Frame
 
+
 class Processor:
 
     def process(self, frame: Frame) -> bool:
@@ -14,6 +15,7 @@ class Processor:
 
     def update(self):
         pass
+
 
 class OrderedProcessor(Processor):
     """
@@ -38,6 +40,7 @@ class OrderedProcessor(Processor):
         for p in self.processors:
             p.eager_load()
 
+
 class ConditionalProcessor(Processor):
     """
     Run the processor IFF the provided condition evaluates to True
@@ -45,7 +48,7 @@ class ConditionalProcessor(Processor):
     If this is a lookbehind ConditionalProcessor, run the processor if the condition was true for any of the frames in the lookbehind window.
     Note that condition evaluation is cached
     """
-    logger = logging.getLogger(__qualname__)
+    logger = logging.getLogger('ConditionalProcessor')
 
     def __init__(
         self,
@@ -94,6 +97,7 @@ class ConditionalProcessor(Processor):
 
     def update(self):
         self.processor.update()
+
 
 class ShortCircuitProcessor(Processor):
     """
@@ -149,9 +153,10 @@ class ShortCircuitProcessor(Processor):
         for p in self.processors:
             p.eager_load()
 
+
 class EveryN(Processor):
 
-    logger = logging.getLogger(__qualname__)
+    logger = logging.getLogger('EveryN')
 
     def __init__(
         self,

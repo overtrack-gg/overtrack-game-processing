@@ -92,16 +92,6 @@ class ValorantTwitchMessage:
             [k for k in r.kills if k.killer == game.teams.firstperson]
             for r in game.rounds
         ]
-        firstbloods = [
-            r.kills[0]
-            for r in game.rounds
-            if r.kills and r.kills[0].killer == game.teams.firstperson
-        ]
-        weaponcounters = Counter()
-        for k in itertools.chain(*kills_by_round):
-            if k.weapon:
-                weaponcounters[k.weapon] += 1
-        bestweap, bestweap_count = weaponcounters.most_common(1)[0]
 
         if game.score and game.won is not None:
             scorestr = f'{game.score[0]}-{game.score[1]} '
@@ -129,6 +119,10 @@ class ValorantTwitchMessage:
 
 
 def send_notifications(user_id: int, game: ValorantGame, summary: ValorantGameSummary, url: str, username: str, dev_embed: Optional[Dict]) -> None:
+    if not game.teams.firstperson:
+        logger.error(f'Got game with no firstperson - cannot send notifications')
+        return
+
     discord_message = ValorantDiscordMessage(game, summary, url, username)
     for discord_integration in DiscordBotNotification.user_id_index.query(user_id, DiscordBotNotification.game == 'valorant'):
         if discord_integration.announce_message_id and \

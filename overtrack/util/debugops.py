@@ -61,7 +61,8 @@ def sliders(image: np.ndarray, **kwargs: Callable[[Any], np.ndarray]) -> Dict[st
             stack = np.hstack
         else:
             stack = np.vstack
-        sim = stack([
+
+        steps_v = [
             cv2.copyMakeBorder(
                 s,
                 0,
@@ -71,7 +72,12 @@ def sliders(image: np.ndarray, **kwargs: Callable[[Any], np.ndarray]) -> Dict[st
                 cv2.BORDER_CONSTANT
             )
             for s in steps
-        ])
+        ]
+        steps_v = [
+            s if len(s.shape) == 3 else cv2.cvtColor(s, cv2.COLOR_GRAY2BGR)
+            for s in steps_v
+        ]
+        sim = stack(steps_v)
 
         cv2.imshow('sliders', sim)
         cv2.imshow('preview', sim)
@@ -461,7 +467,7 @@ def manual_canny(gray_image: np.ndarray, scale: float = 3.) -> int:
     while True:
         t1, t2 = cv2.getTrackbarPos('t1', 'canny'), cv2.getTrackbarPos('t2', 'canny')
         out = cv2.Canny(gray_image, t1, t2)
-        cv2.imshow('thresh', cv2.resize(
+        cv2.imshow('canny', cv2.resize(
             np.vstack((
                 gray_image,
                 out
@@ -473,7 +479,7 @@ def manual_canny(gray_image: np.ndarray, scale: float = 3.) -> int:
         k = cv2.waitKey(1) & 0xFF
         if k == 27:
             break
-        t = cv2.getTrackbarPos('t', 'thresh')
+        # t = cv2.getTrackbarPos('t', 'thresh')
         if (t1, t2) != last:
             last = t1, t2
     cv2.destroyAllWindows()
