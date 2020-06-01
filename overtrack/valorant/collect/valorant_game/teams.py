@@ -65,7 +65,7 @@ class Player:
 
     kills: List[Kill] = field(repr=False, default_factory=list)
     deaths: List[Kill] = field(repr=False, default_factory=list)
-    weaponkills: Dict[str, List[Kill]] = field(repr=False, default_factory=dict)
+    weaponkills: Dict[Optional[str], List[Kill]] = field(repr=False, default_factory=dict)
 
     performance: Optional[PerformanceStats] = field(repr=False, default=None)
 
@@ -244,6 +244,9 @@ class Teams:
                 else:
                     self.logger.info(f'Team {side} agent {i} unknown with {counter}')
                     team.append(None)
+
+            assert len(team) == len(set(team)), f'Teamcomp had duplicate agents'
+
             teams.append((team[0], team[1], team[2], team[3], team[4]))
         return teams[0], teams[1]
 

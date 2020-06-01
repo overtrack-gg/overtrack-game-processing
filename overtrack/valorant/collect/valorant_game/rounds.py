@@ -68,6 +68,8 @@ class NoRounds(InvalidRounds):
     pass
 class BadRoundMatch(InvalidRounds):
     pass
+class BadRoundCount(InvalidRounds):
+    pass
 
 
 @dataclass
@@ -132,9 +134,9 @@ class Rounds:
             )
 
         if len(self.rounds) < 13:
-            self.logger.error('Had game with less than 13 rounds')
+            raise BadRoundCount('Had game with less than 13 rounds')
         elif len(self.rounds) > 25:
-            self.logger.error('Had game with more than 25 rounds')
+            raise BadRoundCount('Had game with more than 25 rounds')
         else:
             spike_carriers_per_side = [0, 0]
             for f in frames:
@@ -166,7 +168,12 @@ class Rounds:
                 spike_carriers_sudden_death = 0
                 for f in frames:
                     if f.valorant.top_hud and f.timestamp - timestamp > self.rounds[24].start:
-                        spike_carriers_sudden_death += any(f.valorant.top_hud.has_spike)
+                        if f.valorant.top_hud.has_spike_match:
+                            spike_carriers_sudden_death += any([
+                                m and m > HAS_SPIKE_THRESHOLD for m in f.valorant.top_hud.has_spike_match
+                            ])
+                        elif f.valorant.top_hud.has_spike:
+                            spike_carriers_sudden_death += any(f.valorant.top_hud.has_spike)
                 self.logger.info(f'Sudden death round had {spike_carriers_sudden_death} spikes seen')
                 if spike_carriers_sudden_death > 0:
                     self.logger.info(f'Marking round 25 as attack')
@@ -403,8 +410,16 @@ class Rounds:
                 f'{latest_round}'
             )
             if valid_scores[winner_index][edge + 1] != valid_scores[winner_index][edge] + 1:
-                if not has_score_resets:
-                    raise InvalidRounds('Had round with no score increase')
+                time_until_end = valid_timestamps[0][-1] - round_end_timestamp
+                self.logger.warning(f'Had round with bad score increase {time_until_end:.1f}s before end')
+                if time_until_end < 120:
+                    self.logger.error(
+                        f'Had round with bad score increase less than 60s before end - '
+                        f'assuming round is final round - ignoring here, will be picked up by final round detection'
+                    )
+                    break
+                elif not has_score_resets:
+                    raise InvalidRounds('Had round with bad score increase')
                 else:
                     self.logger.warning(f'Ignoring round with no score increase - likely game was reset (has_score_resets=True)')
             else:

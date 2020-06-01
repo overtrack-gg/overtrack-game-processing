@@ -21,6 +21,7 @@ else:
 @dataclass
 class Kill:
     round: int
+    index: int
     round_timestamp: float
     timestamp: float
 
@@ -74,6 +75,7 @@ class UnresolvedKill:
         s += f', {len(self)} observations'
         return s
     __repr__ = __str__
+
 
 @dataclass
 class Kills:
@@ -171,6 +173,7 @@ class Kills:
             # killed_player_match = np.mean([levenshtein.ratio(r.killed.name, killed_player.name) for r in unresolved_kill.raw_kills])
             kill = Kill(
                 round,
+                len(self.kills),
                 unresolved_kill.timestamps[0] - round_start,
                 unresolved_kill.timestamps[0],
                 killer_player,

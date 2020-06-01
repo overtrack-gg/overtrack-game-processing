@@ -1,3 +1,6 @@
+import copy
+import itertools
+
 import os
 
 import datetime
@@ -6,6 +9,7 @@ from collections import Counter
 
 import requests
 from overtrack.source.twitch_source import TwitchSource
+from overtrack.valorant.collect.valorant_game.performance_stats import PerformanceStats
 from typing import List, ClassVar, Tuple, Union, Optional, Dict, Any
 
 import shortuuid
@@ -21,9 +25,9 @@ from overtrack.valorant.collect.valorant_game.rounds import Rounds
 from overtrack.valorant.collect.valorant_game.teams import Teams, Player
 from overtrack.valorant.collect.valorant_game.clips import Clip, make_clips
 from overtrack.valorant.data import MapName, GameModeName, game_modes
-from overtrack_models.dataclasses.typedload import referenced_typedload
+from overtrack_models.dataclasses.typedload import referenced_typedload, typedload
 
-VERSION = '0.11.3'
+VERSION = '0.12.0'
 GET_VOD_URL = os.environ.get('GET_VOD_URL', 'https://m9e3shy2el.execute-api.us-west-2.amazonaws.com/{twitch_user}/vod/{time}?pts={pts}')
 
 
@@ -67,6 +71,12 @@ class ValorantGame:
     @property
     def time(self) -> datetime.datetime:
         return datetime.datetime.utcfromtimestamp(self.timestamp).replace(tzinfo=datetime.timezone(datetime.timedelta(hours=0)))
+
+    @property
+    def kills(self) -> List[Kill]:
+        return list(itertools.chain.from_iterable([
+            r.kills for r in self.rounds
+        ]))
 
     def __init__(
         self,
@@ -132,7 +142,7 @@ class ValorantGame:
             self.season_mode_id = 1
 
         self.vod = None
-        self.clips = None
+        self.clips = []
 
         self.frames_count = len(frames)
         self.version = VERSION
@@ -189,12 +199,14 @@ class ValorantGame:
             if mode:
                 modecounter[mode] += 1
         if not len(modecounter):
+            return 'unrated'
             raise NoMode()
         bestmode, _ = modecounter.most_common(1)[0]
         self.logger.info(f'Resolving mode {modecounter} -> {bestmode}')
         return bestmode
 
     def resolve_vod(self, frames: List[Frame], twitch_username: Optional[str]) -> Optional[Tuple[str, str]]:
+        return None
         source = frames[0].source
         if isinstance(source, TwitchSource):
             self.logger.info(f'Resolving twitch username from {source}')
@@ -229,9 +241,6 @@ class ValorantGame:
         self.logger.info(f'Resolved vod_url={vod_url}')
 
         return vod_url, twitch_username
-
-    def asdict(self) -> Dict[str, Any]:
-        return referenced_typedload.dump(self)
 
     @property
     def summary(self) -> str:
@@ -270,7 +279,9 @@ class ValorantGame:
                         stream.write(repr(object))
                         done = True
 
-                if not done:
+                if isinstance(object, PerformanceStats):
+                    stream.write('...')
+                elif not done:
                     super()._pprint_dataclass(object, stream, *args)
 
                 _entered.remove(id(object))
@@ -281,6 +292,31 @@ class ValorantGame:
 
     def print_summary(self) -> None:
         print(self.summary)
+
+    def to_dict(self) -> Dict:
+        convert: ValorantGame = copy.deepcopy(self)
+        if convert.teams.firstperson:
+            convert.teams.firstperson = convert.teams.firstperson.agent
+
+        for k in convert.kills:
+            k.killer = (k.killer.friendly, k.killer.agent)
+            k.killed = (k.killed.friendly, k.killed.agent)
+
+        for p in convert.teams.players:
+            p.kills = [
+                (k.round, k.index) for k in p.kills
+            ]
+            p.deaths = [
+                (k.round, k.index) for k in p.deaths
+            ]
+            p.weaponkills = {
+                w: [
+                    (k.round, k.index) for k in ks
+                ]
+                for w, ks in p.weaponkills.items()
+            }
+
+        return typedload.dump(convert)
 
 
 def main():
