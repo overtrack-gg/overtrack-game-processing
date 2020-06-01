@@ -5,6 +5,7 @@ from pprint import pformat, pprint
 
 import requests
 
+from overtrack.overwatch.collect.notifications import DiscordMessage
 from overtrack_models.orm.apex_game_summary import ApexGameSummary
 from overtrack_models.orm.notifications import DiscordBotNotification, TwitchBotNotification
 from overtrack.apex.collect.apex_game import ApexGame
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 APEX_GAMES_WEBHOOK = '**REMOVED**'
 
 
-class DiscordMessage:
+class ApexDiscordMessage(DiscordMessage):
     DISCORD_BOT_TOKEN = os.environ['DISCORD_BOT_TOKEN']
     CHANNEL_CREATE_MESSAGE = '**REMOVED**'
 
@@ -52,7 +53,7 @@ class DiscordMessage:
         if summary.landed != 'Unknown':
             description += f'\nDropped {summary.landed}'
         description += '\n'
-        self.game_embed = {
+        game_embed = {
             'author': {
                 'name': 'overtrack.gg',
                 'url': 'https://overtrack.gg/',
@@ -71,54 +72,9 @@ class DiscordMessage:
             }
         }
 
+        super().__init__(game_embed)
+
         logger.info(f'Prepared game embed for {self}:\n{pformat(self.game_embed)}')
-
-    def send(self, channel_id: str) -> bool:
-        logger.info(f'Sending {self} to {channel_id}')
-        try:
-            create_message_r = self.discord_bot.post(
-                self.CHANNEL_CREATE_MESSAGE % (channel_id,),
-                json={
-                    'embed': self.game_embed
-                },
-                timeout=5
-            )
-            create_message = create_message_r.json()
-            print(f'Create message: {create_message_r.status_code} -> ')
-            pprint(create_message)
-            create_message_r.raise_for_status()
-        except Exception as e:
-            logger.exception(f'Failed to send discord notification')
-            return False
-        else:
-            logger.info(f'Discord notification sent: {create_message_r.status_code} - id: {create_message["id"]}')
-            return True
-
-    def post_to_webhook(self, webhook: str, extra_embeds: Optional[List[Dict]] = None) -> bool:
-        embeds = [self.game_embed]
-        if extra_embeds:
-            embeds += extra_embeds
-
-        logger.info(f'Posting {self} to {webhook}')
-        try:
-            create_message_r = requests.post(
-                webhook,
-                json={
-                    'username': 'OverTrack',
-                    'avatar_url': 'https://overtrack.gg/assets/images/OT_logo.png',
-                    'embeds': embeds
-                },
-                timeout=5
-            )
-            print(f'Create message: {create_message_r.status_code} -> ')
-            pprint(create_message_r.content)
-            create_message_r.raise_for_status()
-        except Exception as e:
-            logger.exception(f'Failed to post discord notification')
-            return False
-        else:
-            logger.info(f'Discord notification posted: {create_message_r.status_code}')
-            return True
 
 
 class TwitchMessage:
@@ -160,14 +116,16 @@ class TwitchMessage:
 
 
 def send_notifications(user_id: int, game: ApexGame, summary: ApexGameSummary, url: str, username: str, dev_embed: Optional[Dict]) -> None:
-    discord_message = DiscordMessage(game, summary, url, username)
+    discord_message = ApexDiscordMessage(game, summary, url, username)
     for discord_integration in DiscordBotNotification.user_id_index.query(user_id, DiscordBotNotification.game == 'apex'):
         top3_only = discord_integration.notification_data.get('top3_only', False)
-        if (top3_only and summary.placed <= 3) or not top3_only:
-            logger.info(f'Sending {summary} to {discord_integration}')
-            discord_message.send(discord_integration.channel_id)
+        if top3_only and summary.placed > 3:
+            logger.info(f'Not sending {summary} to {discord_integration} - has top3_only')
+        elif discord_integration.announce_message_id and \
+                not DiscordMessage.check_message_exists(discord_integration.channel_id, discord_integration.announce_message_id):
+            logger.warning(f'Could not get announce message for {discord_integration.announce_message_id!r} - ignoring')
         else:
-            logger.info(f'Not sending {summary} to {discord_integration}')
+            discord_message.send(discord_integration.channel_id)
 
     logger.info(f'Sending {summary} to OverTrack#apex-games')
     if dev_embed:
