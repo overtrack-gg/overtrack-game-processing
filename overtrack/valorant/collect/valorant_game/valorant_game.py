@@ -325,7 +325,7 @@ class ValorantGame:
 
         rdata = typedload.dump(convert)
         for p in rdata['teams']['team1']['players'] + rdata['teams']['team2']['players']:
-            for u in p['ults']:
+            for u in p.get('ults', []):
                 del u['player']
         return rdata
 
