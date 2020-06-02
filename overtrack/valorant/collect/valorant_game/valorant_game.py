@@ -114,7 +114,7 @@ class ValorantGame:
         self.map = self._resolve_map(frames)
         self.game_mode = self._resolve_game_mode(frames)
 
-        self.rounds = Rounds(frames, self.game_mode == 'custom', debug)
+        self.rounds = Rounds(frames, self.game_mode, debug)
         self.duration = self.rounds[-1].end
         self.teams = Teams(frames, self.rounds, debug)
 
@@ -191,8 +191,8 @@ class ValorantGame:
         for mode_text in mode_texts:
             mode = textops.best_match(
                 mode_text,
-                [f'STANDARD - {m.upper()}' for m in data.game_modes],
-                data.game_modes + data.game_modes,
+                [f'STANDARD - {m.upper()}' for m in data.game_modes[:-1]] + [data.game_modes.spike_rush.upper()],
+                data.game_modes,
                 threshold=0.75,
                 disable_log=False,
             )

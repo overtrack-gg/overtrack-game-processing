@@ -14,6 +14,7 @@ from overtrack.frame import Frame
 from overtrack.util import s2ts, arrayops
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
 from overtrack.valorant.collect.valorant_game.valorant_game import InvalidGame
+from overtrack.valorant.data import GameModeName, game_modes
 
 ROUND_ACTIVE_PHASE_DURATION = 100
 FIRST_BUY_PHASE_DURATION = 43
@@ -108,12 +109,12 @@ class Rounds:
         fbs = [r.kills.firstblood(for_team) for r in self.rounds]
         return [fb for fb in fbs if fb]
 
-    def __init__(self, frames: List[Frame], custom_game: bool, debug: Union[bool, str] = False):
+    def __init__(self, frames: List[Frame], game_mode: GameModeName, debug: Union[bool, str] = False):
         timestamp = frames[0].timestamp
         self.rounds, score_from_rounds, self.has_game_resets = self._parse_rounds_from_scores(
             frames,
             timestamp,
-            custom_game,
+            game_mode,
             debug,
         )
         # TODO: check against count of rounds, final score seen
@@ -133,14 +134,23 @@ class Rounds:
                 sum(r.won is False for r in self.rounds),
             )
 
-        if len(self.rounds) < 13:
-            raise BadRoundCount('Had game with less than 13 rounds')
-        elif len(self.rounds) > 25:
-            raise BadRoundCount('Had game with more than 25 rounds')
+        rounds_per_side = 12
+        score_to_win = 13
+        max_rounds = 25
+
+        if game_mode == game_modes.spike_rush:
+            rounds_per_side = 3
+            score_to_win = 4
+            max_rounds = 7
+
+        if len(self.rounds) < score_to_win:
+            raise BadRoundCount(f'Had game with less than {score_to_win} rounds')
+        elif game_mode != game_modes.spike_rush and len(self.rounds) > max_rounds:
+            raise BadRoundCount(f'Had standard game with more than {max_rounds} rounds')
         else:
             spike_carriers_per_side = [0, 0]
             for f in frames:
-                if f.valorant.top_hud and (len(self.rounds) < 25 or f.timestamp - timestamp < self.rounds[24].start):
+                if f.valorant.top_hud and (len(self.rounds) < max_rounds or f.timestamp - timestamp < self.rounds[max_rounds - 1].start):
                     if f.valorant.top_hud.has_spike_match:
                         any_has_spike = any([
                             m and m > HAS_SPIKE_THRESHOLD for m in f.valorant.top_hud.has_spike_match
@@ -149,19 +159,19 @@ class Rounds:
                         any_has_spike = any(f.valorant.top_hud.has_spike)
                     else:
                         any_has_spike = False
-                    spike_carriers_per_side[f.timestamp - timestamp > self.rounds[11].end] += any_has_spike
+                    spike_carriers_per_side[f.timestamp - timestamp > self.rounds[rounds_per_side - 1].end] += any_has_spike
 
             self.logger.info(f'Had {spike_carriers_per_side[0]} spikes seen in first half, and {spike_carriers_per_side[1]} in second')
-            attacker_match = spike_carriers_per_side[0] / 12, spike_carriers_per_side[1] / (len(self.rounds) - 12)
+            attacker_match = spike_carriers_per_side[0] / rounds_per_side, spike_carriers_per_side[1] / (len(self.rounds) - rounds_per_side)
             self.attacking_first = attacker_match[0] > attacker_match[1]
             self.logger.info(f'Attack match: {attacker_match[0]:.2f} / {attacker_match[1]:.2f} -> attacking_first={self.attacking_first}')
             if self.attacking_first:
-                self.logger.info(f'Marking first 12 rounds as attack')
-                for r in self.rounds[:12]:
+                self.logger.info(f'Marking first {rounds_per_side} rounds as attack')
+                for r in self.rounds[:rounds_per_side]:
                     r.attacking = True
             else:
-                self.logger.info(f'Marking round 13->24 as attack')
-                for r in self.rounds[12:24]:
+                self.logger.info(f'Marking round {rounds_per_side}->{max_rounds - 1} as attack')
+                for r in self.rounds[rounds_per_side:max_rounds - 1]:
                     r.attacking = True
             if len(self.rounds) >= 25:
                 self.logger.info(f'Game has sudden death round (round 25) - resolving attack defend')
@@ -225,7 +235,7 @@ class Rounds:
         self,
         frames: List[Frame],
         start: float,
-        custom_game: bool,
+        game_mode: GameModeName,
         debug: Union[bool, str] = False
     ) -> Tuple[List[Round], Optional[Tuple[int, int]], bool]:
 
@@ -266,7 +276,7 @@ class Rounds:
 
         score_resets = None
         has_score_resets = False
-        if custom_game and score_match < 0.9:
+        if game_mode == game_modes.custom and score_match < 0.9:
             self.logger.info(f'Checking for score resets')
             score_resets = [max(valid_timestamps[0][0], valid_timestamps[0][1])]
             for i in range(2):
@@ -355,33 +365,6 @@ class Rounds:
             ]
             self.logger.info(f'    Got edges: {edges}')
 
-            # # For each teams edges, rank these by how well they match a score increase
-            # # i.e. [0, 0, 1, 1, 1] will match a score of 0-> better than [0, 0, 1, 0, 0]
-            # edgematch_ranks = [
-            #     [
-            #         (
-            #             np.mean(np.concatenate((
-            #                 valid_scores[i][s  :e] == score[i],
-            #                 valid_scores[i][e+1: ] >= score[i] + 1
-            #             ))),
-            #             e,
-            #             i,
-            #         ) for e in edges[i]
-            #     ] for i, s in enumerate(round_start_index)
-            # ]
-            #
-            # For each team, find the best matching edge by the above criteria
-            # edgematch_best = [
-            #     sorted(edgematch_ranks[i], reverse=True)
-            #     for i in range(2)
-            # ]
-            # best_edges = list(sorted(
-            #     itertools.chain(*edges),
-            #     key=lambda e: e[1],
-            # ))
-            # if not len(best_edges):
-            #     break
-
             all_edges = []
             for i in range(2):
                 if edges[i]:
@@ -453,10 +436,11 @@ class Rounds:
             final_round_won = None
 
             # Attempt to derive final round winner (and game winner) by if one team was up by more than 1 point
-            if score[0] == 12 and score[1] != 12:
+            score_to_win = 13 if game_mode != game_modes.spike_rush else 4
+            if score[0] == score_to_win - 1 and score[1] != score_to_win - 1:
                 self.logger.info(f'Deriving final round win=True from score={score[0]}-{score[1]}')
                 final_round_won = True
-            elif score[0] != 12 and score[1] == 12:
+            elif score[0] != score_to_win - 1 and score[1] == score_to_win - 1:
                 self.logger.info(f'Deriving final round win=False from score={score[0]}-{score[1]}')
                 final_round_won = False
             else:

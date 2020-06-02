@@ -12,11 +12,13 @@ class _Maps(List[MapName]):
         super().__init__([self.split, self.bind, self.haven, self.ascent])
 maps = _Maps()
 
-GameModeName = Literal['unrated', 'competitive', 'custom']
+GameModeName = Literal['unrated', 'competitive', 'custom', 'spike rush']
 class _GameModes(List[GameModeName]):
     unrated: GameModeName = 'unrated'
     competitive: GameModeName = 'competitive'
     custom: GameModeName = 'custom'
+    spike_rush = 'spike rush'
     def __init__(self):
-        super().__init__([self.unrated, self.competitive, self.custom])
+        super().__init__([self.unrated, self.competitive, self.custom, self.spike_rush])
 game_modes = _GameModes()
+
