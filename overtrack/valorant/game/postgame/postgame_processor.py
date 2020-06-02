@@ -169,6 +169,8 @@ class PostgameProcessor(Processor):
             row_bg = name_im[np.max(name_im, axis=2) < 200]
             row_color = np.median(row_bg, axis=0).astype(np.int)
 
+            # cv2.imshow('name', self._filter_statrow_image(name_im))
+            # cv2.waitKey(0)
             stat = PlayerStats(
                 agent,
                 imageops.tesser_ocr(

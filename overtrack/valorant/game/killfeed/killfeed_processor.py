@@ -1,15 +1,14 @@
-import logging
-import os
 import string
-from typing import Optional, NamedTuple, Tuple, Dict
 
 import cv2
+import logging
 import numpy as np
+import os
+from typing import Optional, NamedTuple, Tuple, Dict
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import time_processing, imageops, textops
-from overtrack.util.prettyprint import pprint
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.data import agents, AgentName
 from overtrack.valorant.game.killfeed.models import Kill, KillfeedPlayer, Killfeed
@@ -18,6 +17,7 @@ logger = logging.getLogger('KillfeedProcessor')
 
 
 class KillRowPosition(NamedTuple):
+    index: int
     match: float
     center: Tuple[int, int]
     friendly: bool
@@ -155,7 +155,11 @@ class KillfeedProcessor(Processor):
         x, y, w, h = self.REGIONS['killfeed'].regions[0]
         region = self.REGIONS['killfeed'].extract_one(frame.image)
 
-        h = cv2.cvtColor(region, cv2.COLOR_BGR2HSV_FULL)[:, :, 0] - 50
+        h, s, v = cv2.split(cv2.cvtColor(region, cv2.COLOR_BGR2HSV_FULL))
+        h -= 50
+        # cv2.imshow('h', h)
+        # cv2.imshow('s', s)
+        # cv2.imshow('v', v)
 
         friendly_kill_match = cv2.matchTemplate(h, self.FRIENDLY_KILL_TEMPLATE, cv2.TM_CCORR_NORMED)
         enemy_kill_match = cv2.matchTemplate(h, self.ENEMY_KILL_TEMPLATE, cv2.TM_CCORR_NORMED)
@@ -166,9 +170,7 @@ class KillfeedProcessor(Processor):
 
         kill_rows = []
 
-        draw_weapon_templates(frame.debug_image, self.WEAPON_TEMPLATES)
-
-        for _ in range(9):
+        for i in range(9):
             mnv, mxv, mnl, mxl = cv2.minMaxLoc(kill_match)
             if mxv < self.KILL_THRESHOLD:
                 break
@@ -191,6 +193,7 @@ class KillfeedProcessor(Processor):
 
             kill_rows.append(
                 KillRowPosition(
+                    index=i,
                     match=round(float(mxv), 2),
                     center=center,
                     friendly=bool(friendly_kill_v > enemy_kill_v),
@@ -284,6 +287,9 @@ class KillfeedProcessor(Processor):
                 frame.valorant.killfeed = Killfeed(
                     kills=kills,
                 )
+
+                draw_weapon_templates(frame.debug_image, self.WEAPON_TEMPLATES)
+
                 return True
 
         return False
@@ -330,7 +336,7 @@ class KillfeedProcessor(Processor):
             region = region[:, :, c]
         return region
 
-    def _parse_agent(self, frame, row, agent_death) -> Tuple[AgentName, float, int]:
+    def _parse_agent(self, frame: Frame, row: KillRowPosition, agent_death: bool) -> Tuple[AgentName, float, int]:
         if agent_death:
             region_x = frame.image.shape[1] - 120
             agent_im = self._get_region(

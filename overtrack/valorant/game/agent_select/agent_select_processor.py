@@ -1,3 +1,5 @@
+import string
+
 import logging
 import os
 from typing import Dict, Optional
@@ -8,7 +10,7 @@ import numpy as np
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import time_processing, imageops
+from overtrack.util import time_processing, imageops, debugops, textops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.data import agents, AgentName
 from overtrack.valorant.game.agent_select.models import AgentSelect
@@ -30,6 +32,7 @@ def draw_agent_select(debug_image: Optional[np.ndarray], agent_select: AgentSele
             c,
             t,
         )
+
 
 class AgentSelectProcessor(Processor):
 
@@ -77,25 +80,27 @@ class AgentSelectProcessor(Processor):
         if match > self.AGENT_TEMPLATE_REQUIRED_MATCH:
             # FIXME: locked in - only use if locked in in valorantgame
 
-            lock_in_im = self.REGIONS['lock_in'].extract_one(frame.image)
-            lock_in_col = np.median(lock_in_im, axis=(0, 1))
-            lock_in_match = np.linalg.norm(
-                lock_in_col - self.LOCK_IN_BUTTON_COLOR
+            selected_agent_text = imageops.ocr_region(
+                frame,
+                self.REGIONS,
+                'selected_agent',
+                op=np.max,
+                threshold=0,
+                bottom=50
             )
-            logger.debug(f'Lock in color={lock_in_col}, match={lock_in_match:.2f}')
-            can_see_lock_in = False
-            if lock_in_match < 100:
-                lock_in_gray = np.min(lock_in_im, axis=2)
-                lock_in_norm = 255 - imageops.normalise(lock_in_gray, bottom=70)
-                lock_in_text = imageops.tesser_ocr(lock_in_norm, engine=imageops.tesseract_lstm).replace(' ', '')
-                lock_in_text_match = levenshtein.ratio(lock_in_text, 'LOCKIN')
-                logger.debug(f'Lock in text={lock_in_text!r}, match={lock_in_text_match:.2f}')
+            logger.info(f'Got selected_agent_text={selected_agent_text!r}')
+            picking = False
+            for word in textops.strip_string(selected_agent_text, string.ascii_letters + ' .').split(' '):
+                match = levenshtein.ratio(word, 'Picking...')
+                logger.debug(f'Got match {match:.2f} for {word!r}')
+                picking |= match > 0.7
 
-                can_see_lock_in = lock_in_match < 25 or lock_in_text_match > 0.75
+            if not picking and levenshtein.ratio(selected_agent_text, best_match) < 0.8:
+                logger.warning(f'Selected agent text {selected_agent_text!r} does not match selected agent {best_match!r}')
 
             frame.valorant.agent_select = AgentSelect(
                 best_match,
-                locked_in=not can_see_lock_in,
+                locked_in=not picking,
 
                 map=imageops.ocr_region(frame, self.REGIONS, 'map'),
                 game_mode=imageops.ocr_region(frame, self.REGIONS, 'game_mode'),

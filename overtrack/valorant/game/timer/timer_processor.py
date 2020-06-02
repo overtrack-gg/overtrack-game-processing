@@ -66,12 +66,11 @@ class TimerProcessor(Processor):
             buy_phase = False
         else:
             buy_phase_gray = np.min(self.REGIONS['buy_phase'].extract_one(frame.image), axis=2)
-            buy_phase_norm = imageops.normalise(buy_phase_gray, bottom=70)
+            buy_phase_norm = imageops.normalise(buy_phase_gray, bottom=80)
             # cv2.imshow('buy_phase_norm', buy_phase_norm)
             buy_phase_match = np.max(cv2.matchTemplate(buy_phase_norm, self.BUY_PHASE_TEMPLATE, cv2.TM_CCORR_NORMED))
             logger.debug(f'Buy phase match: {buy_phase_match}')
             buy_phase = buy_phase_match > 0.9
-
 
         countdown_text = None
         if not spike_planted:
