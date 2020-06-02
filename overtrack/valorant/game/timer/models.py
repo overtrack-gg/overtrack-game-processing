@@ -13,4 +13,4 @@ class Timer:
 
     @property
     def valid(self) -> bool:
-        return self.spike_planted or self.buy_phase or (self.countdown and COUNTDOWN_PATTERN.fullmatch(self.countdown) is not None)
+        return self.spike_planted or self.buy_phase or (self.countdown and COUNTDOWN_PATTERN.fullmatch(self.countdown.replace(' ', '')) is not None)
