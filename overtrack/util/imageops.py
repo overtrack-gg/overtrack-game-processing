@@ -417,9 +417,18 @@ def match_templates(
     return best
 
 
-def ocr_region(frame: Frame, regions: ExtractionRegionsCollection, region: str, engine: tesserocr.PyTessBaseAPI = tesseract_lstm, threshold: Optional[int] = 50) -> Optional[str]:
+def ocr_region(
+    frame: Frame,
+    regions: ExtractionRegionsCollection,
+    region: str,
+    engine: tesserocr.PyTessBaseAPI = tesseract_lstm,
+    threshold: Optional[int] = 50,
+    op=np.min,
+    **kwargs,
+) -> Optional[str]:
     map_im = regions[region].extract_one(frame.image)
-    map_im_gray = 255 - normalise(np.min(map_im, axis=2))
+    map_im_gray = 255 - normalise(op(map_im, axis=2), **kwargs)
+    # cv2.imshow('map_im_gray', map_im_gray)
     map_text = tesser_ocr(
         map_im_gray,
         engine=engine,
