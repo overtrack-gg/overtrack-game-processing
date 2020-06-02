@@ -22,7 +22,9 @@ AgentName = Literal[
     'Breach',
     'Omen',
     'Viper',
+    'Reyna',
 ]
+
 
 @dataclass
 class Agent:
@@ -73,5 +75,9 @@ agents: Dict[AgentName, Agent] = {
             'Viper',
             'Controller'
         ),
+        Agent(
+            'Reyna',
+            'Duelist'
+        )
     ]
 }
