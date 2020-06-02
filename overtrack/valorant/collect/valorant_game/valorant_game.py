@@ -10,7 +10,7 @@ from collections import Counter
 import requests
 from overtrack.source.twitch_source import TwitchSource
 from overtrack.valorant.collect.valorant_game.performance_stats import PerformanceStats
-from typing import List, ClassVar, Tuple, Union, Optional, Dict, Any
+from typing import List, ClassVar, Tuple, Union, Optional, Dict, Any, cast
 
 import shortuuid
 from dataclasses import dataclass, fields
@@ -22,12 +22,12 @@ from overtrack.valorant import data
 from overtrack.valorant.collect.valorant_game.invalid_game import InvalidGame
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
 from overtrack.valorant.collect.valorant_game.rounds import Rounds
-from overtrack.valorant.collect.valorant_game.teams import Teams, Player
+from overtrack.valorant.collect.valorant_game.teams import Teams, Player, Ult
 from overtrack.valorant.collect.valorant_game.clips import Clip, make_clips
 from overtrack.valorant.data import MapName, GameModeName, game_modes
 from overtrack_models.dataclasses.typedload import referenced_typedload, typedload
 
-VERSION = '0.12.0'
+VERSION = '1.0.0'
 GET_VOD_URL = os.environ.get('GET_VOD_URL', 'https://m9e3shy2el.execute-api.us-west-2.amazonaws.com/{twitch_user}/vod/{time}?pts={pts}')
 
 
@@ -279,6 +279,10 @@ class ValorantGame:
 
                 if isinstance(object, PerformanceStats):
                     stream.write('...')
+                elif isinstance(object, Ult):
+                    ult_copy = copy.copy(object)
+                    ult_copy.player = repr(ult_copy.player)
+                    super()._pprint_dataclass(ult_copy, stream, *args)
                 elif not done:
                     super()._pprint_dataclass(object, stream, *args)
 
@@ -297,14 +301,17 @@ class ValorantGame:
             convert.teams.firstperson = convert.teams.firstperson.agent
 
         for k in convert.kills:
-            k.killer = (k.killer.friendly, k.killer.agent)
-            k.killed = (k.killed.friendly, k.killed.agent)
+            cast(Any, k).killer = (k.killer.friendly, k.killer.agent)
+            cast(Any, k).killed = (k.killed.friendly, k.killed.agent)
+
+        for r in convert.rounds:
+            cast(Any, r).ults_used = [((u.player.friendly, u.player.agent), u.index) for u in r.ults_used]
 
         for p in convert.teams.players:
-            p.kills = [
+            cast(Any, p).kills = [
                 (k.round, k.index) for k in p.kills
             ]
-            p.deaths = [
+            cast(Any, p).deaths = [
                 (k.round, k.index) for k in p.deaths
             ]
             p.weaponkills = {
@@ -313,8 +320,14 @@ class ValorantGame:
                 ]
                 for w, ks in p.weaponkills.items()
             }
+            for u in p.ults:
+                cast(Any, u).player = None
 
-        return typedload.dump(convert)
+        rdata = typedload.dump(convert)
+        for p in rdata['teams']['team1']['players'] + rdata['teams']['team2']['players']:
+            for u in p['ults']:
+                del u['player']
+        return rdata
 
 
 def main():

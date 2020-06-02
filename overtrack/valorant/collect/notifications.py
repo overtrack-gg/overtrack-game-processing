@@ -139,7 +139,8 @@ def send_notifications(user_id: Optional[int], game: ValorantGame, summary: Valo
         dev_embeds.append(dev_embed)
     discord_message.post_to_webhook(VALORANT_GAMES_WEBHOOK, dev_embeds)
 
-    for twitch_integration in TwitchBotNotification.user_id_index.query(user_id, TwitchBotNotification.game == 'valorant'):
-        twitch_message = ValorantTwitchMessage(game, summary, url, twitch_integration.twitch_channel_name)
-        logger.info(f'Sending {twitch_message} to {twitch_integration}')
-        twitch_message.send(twitch_integration.twitch_channel_name)
+    if user_id:
+        for twitch_integration in TwitchBotNotification.user_id_index.query(user_id, TwitchBotNotification.game == 'valorant'):
+            twitch_message = ValorantTwitchMessage(game, summary, url, twitch_integration.twitch_channel_name)
+            logger.info(f'Sending {twitch_message} to {twitch_integration}')
+            twitch_message.send(twitch_integration.twitch_channel_name)

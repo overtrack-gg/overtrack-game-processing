@@ -9,10 +9,11 @@ from typing import List, Optional, ClassVar, Union, Tuple
 
 import itertools
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from overtrack.frame import Frame
 from overtrack.util import s2ts, arrayops
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
+from overtrack.valorant.collect.valorant_game.teams import Ult
 from overtrack.valorant.collect.valorant_game.valorant_game import InvalidGame
 from overtrack.valorant.data import GameModeName, game_modes
 
@@ -85,11 +86,11 @@ class Round:
     won: Optional[bool]
 
     kills: Kills
+    ults_used: List[Ult] = field(default_factory=list)
 
 
 @dataclass
 class Rounds:
-
     rounds: List[Round]
     final_score: Optional[Tuple[int, int]]
 
@@ -242,10 +243,12 @@ class Rounds:
         score_timestamps = []
         frame_scores_data = []
         last_invalid = 0
+        end = 0
         for f in frames:
             if f.valorant.top_hud and not f.valorant.postgame and not f.valorant.agent_select:
                 if sum(e is not None for e in itertools.chain(*f.valorant.top_hud.teams)) >= 2:
                     last_invalid = 0
+                    end = f.timestamp - start
                 else:
                     last_invalid += 1
 
@@ -489,6 +492,9 @@ class Rounds:
                 score = score[0], score[1]
             else:
                 score = None
+
+        self.logger.info(f'Pulling round end {s2ts(rounds[-1].end)} -> {s2ts(end)}')
+        rounds[-1].end = end
 
         if debug in [True, self.__class__.__qualname__]:
             import matplotlib.pyplot as plt

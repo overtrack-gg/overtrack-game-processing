@@ -1,27 +1,27 @@
 import string
-
-import itertools
-import logging
 from collections import Counter
 
-from overtrack.util import textops
-from typing import List, Optional, Union, ClassVar, Tuple, TYPE_CHECKING, Dict
 import Levenshtein as levenshtein
-from dataclasses import dataclass, fields, Field, field, InitVar
+import itertools
+import logging
+import numpy as np
+from dataclasses import dataclass, fields, Field, field
+from typing import List, Optional, Union, ClassVar, Tuple, TYPE_CHECKING, Dict
 
 from overtrack.frame import Frame
+from overtrack.util import textops, arrayops
 from overtrack.valorant.collect.valorant_game.invalid_game import InvalidGame
 from overtrack.valorant.collect.valorant_game.performance_stats import PerformanceStats
-from overtrack.valorant.collect.valorant_game.rounds import Rounds
 from overtrack.valorant.data import AgentName
-from overtrack.valorant.game.top_hud.models import TeamComp
 from overtrack.valorant.game.postgame import PlayerStats as PlayerStatsFrame
-
+from overtrack.valorant.game.top_hud.models import TeamComp
 
 if TYPE_CHECKING:
     from overtrack.valorant.collect.valorant_game.kills import Kill
+    from overtrack.valorant.collect.valorant_game.rounds import Rounds
 else:
     Kill = 'Kill'
+    Rounds = 'Rounds'
 
 
 class MissingAgents(InvalidGame):
@@ -60,12 +60,40 @@ class PlayerStats:
             self.logger.info(f'    {f.name}: {counter} -> {value}')
 
 
+ULT_MERGE_WINDOW = 80
+
+
+@dataclass
+class Ult:
+    player: 'Player'
+    index: int
+
+    gained: float
+    lost: float
+    used: bool
+
+    round_gained: int
+    round_gained_timestamp: float
+
+    round_lost: int
+    round_lost_timestamp: float
+
+    @property
+    def held(self) -> Optional[float]:
+        if self.used:
+            return self.lost - self.gained
+        else:
+            return None
+
+
 @dataclass
 class Player:
     agent: Optional[AgentName]
     name: Optional[str]
+    index: int
     friendly: bool
 
+    ults: List[Ult] = field(default_factory=list)
     stats: Optional[PlayerStats] = field(repr=False, default=None)
 
     kills: List[Kill] = field(repr=False, default_factory=list)
@@ -90,6 +118,109 @@ class Player:
         name = levenshtein.median(names)
         self.logger.info(f'Resolving {self} name={name!r} from {Counter(names)}')
         self.name = name
+
+    def resolve_ults(self, frames: List[Frame], rounds: Rounds, debug: Union[bool, str] = False):
+        self.logger.info(f'Resolving ults for {["Enemy", "Friendly"][self.friendly]} {self.agent}')
+
+        ts, ult_match = [], []
+        start = frames[0].timestamp
+        for f in frames:
+            if f.valorant.top_hud and f.valorant.top_hud.has_ult_match:
+                team: List[Optional[AgentName]] = f.valorant.top_hud.teams[not self.friendly]
+                try:
+                    index = team.index(self.agent)
+                except ValueError:
+                    pass
+                else:
+                    val = f.valorant.top_hud.has_ult_match[not self.friendly][index]
+                    if val is not None:
+                        ts.append(f.timestamp - start)
+                        ult_match.append(val)
+
+        if len(ult_match) > 3:
+            self.logger.info(f' Resolving ult periods')
+            ult_match_f = np.convolve(ult_match, np.array([1, 1, 1], dtype=np.float) / 3, mode='same')
+            has_ult = ult_match_f > 0.8
+            has_ult_regions = arrayops.contiguous_regions(has_ult)
+
+            ults_tss = []
+            for si, ei in has_ult_regions:
+                counts = np.sum(has_ult[si:ei])
+
+                st, et = ts[si], ts[ei]
+                if len(ults_tss):
+                    prev_ult = ults_tss[-1]
+                    if st - prev_ult[1] < ULT_MERGE_WINDOW:
+                        self.logger.info(f'    Merging ult {prev_ult[0]:.1f}s->{prev_ult[1]:.1f}s with {st:.1f}s->{et:.1f}s ({counts} counts)')
+                        prev_ult[1] = et
+                        continue
+                self.logger.info(f'  Got ult period {st:.1f}s->{et:.1f}s ({counts} counts)')
+                ults_tss.append([st, et])
+
+            self.logger.info(f' Resolving actual ults')
+            for i, (st, et) in enumerate(ults_tss):
+                round_gained = int(np.argmax([st < r.end for r in rounds]))
+                round_lost = int(np.argmax([et < r.start for r in rounds])) - 1
+                if round_lost == -1:
+                    round_lost = len(rounds) - 1
+
+                used = True
+                round_lost_timestamp = et - rounds[round_lost].start
+                round_duration = min(rounds[round_lost].end, ts[-1]) - rounds[round_lost].start
+
+                infostr = ''
+                if (round_lost == len(rounds) - 1 or round_lost == 11) and round_duration - round_lost_timestamp < 15:
+                    infostr = f' - Ult was lost by side switch/end: round {round_lost}, ' \
+                              f'{round_duration - round_lost_timestamp}s before round end'
+                    used = False
+                    round_lost_timestamp = round_duration
+
+                ult = Ult(
+                    player=self,
+                    index=i,
+
+                    gained=st,
+                    lost=et,
+                    used=used,
+
+                    round_gained=round_gained,
+                    round_gained_timestamp=st - rounds[round_gained].start,
+
+                    round_lost=round_lost,
+                    round_lost_timestamp=round_lost_timestamp,
+                )
+                self.logger.info(f'  {ult}{infostr}')
+                self.ults.append(ult)
+                if used:
+                    rounds[round_lost].ults_used.append(ult)
+
+            if debug is True or debug == 'Ults':
+                import matplotlib.pyplot as plt
+                from matplotlib import patches
+
+                ofs = (self.friendly * 5.5 + self.index * 1.1)
+                plt.text(-100, ofs, f'{"Enemy" if not self.friendly else ""} {self.agent}')
+                plt.plot(ts, ult_match_f + ofs, label=f'{"Enemy" if not self.friendly else ""} {self.agent}')
+                for si, ei in has_ult_regions:
+                    plt.gca().add_patch(patches.Rectangle(
+                        (ts[si], ofs + 0.1),
+                        ts[ei] - ts[si],
+                        0.8,
+                        linewidth=1,
+                        edgecolor='red',
+                        color='red',
+                        alpha=0.25,
+                    ))
+                # for u in self.ults:
+                #     plt.gca().add_patch(patches.Rectangle(
+                #         (u.gained, ofs + 0.2),
+                #         u.held,
+                #         0.6,
+                #         linewidth=1,
+                #         edgecolor='blue',
+                #         color='blue',
+                #         alpha=0.25,
+                #     ))
 
     def resolve_performance(self, rounds: Rounds):
         self.logger.info(f'Resolving performance for {self.name}')
@@ -150,11 +281,12 @@ class Teams:
         # Resolve agents from top HUD
         teams = [], []
         for i, teamcomp in enumerate(self._parse_teamcomps(frames, rounds)):
-            for agent in teamcomp:
+            for j, agent in enumerate(teamcomp):
                 teams[i].append(Player(
                     agent=agent,
                     name=None,
                     friendly=i == 0,
+                    index=j,
                 ))
         self.team1 = Team(teams[0], True)
         self.team2 = Team(teams[1], False)
@@ -162,6 +294,41 @@ class Teams:
         self.logger.info(f'Resolving player names')
         for p in self.players:
             p.resolve_name_from_killfeed(frames)
+
+        self.logger.info(f'Resolving ults')
+        if debug is True or debug == 'Ults':
+            import matplotlib.pyplot as plt
+            plt.figure()
+        for p in self.players:
+            p.resolve_ults(frames, rounds, debug)
+        if debug is True or debug == 'Ults':
+            import matplotlib.pyplot as plt
+            from matplotlib import patches
+
+            def draw_rounds(y, height):
+                for r in rounds:
+                    plt.gca().add_patch(patches.Rectangle(
+                        (r.buy_phase_start, y),
+                        r.start - r.buy_phase_start,
+                        height,
+                        linewidth=1,
+                        edgecolor='blue',
+                        color='blue',
+                        alpha=0.25,
+                        ))
+                    plt.gca().add_patch(patches.Rectangle(
+                        (r.start, y),
+                        r.end - r.start,
+                        height,
+                        linewidth=1,
+                        edgecolor='green',
+                        color='green',
+                        alpha=0.25,
+                        ))
+
+            draw_rounds(-0.1, 0.1)
+            plt.legend()
+            plt.show()
 
         # Work out which is the firstperson player by matching agent selected at game start against team1
         agent_select_frames = [f for f in frames if f.valorant.agent_select and f.valorant.agent_select.agent and f.valorant.agent_select.locked_in]
