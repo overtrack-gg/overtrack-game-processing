@@ -199,14 +199,12 @@ class ValorantGame:
             if mode:
                 modecounter[mode] += 1
         if not len(modecounter):
-            return 'unrated'
             raise NoMode()
         bestmode, _ = modecounter.most_common(1)[0]
         self.logger.info(f'Resolving mode {modecounter} -> {bestmode}')
         return bestmode
 
     def resolve_vod(self, frames: List[Frame], twitch_username: Optional[str]) -> Optional[Tuple[str, str]]:
-        return None
         source = frames[0].source
         if isinstance(source, TwitchSource):
             self.logger.info(f'Resolving twitch username from {source}')
