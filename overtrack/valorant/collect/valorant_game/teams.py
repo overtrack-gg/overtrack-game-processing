@@ -10,6 +10,7 @@ import Levenshtein as levenshtein
 from dataclasses import dataclass, fields, Field, field, InitVar
 
 from overtrack.frame import Frame
+from overtrack.valorant.collect.valorant_game.invalid_game import InvalidGame
 from overtrack.valorant.collect.valorant_game.performance_stats import PerformanceStats
 from overtrack.valorant.collect.valorant_game.rounds import Rounds
 from overtrack.valorant.data import AgentName
@@ -21,6 +22,10 @@ if TYPE_CHECKING:
     from overtrack.valorant.collect.valorant_game.kills import Kill
 else:
     Kill = 'Kill'
+
+
+class MissingAgents(InvalidGame):
+    pass
 
 
 @dataclass
@@ -147,9 +152,9 @@ class Teams:
         for i, teamcomp in enumerate(self._parse_teamcomps(frames, rounds)):
             for agent in teamcomp:
                 teams[i].append(Player(
-                    agent,
-                    None,
-                    i == 0,
+                    agent=agent,
+                    name=None,
+                    friendly=i == 0,
                 ))
         self.team1 = Team(teams[0], True)
         self.team2 = Team(teams[1], False)
@@ -221,33 +226,39 @@ class Teams:
 
     def _parse_teamcomps(self, frames: List[Frame], rounds: Rounds) -> Tuple[TeamComp, TeamComp]:
         timestamp = frames[0].timestamp
-        team_agents_seen = [[Counter() for _ in range(5)] for _ in range(2)]
+        team_agents_seen = [Counter() for _ in range(2)]
         for f in frames:
             # Only look at buy phase comps because the players get reordered when death spectating
             # Actually, we use the first 10s of a round to get extra data because players are dead here infrequently enough
-            if f.valorant.top_hud and any(r.buy_phase_start <= f.timestamp - timestamp <= r.start + 10 for r in rounds):
+            if f.valorant.top_hud and any(r.buy_phase_start <= f.timestamp - timestamp <= r.end for r in rounds):
                 for side in range(2):
-                    for i in range(5):
-                        agent = f.valorant.top_hud.teams[side][i]
+                    for agent in f.valorant.top_hud.teams[side]:
                         if agent:
-                            team_agents_seen[side][i][agent] += 1
+                            team_agents_seen[side][agent] += 1
 
         teams = []
+        error_agents = False
         for side in range(2):
+            self.logger.info(f'Team {side} had agents: {team_agents_seen[side]}')
+
+            if len(team_agents_seen[side]) < 5:
+                raise MissingAgents(f'Team {side} missing agents')
+
             team = []
-            for i in range(5):
-                counter = team_agents_seen[side][i]
-                if sum(counter.values()) > 5:
-                    agent: AgentName = counter.most_common(1)[0][0]
+            for i, (agent, count) in enumerate(team_agents_seen[side].most_common()):
+                if i < 5:
+                    self.logger.info(f'Team {side} agent {i} was {agent} ({count} occurrences)')
                     team.append(agent)
-                    self.logger.info(f'Team {side} agent {i} was {counter} -> {agent}')
                 else:
-                    self.logger.info(f'Team {side} agent {i} unknown with {counter}')
-                    team.append(None)
+                    self.logger.warning(f'Team {side} had {i}th agent {agent} ({count} occurrences)')
+                    error_agents |= count > 10
 
             assert len(team) == len(set(team)), f'Teamcomp had duplicate agents'
-
             teams.append((team[0], team[1], team[2], team[3], team[4]))
+
+        if error_agents:
+            self.logger.error('Got additional agents seen on teams')
+
         return teams[0], teams[1]
 
     @property

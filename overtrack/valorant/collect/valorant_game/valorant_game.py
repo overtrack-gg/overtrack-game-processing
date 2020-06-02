@@ -19,7 +19,7 @@ from overtrack.frame import Frame, ValorantData
 from overtrack.util import textops
 from overtrack.util.prettyprint import DataclassPrettyPrinter
 from overtrack.valorant import data
-from overtrack.valorant.collect.valorant_game.game_parse_error import InvalidGame
+from overtrack.valorant.collect.valorant_game.invalid_game import InvalidGame
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
 from overtrack.valorant.collect.valorant_game.rounds import Rounds
 from overtrack.valorant.collect.valorant_game.teams import Teams, Player
