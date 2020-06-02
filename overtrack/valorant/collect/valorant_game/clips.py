@@ -158,12 +158,15 @@ def make_clips(game: ValorantGame, frames: Optional[List[Frame]], twitch_usernam
     logger.info(f'Done: {clip_urls}')
 
     clips = []
-    for clip_data, clip_url in zip(desired_clips, clip_urls):
-        clip = Clip(
-            clip_url,
-            *clip_data[1:],
-        )
-        logger.info(f'Got {clip}')
-        clips.append(clip)
+    for i, (clip_data, clip_url) in enumerate(zip(desired_clips, clip_urls)):
+        if clip_url:
+            clip = Clip(
+                clip_url,
+                *clip_data[1:],
+            )
+            logger.info(f'Got {clip}')
+            clips.append(clip)
+        else:
+            logger.warning(f'Not adding clip {i} - no valid url')
 
     return clips
