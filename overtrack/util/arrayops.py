@@ -137,8 +137,8 @@ def contiguous_regions(condition):
         idx = np.r_[0, idx]
 
     if condition[-1]:
-        # If the end of condition is True, append the length of the array
-        idx = np.r_[idx, condition.size]
+        # If the end of condition is True, append the final element
+        idx = np.r_[idx, condition.size - 1]
 
     # Reshape the result into two columns
     idx.shape = (-1, 2)
