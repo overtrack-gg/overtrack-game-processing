@@ -118,19 +118,20 @@ class ValorantTwitchMessage:
         )
 
 
-def send_notifications(user_id: int, game: ValorantGame, summary: ValorantGameSummary, url: str, username: str, dev_embed: Optional[Dict]) -> None:
+def send_notifications(user_id: Optional[int], game: ValorantGame, summary: ValorantGameSummary, url: str, username: str, dev_embed: Optional[Dict]) -> None:
     if not game.teams.firstperson:
         logger.error(f'Got game with no firstperson - cannot send notifications')
         return
 
     discord_message = ValorantDiscordMessage(game, summary, url, username)
-    for discord_integration in DiscordBotNotification.user_id_index.query(user_id, DiscordBotNotification.game == 'valorant'):
-        if discord_integration.announce_message_id and \
-                not DiscordMessage.check_message_exists(discord_integration.channel_id, discord_integration.announce_message_id):
-            logger.warning(f'Could not get announce message for {discord_integration.announce_message_id!r} - ignoring')
-        else:
-            logger.info(f'Sending {summary} to {discord_integration}')
-            discord_message.send(discord_integration.channel_id)
+    if user_id:
+        for discord_integration in DiscordBotNotification.user_id_index.query(user_id, DiscordBotNotification.game == 'valorant'):
+            if discord_integration.announce_message_id and \
+                    not DiscordMessage.check_message_exists(discord_integration.channel_id, discord_integration.announce_message_id):
+                logger.warning(f'Could not get announce message for {discord_integration.announce_message_id!r} - ignoring')
+            else:
+                logger.info(f'Sending {summary} to {discord_integration}')
+                discord_message.send(discord_integration.channel_id)
 
     logger.info(f'Sending {discord_message} to OverTrack#valorant-games')
     dev_embeds = []
