@@ -203,6 +203,7 @@ class ValorantGame(Base):
     season_mode_id = Column(Integer, nullable=False)
     frames_count = Column(Integer, nullable=False)
     version = Column(String, nullable=False)
+    game_version = Column(String)
 
     won = Column(Boolean)
     start_pts = Column(Float)
