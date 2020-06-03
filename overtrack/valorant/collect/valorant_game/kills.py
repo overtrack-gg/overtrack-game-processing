@@ -200,7 +200,7 @@ class Kills:
 
     def _get_player_by_names(self, team: List[Player], names: List[str]) -> Optional[Player]:
         matches = [
-            np.mean([levenshtein.ratio(p.name, n) for n in names])
+            np.mean([levenshtein.ratio(p.name, n) if p.name and n else 0 for n in names])
             for p in team
         ]
         am = arrayops.argmax(matches)
