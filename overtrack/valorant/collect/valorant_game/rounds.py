@@ -437,9 +437,12 @@ class Rounds:
             score[winner_index] += 1
             round_start_timestamp = round_end_timestamp
 
+        score_to_win = 13
+        if game_mode == game_modes.spike_rush:
+            score_to_win = 4
         if has_score_resets:
             self.logger.info(f'Not checking for final round for scrims/score reset game')
-        elif score[0] == 13 or score[1] == 13:
+        elif score[0] == score_to_win or score[1] == score_to_win:
             # Captured final score transition
             self.logger.info(f'Final round score transition was captured - final round was included, final score={score[0]}-{score[1]}')
             score = score[0], score[1]
@@ -450,7 +453,6 @@ class Rounds:
             final_round_won = None
 
             # Attempt to derive final round winner (and game winner) by if one team was up by more than 1 point
-            score_to_win = 13 if game_mode != game_modes.spike_rush else 4
             if score[0] == score_to_win - 1 and score[1] != score_to_win - 1:
                 self.logger.info(f'Deriving final round win=True from score={score[0]}-{score[1]}')
                 final_round_won = True
