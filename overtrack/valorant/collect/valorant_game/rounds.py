@@ -68,6 +68,8 @@ class InvalidRounds(InvalidGame):
     pass
 class NoRounds(InvalidRounds):
     pass
+class NoScoresSeen(InvalidRounds):
+    pass
 class BadRoundMatch(InvalidRounds):
     pass
 class BadRoundCount(InvalidRounds):
@@ -272,10 +274,19 @@ class Rounds:
             valid_timestamps.append(score_timestamps[isvalid[i]])
             valid_scores.append(isotonic_regression(frame_scores[i, isvalid[i]].astype(np.int), 0, 13))
             score_matches.append(np.mean(frame_scores[i, isvalid[i]] == valid_scores[i]))
+        validcounts = (sum(isvalid[0]), sum(isvalid[1]))
         score_match = np.mean(score_matches)
         valid_timestamps = np.array(valid_timestamps)
 
+        self.logger.info(f'Scores observed: {len(score_timestamps)}')
+        self.logger.info(f'Valid scores per side: {validcounts}')
         self.logger.info(f'Score match for default game is {score_match:.3f}')
+
+        if np.isnan(score_match):
+            raise BadRoundMatch()
+
+        if min(validcounts) < 30:
+            raise NoScoresSeen()
 
         score_resets = None
         has_score_resets = False
