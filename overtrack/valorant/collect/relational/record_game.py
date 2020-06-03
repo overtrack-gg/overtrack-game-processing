@@ -35,24 +35,41 @@ def record_game(session: Session, game_data: ValorantGame, user_id: int, commit:
 
         firstperson_agent=game_data.teams.firstperson.agent if game_data.teams.firstperson else None,
     )
+    session.add(game)
 
     players = {}
     for friendly in True, False:
         player: Player
         for player in game_data.teams.teams[not friendly].players:
-            players[(friendly, player.agent)] = relational.ValorantPlayer(
+            rplayer = relational.ValorantPlayer(
                 game_key=game.key,
                 friendly=player.friendly,
                 agent=player.agent,
 
                 name=player.name,
             )
+            session.add(rplayer)
+            players[(friendly, player.agent)] = rplayer
 
-    rounds = []
-    kills = []
+            for i, ult in enumerate(player.ults):
+                session.add(relational.ValorantUlt(
+                    game_key=game.key,
+                    player_friendly=player.friendly,
+                    player_agent=player.agent,
+                    index=i,
+
+                    gained=ult.gained,
+                    lost=ult.lost,
+                    used=ult.used,
+                    round_gained_index=ult.round_gained,
+                    round_gained_timestamp=ult.round_gained_timestamp,
+                    round_lost_index=ult.round_lost,
+                    round_lost_timestamp=ult.round_lost_timestamp,
+                    round_used_index=ult.round_lost if ult.used else None,
+                ))
 
     for round_data in game_data.rounds:
-        rounds.append(relational.ValorantRound(
+        session.add(relational.ValorantRound(
             game_key=game.key,
             index=round_data.index,
 
@@ -64,7 +81,7 @@ def record_game(session: Session, game_data: ValorantGame, user_id: int, commit:
         ))
         kill: Kill
         for i, kill in enumerate(round_data.kills):
-            kills.append(relational.ValorantKill(
+            session.add(relational.ValorantKill(
                 game_key=game.key,
                 round_index=round_data.index,
                 index=i,
@@ -79,8 +96,5 @@ def record_game(session: Session, game_data: ValorantGame, user_id: int, commit:
                 headshot=kill.headshot,
             ))
 
-    session.add_all(
-        [game] + list(players.values()) + rounds + kills
-    )
     if commit:
         session.commit()

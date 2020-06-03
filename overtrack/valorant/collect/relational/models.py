@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, ForeignKeyConstraint
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, ForeignKeyConstraint, CheckConstraint
 from sqlalchemy.orm import relationship, composite
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -85,6 +85,57 @@ class ValorantKill(Base):
     )
 
 
+class ValorantUlt(Base):
+    __tablename__ = 'valorant_ults'
+
+    game_key = Column(ForeignKey('valorant_games.key'), primary_key=True)
+    player_friendly = Column(Boolean, primary_key=True)
+    player_agent = Column(String, primary_key=True)
+    index = Column(Integer, primary_key=True)
+
+    gained = Column(Float, nullable=False)
+    lost = Column(Float, nullable=False)
+    used = Column(Boolean, nullable=False)
+
+    round_gained_index = Column(Integer, nullable=False)
+    round_gained_timestamp = Column(Float, nullable=False)
+
+    round_lost_index = Column(Integer, nullable=False)
+    round_lost_timestamp = Column(Float, nullable=False)
+
+    round_used_index = Column(Integer)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            (game_key, player_friendly, player_agent),
+            ('valorant_players.game_key', 'valorant_players.friendly', 'valorant_players.agent'),
+        ),
+        ForeignKeyConstraint(
+            (game_key, round_gained_index),
+            ('valorant_rounds.game_key', 'valorant_rounds.index'),
+        ),
+        ForeignKeyConstraint(
+            (game_key, round_lost_index),
+            ('valorant_rounds.game_key', 'valorant_rounds.index'),
+        ),
+        ForeignKeyConstraint(
+            (game_key, round_used_index),
+            ('valorant_rounds.game_key', 'valorant_rounds.index'),
+        ),
+        CheckConstraint(
+            'NOT used OR round_used_index IS NOT NULL'
+        )
+    )
+
+    player = relationship('ValorantPlayer', back_populates='ults')
+    round_used = relationship(
+        'ValorantRound',
+        foreign_keys=[game_key, round_used_index],
+        back_populates='ults_used',
+    )
+    game = relationship('ValorantGame', back_populates='ults')
+
+
 class ValorantPlayer(Base):
     __tablename__ = 'valorant_players'
 
@@ -103,6 +154,7 @@ class ValorantPlayer(Base):
         primaryjoin=playerkey_primaryjoin('killed'),
         uselist=True,
     )
+    ults = relationship('ValorantUlt')
     game = relationship('ValorantGame', back_populates='players')
 
 
@@ -118,6 +170,13 @@ class ValorantRound(Base):
     won = Column(Boolean)
 
     kills = relationship('ValorantKill')
+    ults_used = relationship(
+        'ValorantUlt',
+        primaryjoin=f'and_('
+                    f'ValorantRound.game_key == ValorantUlt.game_key, '
+                    f'ValorantRound.index == ValorantUlt.round_used_index'
+                    ')'
+    )
 
 
 class ValorantClip(Base):
@@ -171,3 +230,4 @@ class ValorantGame(Base):
     )
     kills = relationship('ValorantKill')
     rounds = relationship('ValorantRound')
+    ults = relationship('ValorantUlt')

@@ -50,7 +50,7 @@ class GameScanner(Thread):
             if not self._continue:
                 break
 
-            if summary.version < '0.12.0':
+            if summary.version < '1.0.0':
                 assert False
 
             self.logger.info(f'Downloading {summary.key!r} {summary.version}: {summary.url!r}')
@@ -59,6 +59,9 @@ class GameScanner(Thread):
                     data = r.json()
                 game = ValorantGame.from_dict(data)
 
+            except:
+                self.logger.exception(f'Failed to download/load {summary.key!r}')
+            else:
                 if len(self.database_session.
                     query(relational.ValorantGame).
                     filter(relational.ValorantGame.key == game.key).
@@ -74,41 +77,42 @@ class GameScanner(Thread):
                 t0 = time.perf_counter()
                 record_game(self.database_session, game, user_id=summary.user_id)
                 logging.info(f'Took {time.perf_counter() - t0:.3f}s')
-            except:
-                self.logger.exception(f'Failed to download/load {summary.key!r}')
 
 
 def import_all():
     config_logger(os.path.basename(__file__))
 
-    engine = create_engine((
-        f'postgresql://'
-        f'overtrack'
-        f':'
-        f'{os.environ["PSQL_PASSWORD"]}'
-        f'@'
-        f'54.69.252.81'
-        f':'
-        f'{os.environ["PSQL_PORT"]}'
-        f'/overtrack'
-    ),
-        echo=True,
-        executemany_mode='batch',
-    )
+    # engine = create_engine((
+    #     f'postgresql://'
+    #     f'overtrack'
+    #     f':'
+    #     f'{os.environ["PSQL_PASSWORD"]}'
+    #     f'@'
+    #     f'54.69.252.81'
+    #     f':'
+    #     f'{os.environ["PSQL_PORT"]}'
+    #     f'/overtrack'
+    # ),
+    #     echo=True,
+    #     executemany_mode='batch',
+    # )
+    engine = create_engine('sqlite:///games.db')
     Session = sessionmaker(bind=engine)
-    # session: SessionType = Session()
 
-    # from overtrack.valorant.collect.relational.models import Base
-    # Base.metadata.drop_all(engine)
-    # Base.metadata.create_all(engine)
+    from overtrack.valorant.collect.relational.models import Base
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
 
-    SHARDS = 8
+    SHARDS = 1
     threads = [
-        GameScanner(Session(), i, SHARDS, ValorantGameSummary.version >= '0.12.0') for i in range(SHARDS)
+        GameScanner(Session(), i, SHARDS, ValorantGameSummary.version >= '1.0.0') for i in range(SHARDS)
     ]
-    for t in threads:
-        logging.info(f'Starting {t}')
-        t.start()
+    if SHARDS == 1:
+        threads[0].run()
+    else:
+        for t in threads:
+            logging.info(f'Starting {t}')
+            t.start()
 
 
 if __name__ == '__main__':
