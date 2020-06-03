@@ -27,7 +27,7 @@ from overtrack.valorant.collect.valorant_game.clips import Clip, make_clips
 from overtrack.valorant.data import MapName, GameModeName, game_modes
 from overtrack_models.dataclasses.typedload import referenced_typedload, typedload
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 GET_VOD_URL = os.environ.get('GET_VOD_URL', 'https://m9e3shy2el.execute-api.us-west-2.amazonaws.com/{twitch_user}/vod/{time}?pts={pts}')
 
 
@@ -60,6 +60,8 @@ class ValorantGame:
 
     season_mode_id: int
     frames_count: int
+    game_version: str
+
     version: str
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
@@ -141,17 +143,19 @@ class ValorantGame:
         else:
             self.season_mode_id = 1
 
+        self.frames_count = len(frames)
+
         self.vod = None
         self.clips = []
-
-        self.frames_count = len(frames)
-        self.version = VERSION
-
         if resolve_vod:
             vod_username = self.resolve_vod(frames, twitch_username)
             if vod_username:
                 self.vod, twitch_username = vod_username
                 self.clips = make_clips(self, frames, twitch_username)
+
+        self.game_version = data.get_version(self.time).name
+
+        self.version = VERSION
 
     def _resolve_map(self, frames: List[Frame]) -> Optional[MapName]:
         mapcounter = Counter()
