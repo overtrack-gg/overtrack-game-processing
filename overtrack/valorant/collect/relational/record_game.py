@@ -18,7 +18,7 @@ def record_game(session: Session, game_data: ValorantGame, user_id: int, commit:
         won=game_data.won,
         map=game_data.map,
         game_mode=game_data.game_mode,
-        game_version=game_data.version,
+        game_version=game_data.game_version,
 
         start_pts=game_data.start_pts,
         vod=game_data.vod,
