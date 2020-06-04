@@ -65,6 +65,7 @@ class AgentSelectProcessor(Processor):
             (200, 85, 120),
             (255, 115, 150)
         )
+        # cv2.imshow('agent_name_yuv', agent_name_yuv)
         # cv2.imshow('agent_name_thresh', agent_name_thresh)
         # cv2.imwrite(
         #     os.path.join(os.path.dirname(__file__), 'data', 'agent_names', os.path.basename(frame.source_image)),
@@ -78,26 +79,24 @@ class AgentSelectProcessor(Processor):
             required_match=0.95,
         )
         if match > self.AGENT_TEMPLATE_REQUIRED_MATCH:
-            # FIXME: locked in - only use if locked in in valorantgame
-
-            selected_agent_text = imageops.ocr_region(
-                frame,
-                self.REGIONS,
-                'selected_agent',
-                op=np.max,
-                threshold=0,
-                bottom=50
+            selected_agent_ims = self.REGIONS['selected_agents'].extract(frame.image)
+            selected_agent_ims_gray = [
+                255 - imageops.normalise(np.max(im, axis=2), bottom=50) for im in selected_agent_ims
+            ]
+            selected_agent_texts = imageops.tesser_ocr_all(
+                selected_agent_ims_gray,
+                engine=imageops.tesseract_lstm,
             )
-            logger.info(f'Got selected_agent_text={selected_agent_text!r}')
-            picking = False
-            for word in textops.strip_string(selected_agent_text, string.ascii_letters + ' .').split(' '):
-                match = levenshtein.ratio(word, 'Picking...')
-                logger.debug(f'Got match {match:.2f} for {word!r}')
-                picking |= match > 0.7
+            logger.info(f'Got selected_agent_texts={selected_agent_texts}')
 
-            if not picking and levenshtein.ratio(selected_agent_text, best_match) < 0.8:
-                logger.warning(f'Selected agent text {selected_agent_text!r} does not match selected agent {best_match!r}')
-
+            picking = True
+            for i, text in enumerate(selected_agent_texts):
+                for word in textops.strip_string(text, string.ascii_letters + ' .').split(' '):
+                    match = levenshtein.ratio(word, best_match)
+                    logger.debug(f'Player {i}: Got match {match:.2f} for {word!r} = {best_match!r}')
+                    if match > 0.7:
+                        logger.info(f'Found matching locked in agent {text!r} for selecting agent {best_match!r} - selection locked')
+                        picking = False
             frame.valorant.agent_select = AgentSelect(
                 best_match,
                 locked_in=not picking,
@@ -110,7 +109,6 @@ class AgentSelectProcessor(Processor):
             return True
 
         return False
-
 
 
 def main():
