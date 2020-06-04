@@ -211,16 +211,16 @@ class Player:
                         color='red',
                         alpha=0.25,
                     ))
-                # for u in self.ults:
-                #     plt.gca().add_patch(patches.Rectangle(
-                #         (u.gained, ofs + 0.2),
-                #         u.held,
-                #         0.6,
-                #         linewidth=1,
-                #         edgecolor='blue',
-                #         color='blue',
-                #         alpha=0.25,
-                #     ))
+                for u in self.ults:
+                    plt.gca().add_patch(patches.Rectangle(
+                        (u.gained, ofs + 0.3),
+                        u.lost - u.gained,
+                        0.4,
+                        linewidth=1,
+                        edgecolor='blue',
+                        color='blue',
+                        alpha=0.25,
+                    ))
 
     def resolve_performance(self, rounds: Rounds):
         self.logger.info(f'Resolving performance for {self.name}')
