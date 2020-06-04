@@ -28,7 +28,7 @@ def create_pipeline(extra_processors: Sequence[Processor] = (), aggressive=False
         ),
         ConditionalProcessor(
             OrderedProcessor(
-                EveryN(TopHudProcessor(), 3 if not aggressive else 1),
+                EveryN(TopHudProcessor(), 2 if not aggressive else 1),
                 KillfeedProcessor(),
             ),
             condition=lambda f: lambda f: (

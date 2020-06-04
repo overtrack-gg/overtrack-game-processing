@@ -135,6 +135,9 @@ def config_logger(
 
     logger = logging.getLogger()
 
+    if name.endswith('.py'):
+        name = name.rsplit('.')[0]
+
     handlers: Dict[str, LogConfig] = {
         'default': {
             'level': logging.getLevelName(level),
