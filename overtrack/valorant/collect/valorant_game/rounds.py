@@ -120,6 +120,15 @@ class Rounds:
             game_mode,
             debug,
         )
+
+        rounds_per_side = 12
+        score_to_win = 13
+        max_rounds = 25
+        if game_mode == game_modes.spike_rush:
+            rounds_per_side = 3
+            score_to_win = 4
+            max_rounds = 7
+
         # TODO: check against count of rounds, final score seen
         self.final_score = None
         if not self.has_game_resets:
@@ -127,8 +136,8 @@ class Rounds:
 
             if not self.final_score:
                 self.logger.error('Could not derive final score')
-            elif not (self.final_score[0] == 13 or self.final_score[1] == 13):
-                self.logger.error('Final score did not have team with 13 wins')
+            elif not (self.final_score[0] == score_to_win or self.final_score[1] == score_to_win):
+                self.logger.error(f'Final score did not have team with {score_to_win} wins')
 
         if not self.final_score:
             self.logger.info(f'Deriving score from sum of won rounds (fallback)')
@@ -136,15 +145,6 @@ class Rounds:
                 sum(r.won is True for r in self.rounds),
                 sum(r.won is False for r in self.rounds),
             )
-
-        rounds_per_side = 12
-        score_to_win = 13
-        max_rounds = 25
-
-        if game_mode == game_modes.spike_rush:
-            rounds_per_side = 3
-            score_to_win = 4
-            max_rounds = 7
 
         if len(self.rounds) < score_to_win:
             raise BadRoundCount(f'Had game with less than {score_to_win} rounds')
@@ -241,6 +241,10 @@ class Rounds:
         game_mode: GameModeName,
         debug: Union[bool, str] = False
     ) -> Tuple[List[Round], Optional[Tuple[int, int]], bool]:
+
+        score_to_win = 13
+        if game_mode == game_modes.spike_rush:
+            score_to_win = 4
 
         score_timestamps = []
         frame_scores_data = []
@@ -367,7 +371,7 @@ class Rounds:
 
             # Find all potential round ends where score increases by one for one team
             self.logger.info(
-                f'    Checking for score transition from {score} '
+                f'  Checking for score transition from {score} '
                 f'starting at {round_start_index} / {(len(valid_timestamps[0]), len(valid_timestamps[1]))}'
             )
             edges = [
@@ -377,7 +381,11 @@ class Rounds:
                 )[0] + s) if score[i] <= 12 else []
                 for i, s in enumerate(round_start_index)
             ]
-            self.logger.info(f'    Got edges: {edges}')
+            self.logger.info(
+                f'    Got edges: {edges} -> '
+                f'{valid_timestamps[0][edges[0]] if len(edges[0]) else "-"}, '
+                f'{valid_timestamps[1][edges[1]] if len(edges[1]) else "-"}'
+            )
 
             all_edges = []
             for i in range(2):
@@ -437,9 +445,10 @@ class Rounds:
             score[winner_index] += 1
             round_start_timestamp = round_end_timestamp
 
-        score_to_win = 13
-        if game_mode == game_modes.spike_rush:
-            score_to_win = 4
+            if not has_score_resets and (score[0] == score_to_win or score[1] == score_to_win):
+                self.logger.info(f'    Score limit {score_to_win} reached')
+                break
+
         if has_score_resets:
             self.logger.info(f'Not checking for final round for scrims/score reset game')
         elif score[0] == score_to_win or score[1] == score_to_win:
@@ -506,8 +515,9 @@ class Rounds:
             else:
                 score = None
 
-        self.logger.info(f'Pulling round end {s2ts(rounds[-1].end)} -> {s2ts(end)}')
-        rounds[-1].end = end
+        if end < rounds[-1].end:
+            self.logger.info(f'Pulling round end {s2ts(rounds[-1].end)} -> {s2ts(end)}')
+            rounds[-1].end = end
 
         if debug in [True, self.__class__.__qualname__]:
             import matplotlib.pyplot as plt
