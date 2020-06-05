@@ -33,9 +33,11 @@ GET_VOD_URL = os.environ.get('GET_VOD_URL', 'https://m9e3shy2el.execute-api.us-w
 
 class NoMap(InvalidGame):
     pass
-
-
-class NoMode(InvalidGame):
+class InvalidMode(InvalidGame):
+    pass
+class NoMode(InvalidMode):
+    pass
+class UnsupportedMode(InvalidMode):
     pass
 
 
@@ -195,8 +197,9 @@ class ValorantGame:
         for mode_text in mode_texts:
             mode = textops.best_match(
                 mode_text,
-                [f'STANDARD - {m.upper()}' for m in data.game_modes[:-1]] + data.game_modes[:-1] + [data.game_modes.spike_rush.upper()],
-                data.game_modes[:-1] + data.game_modes,
+                [f'STANDARD - {m.upper()}' for m in data.game_modes[:-1]] +
+                data.game_modes[:-1] + [data.game_modes.spike_rush.upper(), 'spike rush - custom'.upper()],
+                data.game_modes[:-1] + data.game_modes + ['spike rush - custom'],
                 threshold=0.75,
                 disable_log=False,
             )
@@ -206,6 +209,8 @@ class ValorantGame:
             raise NoMode()
         bestmode, _ = modecounter.most_common(1)[0]
         self.logger.info(f'Resolving mode {modecounter} -> {bestmode}')
+        if bestmode == 'spike rush - custom':
+            raise UnsupportedMode()
         return bestmode
 
     def resolve_vod(self, frames: List[Frame], twitch_username: Optional[str]) -> Optional[Tuple[str, str]]:
