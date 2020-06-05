@@ -331,9 +331,22 @@ class Teams:
             plt.show()
 
         # Work out which is the firstperson player by matching agent selected at game start against team1
-        agent_select_frames = [f for f in frames if f.valorant.agent_select and f.valorant.agent_select.agent and f.valorant.agent_select.locked_in]
+        agent_select_frames = [
+            f
+            for f in frames
+            if f.valorant.agent_select and f.valorant.agent_select.agent
+        ]
+        valid_agent_select_frames = [
+            f
+            for f in agent_select_frames
+            if f.valorant.agent_select.locked_in
+        ]
+        if not len(valid_agent_select_frames) and len(agent_select_frames):
+            self.logger.warning(f'Got no locked in agent select frames - using {len(agent_select_frames)} not-locked-in frames')
+            valid_agent_select_frames = agent_select_frames
+
         if len(agent_select_frames):
-            agent_select = [f.valorant.agent_select.agent for f in agent_select_frames]
+            agent_select = [f.valorant.agent_select.agent for f in valid_agent_select_frames]
             self.logger.info(f'Resolving firstperson agent from agent select: {agent_select}')
             agent_select_counter = Counter(agent_select)
             if agent_select_counter[agent_select[0]] != len(agent_select):
