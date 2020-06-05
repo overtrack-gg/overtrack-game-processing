@@ -269,6 +269,9 @@ class Rounds:
         score_timestamps = np.array(score_timestamps)
         frame_scores = np.array(frame_scores_data, dtype=np.float).T
 
+        if not len(frame_scores) or frame_scores.shape[1] < 30:
+            raise NoScoresSeen()
+
         isvalid = []
         valid_timestamps = []
         valid_scores = []
