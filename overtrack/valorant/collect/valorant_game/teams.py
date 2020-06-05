@@ -10,8 +10,7 @@ from typing import List, Optional, Union, ClassVar, Tuple, TYPE_CHECKING, Dict
 
 from overtrack.frame import Frame
 from overtrack.util import textops, arrayops
-from overtrack.valorant.collect.valorant_game.invalid_game import InvalidGame
-from overtrack.valorant.collect.valorant_game.performance_stats import PerformanceStats
+from overtrack.valorant.collect.valorant_game import InvalidGame, PerformanceStats
 from overtrack.valorant.data import AgentName
 from overtrack.valorant.game.postgame import PlayerStats as PlayerStatsFrame
 from overtrack.valorant.game.top_hud.models import TeamComp
@@ -408,9 +407,7 @@ class Teams:
         timestamp = frames[0].timestamp
         team_agents_seen = [Counter() for _ in range(2)]
         for f in frames:
-            # Only look at buy phase comps because the players get reordered when death spectating
-            # Actually, we use the first 10s of a round to get extra data because players are dead here infrequently enough
-            if f.valorant.top_hud and any(r.buy_phase_start <= f.timestamp - timestamp <= r.end for r in rounds):
+            if f.valorant.top_hud:
                 for side in range(2):
                     for agent in f.valorant.top_hud.teams[side]:
                         if agent:

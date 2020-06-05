@@ -8,7 +8,7 @@ from typing import Optional
 
 from overtrack.util.logging_config import config_logger
 from overtrack.util.prettyprint import pprint
-from overtrack.valorant.collect.relational import *
+from overtrack.valorant.relational.models import ValorantGame, ValorantPlayer, ValorantRound
 from overtrack.valorant.data import game_modes
 from overtrack_models.queries.valorant.winrates import MapAgentWinrates, Winrates
 

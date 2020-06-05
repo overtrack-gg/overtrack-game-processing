@@ -1,9 +1,15 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy.orm import Session
 
-from overtrack.valorant.collect import ValorantGame
-from overtrack.valorant.collect import relational
-from overtrack.valorant.collect.valorant_game.kills import Kill
-from overtrack.valorant.collect.valorant_game.teams import Player
+from overtrack.valorant import relational
+
+if TYPE_CHECKING:
+    from overtrack.valorant.collect import ValorantGame
+    from overtrack.valorant.collect.valorant_game.kills import Kill
+    from overtrack.valorant.collect.valorant_game.teams import Player
+else:
+    ValorantGame = Kill = Player = object
 
 
 def record_game(session: Session, game_data: ValorantGame, user_id: int, commit: bool = True) -> None:

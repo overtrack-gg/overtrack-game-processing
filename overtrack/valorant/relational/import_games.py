@@ -1,27 +1,18 @@
-import queue
-
-import time
-
+import itertools
+import logging
+import os
 import requests
 import requests_cache
-from queue import Queue
-
-import logging
-
-import itertools
-
-from threading import Thread
-
+import time
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session as SessionType
-import os
+from threading import Thread
 
 from overtrack.util.logging_config import config_logger
-from overtrack.valorant.collect import relational
-from overtrack.valorant.collect.relational import record_game
+from overtrack.valorant import relational
+from overtrack.valorant.relational import record_game
 from overtrack_models.dataclasses.valorant import ValorantGame
 from overtrack_models.orm.valorant_game_summary import ValorantGameSummary
-
 
 requests_cache.install_cache('requests_cache')
 
@@ -46,6 +37,7 @@ class GameScanner(Thread):
         self._continue = False
 
     def run(self) -> None:
+
         for summary in ValorantGameSummary.scan(filter_condition=self.filter_condition, segment=self.segment, total_segments=self.total_segments):
             if not self._continue:
                 break
@@ -73,6 +65,8 @@ class GameScanner(Thread):
                 if any(p.name is None for p in game.teams.players):
                     continue
 
+                assert game.game_version != '0.12.0'
+
                 logging.info(f'Recording {game.key}')
                 t0 = time.perf_counter()
                 record_game(self.database_session, game, user_id=summary.user_id)
@@ -99,11 +93,11 @@ def import_all():
     engine = create_engine('sqlite:///games.db')
     Session = sessionmaker(bind=engine)
 
-    from overtrack.valorant.collect.relational.models import Base
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
+    # from overtrack.valorant.collect.relational.models import Base
+    # Base.metadata.drop_all(engine)
+    # Base.metadata.create_all(engine)
 
-    SHARDS = 1
+    SHARDS = 16
     threads = [
         GameScanner(Session(), i, SHARDS, ValorantGameSummary.version >= '1.0.0') for i in range(SHARDS)
     ]
