@@ -12,7 +12,7 @@ else:
     ValorantGame = Kill = Player = object
 
 
-def record_game(session: Session, game_data: ValorantGame, user_id: int, commit: bool = True) -> None:
+def record_game(session: Session, game_data: ValorantGame, user_id: int) -> None:
     game = relational.ValorantGame(
         key=game_data.key,
         user_id=user_id,
@@ -103,5 +103,3 @@ def record_game(session: Session, game_data: ValorantGame, user_id: int, commit:
                 headshot=kill.headshot,
             ))
 
-    if commit:
-        session.commit()
