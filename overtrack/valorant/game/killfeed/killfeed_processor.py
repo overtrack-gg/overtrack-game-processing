@@ -389,7 +389,7 @@ class KillfeedProcessor(Processor):
         killed_name_norm = 255 - imageops.normalise(killed_name_gray, min=170)
         return textops.strip_string(
             imageops.tesser_ocr(killed_name_norm, engine=imageops.tesseract_lstm).upper(),
-            alphabet=string.ascii_uppercase + string.digits + '#',
+            alphabet=string.ascii_uppercase + string.digits + '# ',
         )
 
     def _parse_weapon(self, frame, row, killer_agent_x, killer_agent) -> Tuple[Optional[str], float, float, float, int]:
