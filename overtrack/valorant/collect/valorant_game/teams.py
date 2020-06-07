@@ -9,8 +9,9 @@ from dataclasses import dataclass, fields, Field, field
 from typing import List, Optional, Union, ClassVar, Tuple, TYPE_CHECKING, Dict
 
 from overtrack.frame import Frame
+from overtrack.valorant.collect.valorant_game.performance_stats import PerformanceStats
 from overtrack.util import textops, arrayops
-from overtrack.valorant.collect.valorant_game import InvalidGame, PerformanceStats
+from overtrack.valorant.collect.valorant_game.invalid_game import InvalidGame
 from overtrack.valorant.data import AgentName
 from overtrack.valorant.game.postgame import PlayerStats as PlayerStatsFrame
 from overtrack.valorant.game.top_hud.models import TeamComp
@@ -418,16 +419,20 @@ class Teams:
         for side in range(2):
             self.logger.info(f'Team {side} had agents: {team_agents_seen[side]}')
 
-            if len(team_agents_seen[side]) < 5:
-                raise MissingAgents(f'Team {side} missing agents')
+            agents = team_agents_seen[side].most_common()
+            if len(agents) < 3:
+                raise MissingAgents(f'Team {side} had less than 3 agents')
+            elif len(agents) < 5:
+                self.logger.warning(f'Team {side} had less than 5 agents - some agents will be unknown')
+                agents = [a for a in agents] + [(None, 0) for _ in range(5 - len(agents))]
 
             team = []
-            for i, (agent, count) in enumerate(team_agents_seen[side].most_common()):
+            for i, (agent, count) in enumerate(agents):
                 if i < 5:
                     self.logger.info(f'Team {side} agent {i} was {agent} ({count} occurrences)')
                     team.append(agent)
                 else:
-                    self.logger.warning(f'Team {side} had {i}th agent {agent} ({count} occurrences)')
+                    self.logger.warning(f'Team {side} had {i + 1}th agent {agent} ({count} occurrences)')
                     error_agents |= count > 10
 
             assert len(team) == len(set(team)), f'Teamcomp had duplicate agents'
