@@ -146,9 +146,9 @@ class Rounds:
                 sum(r.won is False for r in self.rounds),
             )
 
-        if len(self.rounds) < score_to_win:
+        if len(self.rounds) < score_to_win and not self.has_game_resets:
             raise BadRoundCount(f'Had game with less than {score_to_win} rounds')
-        elif game_mode != game_modes.spike_rush and len(self.rounds) > max_rounds:
+        elif game_mode != game_modes.spike_rush and len(self.rounds) > max_rounds and not self.has_game_resets:
             raise BadRoundCount(f'Had standard game with more than {max_rounds} rounds')
         else:
             spike_carriers_per_side = [0, 0]
