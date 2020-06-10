@@ -142,7 +142,7 @@ class ValorantPlayer(Base):
     game_key = Column(ForeignKey('valorant_games.key'), primary_key=True)
     friendly = Column(Boolean, primary_key=True)
     agent = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(String)
 
     kills = relationship(
         'ValorantKill',

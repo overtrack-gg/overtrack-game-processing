@@ -98,6 +98,11 @@ class TopHudProcessor(Processor):
         name: load_agent_template(os.path.join(os.path.dirname(__file__), 'data', 'agents', name.lower() + '.png'))
         for name in agents
     }
+    AGENT_TEMPLATES_FLIP = {
+        name: (images[0][:, ::-1], images[1][:, ::-1])
+        for name, images
+        in AGENT_TEMPLATES.items()
+    }
     AGENT_TEMPLATE_REQUIRED_MATCH = 50
 
     HAVE_ULT_SIGNAL = np.array([1] * 5 + [0] * 44 + [1] * 5, dtype=np.float)
@@ -157,9 +162,13 @@ class TopHudProcessor(Processor):
                 agents.append(None)
                 logger.debug(f'Got agent {i}=None (blurlevel={blurlevel:.2f})')
             else:
+                templates = self.AGENT_TEMPLATES
+                if i > 4:
+                    templates = self.AGENT_TEMPLATES_FLIP
+                # cv2.imshow('agent', self.AGENT_TEMPLATES_FLIP['Raze'][0])
                 match, r_agent = imageops.match_templates(
                     agent_im,
-                    self.AGENT_TEMPLATES,
+                    templates,
                     method=cv2.TM_SQDIFF,
                     required_match=self.AGENT_TEMPLATE_REQUIRED_MATCH,
                     use_masks=True,
