@@ -104,6 +104,10 @@ class Player:
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
+    @property
+    def shortname(self) -> str:
+        return f'{["Enemy", "Friendly"][self.friendly]} {self.agent}'
+
     def resolve_name_from_killfeed(self, frames: List[Frame]):
         names = []
         for f in frames:
@@ -384,8 +388,13 @@ class Teams:
                 matching_stats = []
                 for scoreboard in scoreboards:
                     for stats in scoreboard.player_stats:
-                        if stats.agent == player.agent and stats.friendly == player.friendly:
-                            matching_stats.append(stats)
+                        if stats.friendly == player.friendly:
+                            if stats.agent == player.agent:
+                                self.logger.info(f'Matching stats for {stats.name!r} ({stats.agent or "?"}) to {player.name} ({player.shortname})')
+                                matching_stats.append(stats)
+                            elif not stats.agent and stats.name and player.name and levenshtein.ratio(stats.name.upper(), player.name.upper()) > 0.9:
+                                self.logger.info(f'Matching stats for {stats.name!r} ({stats.agent or "?"}) to {player.name} ({player.shortname})')
+                                matching_stats.append(stats)
                 if len(matching_stats):
                     self.logger.info(
                         f'Resolving team {int(not player.friendly) + 1} {player.agent} from {len(matching_stats)} scoreboard frames'
