@@ -38,9 +38,16 @@ class AgentSelectProcessor(Processor):
 
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
     AGENT_NAME_TEMPLATES: Dict[AgentName, np.ndarray] = {
-        agent_name: imageops.imread(
-            os.path.join(os.path.dirname(__file__), 'data', 'agent_names', agent_name.lower() + '.png'),
-            0
+        agent_name: cv2.copyMakeBorder(
+            imageops.imread(
+                os.path.join(os.path.dirname(__file__), 'data', 'agent_names', agent_name.lower() + '.png'),
+                0
+            ),
+            10,
+            10,
+            10,
+            10,
+            cv2.BORDER_CONSTANT
         )
         #     cv2.resize(
         #     cv2.imread(os.path.join(os.path.dirname(__file__), 'data', 'agent_names', agent_name + '.png'), 0),
@@ -50,7 +57,7 @@ class AgentSelectProcessor(Processor):
         # )
         for agent_name in agents
     }
-    AGENT_TEMPLATE_REQUIRED_MATCH = 0.75
+    AGENT_TEMPLATE_REQUIRED_MATCH = 0.95
 
     LOCK_IN_BUTTON_COLOR = (180, 210, 140)
 
