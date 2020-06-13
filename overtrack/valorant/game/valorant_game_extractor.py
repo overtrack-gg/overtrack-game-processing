@@ -142,7 +142,9 @@ class ValorantGameExtractor:
         if start_game:
             self.have_game = True
 
-        if self.have_game and not ignore_frame:
+        if ignore_frame:
+            frame.ignore = True
+        if self.have_game:
             self.frames.append(frame)
 
     def stop(self):
