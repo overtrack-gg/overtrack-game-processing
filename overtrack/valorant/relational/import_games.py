@@ -51,8 +51,8 @@ class GameScanner(Thread):
                     data = r.json()
                 game = ValorantGame.from_dict(data)
 
-            except:
-                self.logger.exception(f'Failed to download/load {summary.key!r}')
+            except Exception as e:
+                self.logger.warning(f'Failed to download/load {summary.key!r}: {e}')
             else:
                 if len(self.database_session.
                     query(relational.ValorantGame).
@@ -70,6 +70,7 @@ class GameScanner(Thread):
                 logging.info(f'Recording {game.key}')
                 t0 = time.perf_counter()
                 record_game(self.database_session, game, user_id=summary.user_id)
+                self.database_session.commit()
                 logging.info(f'Took {time.perf_counter() - t0:.3f}s')
 
 
@@ -93,7 +94,7 @@ def import_all():
     engine = create_engine('sqlite:///games.db')
     Session = sessionmaker(bind=engine)
 
-    # from overtrack.valorant.collect.relational.models import Base
+    # from overtrack.valorant.relational.models import Base
     # Base.metadata.drop_all(engine)
     # Base.metadata.create_all(engine)
 

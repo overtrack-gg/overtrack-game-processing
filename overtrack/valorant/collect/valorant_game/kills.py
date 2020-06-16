@@ -93,8 +93,6 @@ class Kills:
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def __init__(self, frames: List[Frame], teams: Teams, round: int, base_timestamp: float, round_start: float, round_end: float):
-        self.logger.info(f'Resolving kills for round staring at {s2ts(round_start)}')
-
         unresolved_kills = []
         recent_kills = {}
         _k2f = {}

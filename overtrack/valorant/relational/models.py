@@ -168,6 +168,8 @@ class ValorantRound(Base):
     end = Column(Float, nullable=False)
     attacking = Column(Boolean, nullable=False)
     won = Column(Boolean)
+    spike_planted = Column(Float)
+    win_type = Column(String)
 
     kills = relationship('ValorantKill')
     ults_used = relationship(

@@ -27,7 +27,7 @@ from overtrack.valorant.collect.valorant_game.clips import Clip, make_clips
 from overtrack.valorant.data import MapName, GameModeName, game_modes
 from overtrack_models.dataclasses.typedload import referenced_typedload, typedload
 
-VERSION = '1.0.1'
+VERSION = '1.1.0'
 GET_VOD_URL = os.environ.get('GET_VOD_URL', 'https://m9e3shy2el.execute-api.us-west-2.amazonaws.com/{twitch_user}/vod/{time}?pts={pts}')
 
 
@@ -123,7 +123,7 @@ class ValorantGame:
         self.teams = Teams(frames, self.rounds, debug)
 
         for r in self.rounds:
-            r.kills = Kills(frames, self.teams, r.index, self.timestamp, r.start, r.end)
+            r.resolve_kills_spike_win(frames, self.teams, self.timestamp)
 
         self.teams.resolve_performance(self.rounds)
 
@@ -153,7 +153,7 @@ class ValorantGame:
             vod_username = self.resolve_vod(frames, twitch_username)
             if vod_username:
                 self.vod, twitch_username = vod_username
-                self.clips = make_clips(self, frames, twitch_username)
+                # self.clips = make_clips(self, frames, twitch_username)
 
         self.game_version = data.get_version(self.time).name
 

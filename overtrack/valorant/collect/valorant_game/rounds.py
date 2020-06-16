@@ -5,7 +5,7 @@ import re
 from collections import Counter
 
 from overtrack.util.arrayops import modefilt
-from typing import List, Optional, ClassVar, Union, Tuple
+from typing import List, Optional, ClassVar, Union, Tuple, TYPE_CHECKING
 
 import itertools
 import numpy as np
@@ -13,9 +13,10 @@ from dataclasses import dataclass, field
 from overtrack.frame import Frame
 from overtrack.util import s2ts, arrayops
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
-from overtrack.valorant.collect.valorant_game.teams import Ult
+from overtrack.valorant.collect.valorant_game.teams import Ult, Teams
 from overtrack.valorant.collect.valorant_game.valorant_game import InvalidGame
 from overtrack.valorant.data import GameModeName, game_modes
+from overtrack.util.compat import Literal
 
 ROUND_ACTIVE_PHASE_DURATION = 100
 FIRST_BUY_PHASE_DURATION = 43
@@ -26,7 +27,7 @@ COUNTDOWN_PATTERN = re.compile(r'^[01]:\d\d$')
 HAS_SPIKE_THRESHOLD = 0.6
 
 
-def isotonic_regression(y, _=None, __=None, ___=None):
+def isotonic_regression(y):
     """Finds a non-decreasing fit for the specified `y` under L1 norm.
 
     The O(n log n) algorithm is described in:
@@ -76,6 +77,9 @@ class BadRoundCount(InvalidRounds):
     pass
 
 
+WinType = Literal['elimination', 'spike']
+
+
 @dataclass
 class Round:
     index: int
@@ -87,8 +91,90 @@ class Round:
     attacking: bool
     won: Optional[bool]
 
+    spike_planted: Optional[float]
+    win_type: Optional[WinType]
+
     kills: Kills
     ults_used: List[Ult] = field(default_factory=list)
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
+
+    def resolve_kills_spike_win(self, frames: List[Frame], teams: Teams, timestamp: float):
+        self.logger.info(f'Resolving kills for round {self.index + 1} {s2ts(self.start)} -> {s2ts(self.end)} (result={["Loss", "Win"][self.won] if self.won is not None else "?"})')
+        self.kills = Kills(frames, teams, self.index, timestamp, self.start, self.end)
+
+        players_alive = [5, 5]
+        for e in sorted(self.kills.kills + self.ults_used, key=lambda e: e.timestamp if isinstance(e, Kill) else e.lost):
+            if isinstance(e, Kill):
+                players_alive[not e.killed.friendly] -= 1
+            elif isinstance(e, Ult) and e.player.agent == 'Sage':
+                players_alive[not e.player.friendly] += 1
+                self.logger.info(f'    * {e}')
+        self.logger.info(f' Players alive at end: {players_alive[0]}-{players_alive[1]}')
+
+        spike_planted_t = []
+        spike_planted_raw = []
+        for f in frames:
+            if self.start <= f.timestamp - timestamp <= self.end and f.valorant.timer:
+                spike_planted_t.append(f.timestamp - (self.start + timestamp))
+                spike_planted_raw.append(f.valorant.timer.spike_planted)
+
+        spike_planted_t = np.array(spike_planted_t)
+        spike_planted_raw = np.array(spike_planted_raw, dtype=np.int)
+
+        # Probably overkill
+        spike_planted_filt = isotonic_regression(spike_planted_raw)
+
+        if np.sum(spike_planted_filt) > 5:
+            spike_planted_at = np.argmax(spike_planted_filt)
+            self.spike_planted = round(float(spike_planted_t[spike_planted_at]), 2)
+            self.logger.info(f' Spike was planted at {s2ts(self.spike_planted)}')
+
+            spike_live_time = (self.end - self.start) - self.spike_planted
+            self.logger.info(f' Spike was live for {spike_live_time:.1f}s')
+            if spike_live_time < 30:
+                self.win_type = 'elimination'
+                self.logger.info(f' Win type was "elimination" (spike not live long enough to detonate)')
+            else:
+                if any(a == 0 for a in players_alive):
+                    # TODO: investigate if the spike killed them
+                    self.win_type = 'elimination'
+                    self.logger.info(f' Win type was "elimination" (one team had 0 players alive)')
+                else:
+                    self.win_type = 'spike'
+                    self.logger.info(f' Win type was "spike" (both teams had players alive)')
+
+        else:
+            self.spike_planted = None
+            self.logger.info(' Spike was not planted')
+
+            self.win_type = 'elimination'
+            self.logger.info(f' Win type was "elimination" (no spike plant)')
+
+        if self.win_type == 'elimination':
+            if all(a > 0 for a in players_alive):
+                objective_won = None
+                self.logger.warning(' Win type was "elimination", but both teams had players alive')
+            elif all(a == 0 for a in players_alive):
+                objective_won = self.attacking == bool(self.spike_planted)
+                self.logger.info(
+                    f' Resolved objective_won={objective_won} from no players alive on either team, '
+                    f'with attacking={self.attacking}, spike_planted={bool(self.spike_planted)}'
+                )
+            else:
+                objective_won = players_alive[0] > 0
+                self.logger.info(f' Resolved objective_won={objective_won} from {players_alive[0]} friendly players alive')
+        else:
+            objective_won = self.attacking
+            self.logger.info(f' Resolved objective_won={objective_won} from attacking={self.attacking} with spike_planted=True')
+
+        if objective_won is None:
+            self.logger.error('Got unknown objective win result')
+        elif self.won is None:
+            self.won = objective_won
+            self.logger.warning(f' Deriving missing result for round={["Loss", "Win"][self.won]} from objective result')
+        elif objective_won != self.won:
+            self.logger.error('Got mismatching round result and objective result')
 
 
 @dataclass
@@ -229,6 +315,18 @@ class Rounds:
                 plt.plot(*sm)
                 plt.axhline(-(1 + HAS_SPIKE_THRESHOLD), linestyle='--', color='r')
 
+            sp = [], []
+            for f in frames:
+                if f.valorant.timer:
+                    sp[0].append(f.timestamp - timestamp)
+                    if f.valorant.timer.spike_planted:
+                        sp[1].append(-3.1)
+                    elif f.valorant.timer.buy_phase:
+                        sp[1].append(-2.1)
+                    else:
+                        sp[1].append(-2.6)
+            plt.plot(*sp)
+
             if len(self.rounds) >= 13:
                 plt.axvline(self.rounds[11].end)
 
@@ -269,6 +367,7 @@ class Rounds:
         score_timestamps = np.array(score_timestamps)
         frame_scores = np.array(frame_scores_data, dtype=np.float).T
 
+        print(frame_scores.shape)
         if not len(frame_scores) or frame_scores.shape[1] < 30:
             raise NoScoresSeen()
 
@@ -279,7 +378,7 @@ class Rounds:
         for i in range(2):
             isvalid.append(~np.isnan(frame_scores[i]))
             valid_timestamps.append(score_timestamps[isvalid[i]])
-            valid_scores.append(isotonic_regression(frame_scores[i, isvalid[i]].astype(np.int), 0, 13))
+            valid_scores.append(isotonic_regression(frame_scores[i, isvalid[i]].astype(np.int)))
             score_matches.append(np.mean(frame_scores[i, isvalid[i]] == valid_scores[i]))
         validcounts = (sum(isvalid[0]), sum(isvalid[1]))
         score_match = np.mean(score_matches)
@@ -408,6 +507,9 @@ class Rounds:
                 end=round(float(round_end_timestamp), 1),
                 attacking=False,
                 won=winner_index == 0,
+
+                spike_planted=None,
+                win_type=None,
                 kills=None,
             )
             self.logger.info(
@@ -505,6 +607,9 @@ class Rounds:
                 end=round(float(score_timestamps[-1]), 1),
                 attacking=False,
                 won=final_round_won,
+
+                spike_planted=None,
+                win_type=None,
                 kills=None
             )
             self.logger.info(f'Adding final round: {final_round}')

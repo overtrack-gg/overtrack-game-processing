@@ -183,15 +183,15 @@ class Player:
                     player=self,
                     index=i,
 
-                    gained=st,
-                    lost=et,
+                    gained=round(st, 2),
+                    lost=round(et, 2),
                     used=used,
 
-                    round_gained=round_gained,
-                    round_gained_timestamp=st - rounds[round_gained].start,
+                    round_gained=round(round_gained, 2),
+                    round_gained_timestamp=round(st - rounds[round_gained].start, 2),
 
                     round_lost=round_lost,
-                    round_lost_timestamp=round_lost_timestamp,
+                    round_lost_timestamp=round(round_lost_timestamp, 2),
                 )
                 self.logger.info(f'  {ult}{infostr}')
                 self.ults.append(ult)

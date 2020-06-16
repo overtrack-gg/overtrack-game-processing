@@ -85,6 +85,8 @@ def record_game(session: Session, game_data: ValorantGame, user_id: int) -> None
             end=round_data.end,
             attacking=round_data.attacking,
             won=round_data.won,
+            spike_planted=round_data.spike_planted,
+            win_type=round_data.win_type,
         ))
         kill: Kill
         for i, kill in enumerate(round_data.kills):
@@ -102,4 +104,13 @@ def record_game(session: Session, game_data: ValorantGame, user_id: int) -> None
                 wallbang=kill.wallbang,
                 headshot=kill.headshot,
             ))
+
+    for clip in game_data.clips:
+        session.add(relational.ValorantClip(
+            url=clip.url,
+            game=clip.game,
+            round_index=clip.round_index,
+            title=clip.title,
+            type=clip.type,
+        ))
 
