@@ -77,7 +77,7 @@ class BadRoundCount(InvalidRounds):
     pass
 
 
-WinType = Literal['elimination', 'spike']
+WinType = Literal['elimination', 'spike', 'timer']
 
 
 @dataclass
@@ -122,34 +122,44 @@ class Round:
         spike_planted_t = np.array(spike_planted_t)
         spike_planted_raw = np.array(spike_planted_raw, dtype=np.int)
 
-        # Probably overkill
-        spike_planted_filt = isotonic_regression(spike_planted_raw)
+        spike_planted_match = np.convolve(spike_planted_raw, np.ones((5, )), mode='same')
+        spike_planted_filt = isotonic_regression((spike_planted_match >= 2).astype(np.int))
 
-        if np.sum(spike_planted_filt) > 5:
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.scatter(spike_planted_t, spike_planted_raw)
+        # plt.scatter(spike_planted_t, spike_planted_match / 5)
+        # plt.axhline(2 / 5)
+        # plt.plot(spike_planted_t, spike_planted_filt)
+        # plt.show()
+
+        if np.sum(spike_planted_filt) > 3:
             spike_planted_at = np.argmax(spike_planted_filt)
             self.spike_planted = round(float(spike_planted_t[spike_planted_at]), 2)
             self.logger.info(f' Spike was planted at {s2ts(self.spike_planted)}')
 
             spike_live_time = (self.end - self.start) - self.spike_planted
             self.logger.info(f' Spike was live for {spike_live_time:.1f}s')
-            if spike_live_time < 30:
+            if any(a == 0 for a in players_alive):
+                # TODO: investigate if the spike killed them
                 self.win_type = 'elimination'
-                self.logger.info(f' Win type was "elimination" (spike not live long enough to detonate)')
+                self.logger.info(f' Win type was "elimination" (one team had 0 players alive)')
             else:
-                if any(a == 0 for a in players_alive):
-                    # TODO: investigate if the spike killed them
-                    self.win_type = 'elimination'
-                    self.logger.info(f' Win type was "elimination" (one team had 0 players alive)')
-                else:
-                    self.win_type = 'spike'
-                    self.logger.info(f' Win type was "spike" (both teams had players alive)')
+                self.win_type = 'spike'
+                self.logger.info(f' Win type was "spike" (both teams had players alive)')
 
         else:
             self.spike_planted = None
             self.logger.info(' Spike was not planted')
 
-            self.win_type = 'elimination'
-            self.logger.info(f' Win type was "elimination" (no spike plant)')
+            spike_live_time = None
+
+            if all(a > 0 for a in players_alive):
+                self.win_type = 'timer'
+                self.logger.info(f' Win type was "timer_expired" (no spike plant)')
+            else:
+                self.win_type = 'elimination'
+                self.logger.info(f' Win type was "elimination" (no spike plant)')
 
         if self.win_type == 'elimination':
             if all(a > 0 for a in players_alive):
@@ -164,12 +174,31 @@ class Round:
             else:
                 objective_won = players_alive[0] > 0
                 self.logger.info(f' Resolved objective_won={objective_won} from {players_alive[0]} friendly players alive')
+        elif self.win_type == 'spike':
+            if spike_live_time < 30:
+                objective_won = not self.attacking
+                self.logger.info(
+                    f' Resolved objective_won={objective_won} from attacking={self.attacking} '
+                    f'with spike_live_time={spike_live_time:.1f}s < 30s'
+                )
+            else:
+                self.logger.info(
+                    f' Unable to resolve objective_won with '
+                    f'spike live time spike_live_time={spike_live_time:.1f}s > 30s (both defuse and detonation are possible)')
+                objective_won = None
+        elif self.win_type == 'timer':
+            objective_won = not self.attacking
+            self.logger.info(
+                f' Resolved objective_won={objective_won} from attacking={self.attacking}'
+                f' with spike_planted=False and players alive on both teams'
+            )
         else:
-            objective_won = self.attacking
-            self.logger.info(f' Resolved objective_won={objective_won} from attacking={self.attacking} with spike_planted=True')
+            assert False, f'Invalid win_type {self.win_type!r}'
 
-        if objective_won is None:
-            self.logger.error('Got unknown objective win result')
+        if objective_won is None and self.win_type == 'elimination':
+            self.logger.error('Got unknown objective win result for "elimination" win round')
+        elif objective_won is None:
+            self.logger.warning(f'Got unknown objective win result for "{self.win_type}" round')
         elif self.won is None:
             self.won = objective_won
             self.logger.warning(f' Deriving missing result for round={["Loss", "Win"][self.won]} from objective result')
