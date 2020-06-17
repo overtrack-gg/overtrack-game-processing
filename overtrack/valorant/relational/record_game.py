@@ -85,7 +85,12 @@ def record_game(session: Session, game_data: ValorantGame, user_id: int) -> None
             end=round_data.end,
             attacking=round_data.attacking,
             won=round_data.won,
+
             spike_planted=round_data.spike_planted,
+            spike_planter_key=relational.PlayerKey(
+                friendly=round_data.spike_planter.friendly,
+                agent=round_data.spike_planter.agent,
+            ) if round_data.spike_planter else None,
             win_type=round_data.win_type,
         ))
         kill: Kill

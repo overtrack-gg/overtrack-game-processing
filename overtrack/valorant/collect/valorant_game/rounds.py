@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from overtrack.frame import Frame
 from overtrack.util import s2ts, arrayops
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
-from overtrack.valorant.collect.valorant_game.teams import Ult, Teams
+from overtrack.valorant.collect.valorant_game.teams import Ult, Teams, Player
 from overtrack.valorant.collect.valorant_game.valorant_game import InvalidGame
 from overtrack.valorant.data import GameModeName, game_modes
 from overtrack.util.compat import Literal
@@ -92,6 +92,7 @@ class Round:
     won: Optional[bool]
 
     spike_planted: Optional[float]
+    spike_planter: Optional[Player]
     win_type: Optional[WinType]
 
     kills: Kills
@@ -100,9 +101,33 @@ class Round:
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def resolve_kills_spike_win(self, frames: List[Frame], teams: Teams, timestamp: float):
-        self.logger.info(f'Resolving kills for round {self.index + 1} {s2ts(self.start)} -> {s2ts(self.end)} (result={["Loss", "Win"][self.won] if self.won is not None else "?"})')
+        self.logger.info(
+            f'Resolving kills for round {self.index + 1} '
+            f'{s2ts(self.start)} -> {s2ts(self.end)} '
+            f'(result={["Loss", "Win"][self.won] if self.won is not None else "?"})'
+        )
         self.kills = Kills(frames, teams, self.index, timestamp, self.start, self.end)
 
+        players_alive = self._get_players_alive_after()
+        self.logger.info(f' Players alive at end: {players_alive[0]}-{players_alive[1]}')
+
+        self.spike_planted, self.win_type = self._resolve_spike_plant(frames, timestamp, players_alive)
+        if self.spike_planted:
+            self.spike_planter = self._resolve_spike_planter(frames, timestamp, teams)
+
+        objective_won = self._resolve_objective_result(players_alive)
+
+        if objective_won is None and self.win_type == 'elimination':
+            self.logger.error('Got unknown objective win result for "elimination" win round')
+        elif objective_won is None:
+            self.logger.warning(f'Got unknown objective win result for "{self.win_type}" round')
+        elif self.won is None:
+            self.won = objective_won
+            self.logger.warning(f' Deriving missing result for round={["Loss", "Win"][self.won]} from objective result')
+        elif objective_won != self.won:
+            self.logger.error('Got mismatching round result and objective result')
+
+    def _get_players_alive_after(self) -> Tuple[int, int]:
         players_alive = [5, 5]
         for e in sorted(self.kills.kills + self.ults_used, key=lambda e: e.timestamp if isinstance(e, Kill) else e.lost):
             if isinstance(e, Kill):
@@ -110,8 +135,10 @@ class Round:
             elif isinstance(e, Ult) and e.player.agent == 'Sage':
                 players_alive[not e.player.friendly] += 1
                 self.logger.info(f'    * {e}')
-        self.logger.info(f' Players alive at end: {players_alive[0]}-{players_alive[1]}')
 
+        return players_alive[0], players_alive[1]
+
+    def _resolve_spike_plant(self, frames: List[Frame], timestamp: float, players_alive: Tuple[int, int]) -> Tuple[Optional[float], WinType]:
         spike_planted_t = []
         spike_planted_raw = []
         for f in frames:
@@ -122,7 +149,7 @@ class Round:
         spike_planted_t = np.array(spike_planted_t)
         spike_planted_raw = np.array(spike_planted_raw, dtype=np.int)
 
-        spike_planted_match = np.convolve(spike_planted_raw, np.ones((5, )), mode='same')
+        spike_planted_match = np.convolve(spike_planted_raw, np.ones((5,)), mode='same')
         spike_planted_filt = isotonic_regression((spike_planted_match >= 2).astype(np.int))
 
         # import matplotlib.pyplot as plt
@@ -133,34 +160,75 @@ class Round:
         # plt.plot(spike_planted_t, spike_planted_filt)
         # plt.show()
 
+        win_type: WinType
         if np.sum(spike_planted_filt) > 3:
             spike_planted_at = np.argmax(spike_planted_filt)
-            self.spike_planted = round(float(spike_planted_t[spike_planted_at]), 2)
-            self.logger.info(f' Spike was planted at {s2ts(self.spike_planted)}')
+            spike_planted = round(float(spike_planted_t[spike_planted_at]), 2)
+            self.logger.info(f' Spike was planted at {s2ts(spike_planted)}')
 
-            spike_live_time = (self.end - self.start) - self.spike_planted
-            self.logger.info(f' Spike was live for {spike_live_time:.1f}s')
             if any(a == 0 for a in players_alive):
                 # TODO: investigate if the spike killed them
-                self.win_type = 'elimination'
-                self.logger.info(f' Win type was "elimination" (one team had 0 players alive)')
+                win_type = 'elimination'
+                self.logger.info(f' Win type was "elimination" (one team had 0 players alive with spike plant)')
             else:
-                self.win_type = 'spike'
-                self.logger.info(f' Win type was "spike" (both teams had players alive)')
-
+                win_type = 'spike'
+                self.logger.info(f' Win type was "spike" (both teams had players alive with spike plant)')
         else:
-            self.spike_planted = None
+            spike_planted = None
             self.logger.info(' Spike was not planted')
 
-            spike_live_time = None
-
             if all(a > 0 for a in players_alive):
-                self.win_type = 'timer'
-                self.logger.info(f' Win type was "timer_expired" (no spike plant)')
+                win_type = 'timer'
+                self.logger.info(f' Win type was "timer_expired" (both teams had players alive with no spike plant)')
             else:
-                self.win_type = 'elimination'
-                self.logger.info(f' Win type was "elimination" (no spike plant)')
+                win_type = 'elimination'
+                self.logger.info(f' Win type was "elimination" (one team had 0 players alive with no plant)')
 
+        return spike_planted, win_type
+
+    def _resolve_spike_planter(self, frames: List[Frame], timestamp: float, teams: Teams) -> Optional[Player]:
+        if not self.attacking:
+            self.logger.info('Unable to resolve spike planter when firstperson is defending')
+            return None
+        self.logger.info(f'Resolving player planting spike')
+
+        has_spike_t = []
+        has_spike = [[] for _ in range(5)]
+        agent_at = [[] for _ in range(5)]
+        for f in frames:
+            if self.start <= f.timestamp - timestamp <= self.start + self.spike_planted + 10 and f.valorant.top_hud and f.valorant.top_hud.has_spike_match:
+                has_spike_t.append(f.timestamp - (timestamp + self.start))
+                for pi in range(5):
+                    agent_at[pi].append(f.valorant.top_hud.teams[0][pi])
+                    has_spike[pi].append(f.valorant.top_hud.has_spike_match[pi] or 0)
+
+        has_spike = [
+            np.convolve(np.array(hsi), np.ones(3, ) / 3, mode='same') if len(hsi) >= 3 else []
+            for hsi in has_spike
+        ]
+
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # for i in range(5):
+        #     plt.plot(has_spike_t, has_spike[i])
+        # plt.show()
+
+        for ti, t in reversed(list(enumerate(has_spike_t))):
+            for pi in range(5):
+                if has_spike[pi][ti] > 0.8:
+                    agent = agent_at[pi][ti]
+                    self.logger.info(f'Got {agent} holding spike at {s2ts(t)}')
+                    for p in teams.team1:
+                        if p.agent == agent:
+                            self.logger.info(f'Resolved to {p.shortname} ({p.name!r})')
+                            return p
+                    else:
+                        self.logger.warning('Could not find player matching agent')
+
+        self.logger.error('Could not find agent/player planting spike')
+        return None
+
+    def _resolve_objective_result(self, players_alive: Tuple[int, int]) -> bool:
         if self.win_type == 'elimination':
             if all(a > 0 for a in players_alive):
                 objective_won = None
@@ -175,6 +243,9 @@ class Round:
                 objective_won = players_alive[0] > 0
                 self.logger.info(f' Resolved objective_won={objective_won} from {players_alive[0]} friendly players alive')
         elif self.win_type == 'spike':
+            spike_live_time = (self.end - self.start) - self.spike_planted
+            self.logger.info(f' Spike was live for {spike_live_time:.1f}s')
+
             if spike_live_time < 30:
                 objective_won = not self.attacking
                 self.logger.info(
@@ -195,15 +266,7 @@ class Round:
         else:
             assert False, f'Invalid win_type {self.win_type!r}'
 
-        if objective_won is None and self.win_type == 'elimination':
-            self.logger.error('Got unknown objective win result for "elimination" win round')
-        elif objective_won is None:
-            self.logger.warning(f'Got unknown objective win result for "{self.win_type}" round')
-        elif self.won is None:
-            self.won = objective_won
-            self.logger.warning(f' Deriving missing result for round={["Loss", "Win"][self.won]} from objective result')
-        elif objective_won != self.won:
-            self.logger.error('Got mismatching round result and objective result')
+        return objective_won
 
 
 @dataclass
@@ -359,6 +422,14 @@ class Rounds:
             if len(self.rounds) >= 13:
                 plt.axvline(self.rounds[11].end)
 
+            plt.figure()
+            for i in range(5):
+                hs = [], []
+                for f in frames:
+                    if f.valorant.top_hud and f.valorant.top_hud.has_spike_match:
+                        hs[0].append(f.timestamp - timestamp)
+                        hs[1].append(f.valorant.top_hud.has_spike_match[i] or 0)
+                plt.plot(hs[0], np.convolve(hs[1], np.ones(3, ) / 3, mode='same'))
             plt.show()
 
     def _parse_rounds_from_scores(
@@ -538,6 +609,7 @@ class Rounds:
                 won=winner_index == 0,
 
                 spike_planted=None,
+                spike_planter=None,
                 win_type=None,
                 kills=None,
             )
@@ -638,6 +710,7 @@ class Rounds:
                 won=final_round_won,
 
                 spike_planted=None,
+                spike_planter=None,
                 win_type=None,
                 kills=None
             )

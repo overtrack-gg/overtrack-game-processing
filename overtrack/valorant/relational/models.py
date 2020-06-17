@@ -133,7 +133,10 @@ class ValorantUlt(Base):
         foreign_keys=[game_key, round_used_index],
         back_populates='ults_used',
     )
-    game = relationship('ValorantGame', back_populates='ults')
+    game = relationship(
+        'ValorantGame',
+        back_populates='ults',
+    )
 
 
 class ValorantPlayer(Base):
@@ -154,8 +157,14 @@ class ValorantPlayer(Base):
         primaryjoin=playerkey_primaryjoin('killed'),
         uselist=True,
     )
-    ults = relationship('ValorantUlt')
-    game = relationship('ValorantGame', back_populates='players')
+    ults = relationship(
+        'ValorantUlt',
+        cascade="all, delete-orphan",
+    )
+    game = relationship(
+        'ValorantGame',
+        back_populates='players'
+    )
 
 
 class ValorantRound(Base):
@@ -169,8 +178,29 @@ class ValorantRound(Base):
     attacking = Column(Boolean, nullable=False)
     won = Column(Boolean)
     spike_planted = Column(Float)
+    spike_planter_key = composite(
+        PlayerKey._from_db,
+        Column('_spike_planter_friendly', Boolean),
+        Column('_spike_planter_agent', String),
+    )
     win_type = Column(String)
 
+    __table_args__ = (
+        ForeignKeyConstraint(
+            (game_key, '_spike_planter_friendly', '_spike_planter_agent'),
+            ('valorant_players.game_key', 'valorant_players.friendly', 'valorant_players.agent'),
+        ),
+    )
+
+    spike_planter = relationship(
+        'ValorantPlayer',
+        primaryjoin='and_('
+                    'ValorantRound.game_key == ValorantPlayer.game_key, '
+                    'ValorantRound._spike_planter_friendly == True, '
+                    'ValorantRound._spike_planter_agent == ValorantPlayer.agent'
+                    ')',
+        uselist=False,
+    )
     kills = relationship('ValorantKill')
     ults_used = relationship(
         'ValorantUlt',
@@ -220,17 +250,80 @@ class ValorantGame(Base):
 
     firstperson_agent = Column(String)
 
-    clips = relationship('ValorantClip')
-    players = relationship('ValorantPlayer')
+    clips = relationship(
+        'ValorantClip',
+        cascade="all, delete-orphan",
+    )
+    players = relationship(
+        'ValorantPlayer',
+        cascade="all, delete-orphan",
+    )
     firstperson = relationship(
         'ValorantPlayer',
         primaryjoin='and_('
                     'ValorantPlayer.game_key == ValorantGame.key, '
-                    'ValorantPlayer.friendly == 1, '
+                    'ValorantPlayer.friendly == True, '
                     'ValorantPlayer.agent == ValorantGame.firstperson_agent'
                     ')',
         uselist=False,
     )
-    kills = relationship('ValorantKill')
-    rounds = relationship('ValorantRound')
-    ults = relationship('ValorantUlt')
+    kills = relationship(
+        'ValorantKill',
+        cascade="all, delete-orphan",
+    )
+    rounds = relationship(
+        'ValorantRound',
+        cascade="all, delete-orphan",
+    )
+    ults = relationship(
+        'ValorantUlt',
+        cascade="all, delete-orphan",
+    )
+
+
+def main():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker, Session as SessionType
+    import requests
+    from overtrack.valorant.relational import record_game
+    import overtrack_models.dataclasses.valorant
+    import os
+
+    # engine = create_engine('sqlite:///models_test.db', echo=True)
+    # Base.metadata.drop_all(engine)
+    # Base.metadata.create_all(engine)
+
+    engine = create_engine((
+        f'postgresql://'
+        f'overtrack'
+        f':'
+        f'{os.environ["PSQL_PASSWORD"]}'
+        f'@'
+        f'54.69.252.81'
+        f':'
+        f'{os.environ["PSQL_PORT"]}'
+        f'/overtrack'
+    ),
+        echo=True,
+        executemany_mode='batch',
+    )
+
+    Session = sessionmaker(bind=engine)
+
+    with requests.get('https://overtrack-valorant-games.s3.amazonaws.com/mendo/2020-06-16-04-37-jjPQM2.json') as r:
+        data = r.json()
+    g = overtrack_models.dataclasses.ValorantGame.from_dict(data)
+
+    s = Session()
+
+    dg = s.query(ValorantGame).filter(ValorantGame.key == g.key).first()
+    print(dg)
+    s.delete(dg)
+    s.commit()
+
+    record_game(s, g, 0)
+    s.commit()
+
+
+if __name__ == '__main__':
+    main()

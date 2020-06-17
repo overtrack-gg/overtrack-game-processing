@@ -27,7 +27,7 @@ from overtrack.valorant.collect.valorant_game.clips import Clip, make_clips
 from overtrack.valorant.data import MapName, GameModeName, game_modes
 from overtrack_models.dataclasses.typedload import referenced_typedload, typedload
 
-VERSION = '1.1.1'
+VERSION = '1.2.0'
 GET_VOD_URL = os.environ.get('GET_VOD_URL', 'https://m9e3shy2el.execute-api.us-west-2.amazonaws.com/{twitch_user}/vod/{time}?pts={pts}')
 
 
@@ -315,6 +315,8 @@ class ValorantGame:
 
         for r in convert.rounds:
             cast(Any, r).ults_used = [((u.player.friendly, u.player.agent), u.index) for u in r.ults_used]
+            if r.spike_planter:
+                cast(Any, r).spike_planter = (r.spike_planter.friendly, r.spike_planter.agent)
 
         for p in convert.teams.players:
             cast(Any, p).kills = [
