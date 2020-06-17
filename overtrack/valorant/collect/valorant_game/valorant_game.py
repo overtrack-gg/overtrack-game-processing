@@ -123,7 +123,7 @@ class ValorantGame:
         self.teams = Teams(frames, self.rounds, debug)
 
         for r in self.rounds:
-            r.resolve_kills_spike_win(frames, self.teams, self.timestamp)
+            r.resolve_kills_spike_win(frames, self.teams, self.timestamp, self.game_mode)
 
         self.teams.resolve_performance(self.rounds)
 

@@ -100,7 +100,7 @@ class Round:
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
-    def resolve_kills_spike_win(self, frames: List[Frame], teams: Teams, timestamp: float):
+    def resolve_kills_spike_win(self, frames: List[Frame], teams: Teams, timestamp: float, game_mode: Optional[GameModeName]):
         self.logger.info(
             f'Resolving kills for round {self.index + 1} '
             f'{s2ts(self.start)} -> {s2ts(self.end)} '
@@ -112,7 +112,7 @@ class Round:
         self.logger.info(f' Players alive at end: {players_alive[0]}-{players_alive[1]}')
 
         self.spike_planted, self.win_type = self._resolve_spike_plant(frames, timestamp, players_alive)
-        if self.spike_planted:
+        if self.spike_planted and game_mode and game_mode != game_modes.spike_rush:
             self.spike_planter = self._resolve_spike_planter(frames, timestamp, teams)
 
         objective_won = self._resolve_objective_result(players_alive)
@@ -148,6 +148,10 @@ class Round:
 
         spike_planted_t = np.array(spike_planted_t)
         spike_planted_raw = np.array(spike_planted_raw, dtype=np.int)
+
+        if len(spike_planted_raw) < 5:
+            self.logger.warning(f'Got no spike held samples')
+            return None, 'elimination'
 
         spike_planted_match = np.convolve(spike_planted_raw, np.ones((5,)), mode='same')
         spike_planted_filt = isotonic_regression((spike_planted_match >= 2).astype(np.int))
