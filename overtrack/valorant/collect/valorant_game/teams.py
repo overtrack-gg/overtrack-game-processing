@@ -390,10 +390,8 @@ class Teams:
                     for stats in scoreboard.player_stats:
                         if stats.friendly == player.friendly:
                             if stats.agent == player.agent:
-                                self.logger.info(f'Matching stats for {stats.name!r} ({stats.agent or "?"}) to {player.name} ({player.shortname})')
                                 matching_stats.append(stats)
                             elif not stats.agent and stats.name and player.name and levenshtein.ratio(stats.name.upper(), player.name.upper()) > 0.9:
-                                self.logger.info(f'Matching stats for {stats.name!r} ({stats.agent or "?"}) to {player.name} ({player.shortname})')
                                 matching_stats.append(stats)
                 if len(matching_stats):
                     self.logger.info(

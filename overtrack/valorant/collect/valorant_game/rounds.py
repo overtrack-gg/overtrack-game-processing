@@ -250,16 +250,16 @@ class Round:
             spike_live_time = (self.end - self.start) - self.spike_planted
             self.logger.info(f' Spike was live for {spike_live_time:.1f}s')
 
-            if spike_live_time < 30:
+            if spike_live_time < 20:
                 objective_won = not self.attacking
                 self.logger.info(
                     f' Resolved objective_won={objective_won} from attacking={self.attacking} '
-                    f'with spike_live_time={spike_live_time:.1f}s < 30s'
+                    f'with spike_live_time={spike_live_time:.1f}s < 20s'
                 )
             else:
                 self.logger.info(
                     f' Unable to resolve objective_won with '
-                    f'spike live time spike_live_time={spike_live_time:.1f}s > 30s (both defuse and detonation are possible)')
+                    f'spike live time spike_live_time={spike_live_time:.1f}s > 20s (both defuse and detonation are possible)')
                 objective_won = None
         elif self.win_type == 'timer':
             objective_won = not self.attacking
