@@ -132,10 +132,12 @@ class ValorantUlt(Base):
         'ValorantRound',
         foreign_keys=[game_key, round_used_index],
         back_populates='ults_used',
+        viewonly=True,
     )
     game = relationship(
         'ValorantGame',
         back_populates='ults',
+        viewonly=True,
     )
 
 
@@ -207,7 +209,8 @@ class ValorantRound(Base):
         primaryjoin=f'and_('
                     f'ValorantRound.game_key == ValorantUlt.game_key, '
                     f'ValorantRound.index == ValorantUlt.round_used_index'
-                    ')'
+                    ')',
+        sync_backref=False,
     )
 
 
@@ -278,6 +281,7 @@ class ValorantGame(Base):
     ults = relationship(
         'ValorantUlt',
         cascade="all, delete-orphan",
+        sync_backref=False,
     )
 
 

@@ -153,7 +153,7 @@ class ValorantGame:
             vod_username = self.resolve_vod(frames, twitch_username)
             if vod_username:
                 self.vod, twitch_username = vod_username
-                # self.clips = make_clips(self, frames, twitch_username)
+                self.clips = make_clips(self, frames, twitch_username)
 
         self.game_version = data.get_version(self.time).name
 
