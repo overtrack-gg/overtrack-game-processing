@@ -218,7 +218,7 @@ class ValorantClip(Base):
     __tablename__ = 'valorant_clips'
 
     url = Column(String, primary_key=True)
-    game = Column(ForeignKey('valorant_games.key'))
+    game_key = Column(ForeignKey('valorant_games.key'))
     round_index = Column(Integer, nullable=False)
     title = Column(String, nullable=False)
     type = Column(String, nullable=False)

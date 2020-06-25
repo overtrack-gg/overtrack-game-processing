@@ -113,8 +113,8 @@ def record_game(session: Session, game_data: ValorantGame, user_id: int) -> None
     for clip in game_data.clips:
         session.add(relational.ValorantClip(
             url=clip.url,
-            game=clip.game,
-            round_index=clip.round_index,
+            game_key=game.key,
+            round_index=clip.metadata['round'],
             title=clip.title,
             type=clip.type,
         ))
