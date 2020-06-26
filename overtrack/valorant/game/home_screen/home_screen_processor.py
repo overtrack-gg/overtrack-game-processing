@@ -8,7 +8,7 @@ import numpy as np
 
 from overtrack.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import time_processing, imageops
+from overtrack.util import time_processing, imageops, debugops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.game.home_screen.models import HomeScreen
 
@@ -35,21 +35,33 @@ def draw_home_screen(debug_image: Optional[np.ndarray], home_screen: HomeScreen)
 class HomeScreenProcessor(Processor):
 
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), 'data', 'regions', '16_9.zip'))
+    PLAY_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'play.png'), 0)
+    SEARCH_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'search.png'), 0)
 
     @time_processing
     def process(self, frame: Frame) -> bool:
         if frame.valorant.home_screen:
             return True
 
-        if self.ocr_match(frame, 'social', 'SOCIAL', 0.8) and (
-            self.ocr_match(frame, 'home', 'HOME', 0.7) or
-            self.ocr_match(frame, 'play', 'PLAY', 0.7)
+        if not imageops.match_thresh_template(
+            self.REGIONS['play'].extract_one(frame.image_yuv[:, :, 0]),
+            self.PLAY_TEMPLATE,
+            130,
+            0.95,
         ):
-            frame.valorant.home_screen = HomeScreen()
-            draw_home_screen(frame.debug_image, frame.valorant.home_screen)
-            return True
+            return False
 
-        return False
+        if not imageops.match_thresh_template(
+            self.REGIONS['search'].extract_one(frame.image_yuv[:, :, 0]),
+            self.SEARCH_TEMPLATE,
+            100,
+            0.95,
+        ):
+            return False
+
+        frame.valorant.home_screen = HomeScreen()
+        draw_home_screen(frame.debug_image, frame.valorant.home_screen)
+        return True
 
     def ocr_match(self, frame: Frame, region: str, target: str, requirement: float) -> bool:
         text = self.ocr_region(frame, region)
