@@ -537,7 +537,7 @@ class Rounds:
                     for score_reset_t in sorted(score_resets + [valid_timestamps[i][-1]]):
                         score_reset_i = bisect.bisect_right(valid_timestamps[i], score_reset_t)
                         scores_in_half = frame_scores[i, isvalid[i]][last_score_reset:score_reset_i]
-                        valid_scores_partial.append(isotonic_regression(scores_in_half.astype(np.int), 0, 13))
+                        valid_scores_partial.append(isotonic_regression(scores_in_half.astype(np.int)))
                         last_score_reset = score_reset_i
                     valid_scores_split.append(np.concatenate(valid_scores_partial))
                     assert len(valid_scores_split[i]) == len(frame_scores[i, isvalid[i]])

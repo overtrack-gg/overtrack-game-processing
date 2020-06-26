@@ -47,12 +47,12 @@ class ValorantGame:
     timestamp: float
     duration: float
 
-    spectated: bool
-
     won: Optional[bool]
 
     map: MapName
     game_mode: GameModeName
+    spectated: bool
+    rank: Optional[str]
     rounds: Rounds
     teams: Teams
 
@@ -120,7 +120,12 @@ class ValorantGame:
 
         self.rounds = Rounds(frames, self.game_mode, debug)
         self.duration = self.rounds[-1].end
-        self.teams = Teams(frames, self.rounds, debug)
+        self.teams = Teams(frames, self.rounds, self.game_mode, debug)
+
+        if self.game_mode == game_modes.competitive and self.teams.firstperson:
+            self.rank = self.teams.firstperson.rank
+        else:
+            self.rank = None
 
         for r in self.rounds:
             r.resolve_kills_spike_win(frames, self.teams, self.timestamp, self.game_mode)

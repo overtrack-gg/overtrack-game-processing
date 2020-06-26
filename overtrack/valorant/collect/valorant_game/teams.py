@@ -1,5 +1,5 @@
 import string
-from collections import Counter
+from collections import Counter, defaultdict
 
 import Levenshtein as levenshtein
 import itertools
@@ -9,10 +9,11 @@ from dataclasses import dataclass, fields, Field, field
 from typing import List, Optional, Union, ClassVar, Tuple, TYPE_CHECKING, Dict
 
 from overtrack.frame import Frame
+from overtrack.util.arrayops import most_common
 from overtrack.valorant.collect.valorant_game.performance_stats import PerformanceStats
 from overtrack.util import textops, arrayops
 from overtrack.valorant.collect.valorant_game.invalid_game import InvalidGame
-from overtrack.valorant.data import AgentName
+from overtrack.valorant.data import AgentName, GameModeName, game_modes, agents
 from overtrack.valorant.game.postgame import PlayerStats as PlayerStatsFrame
 from overtrack.valorant.game.top_hud.models import TeamComp
 
@@ -92,6 +93,7 @@ class Player:
     name: Optional[str]
     index: int
     friendly: bool
+    rank: Optional[str]
 
     ults: List[Ult] = field(default_factory=list)
     stats: Optional[PlayerStats] = field(repr=False, default=None)
@@ -281,16 +283,37 @@ class Teams:
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
-    def __init__(self, frames: List[Frame], rounds: Rounds, debug: Union[bool, str] = False):
+    def __init__(self, frames: List[Frame], rounds: Rounds, game_mode: GameModeName, debug: Union[bool, str] = False):
         # Resolve agents from top HUD
         teams = [], []
+
+        ranks = defaultdict(list)
+        if game_mode == game_modes.competitive:
+            self.logger.info(f'Resolving ranks from agent select')
+            for f in frames:
+                if f.valorant.agent_select and f.valorant.agent_select.agents and f.valorant.agent_select.ranks:
+                    for a, (rank, rank_match) in zip(f.valorant.agent_select.agents, f.valorant.agent_select.ranks):
+                        agent = textops.best_match(a, agents.keys(), threshold=0.8, disable_log=True)
+                        self.logger.debug(f'{a} => {agent} => {rank} ({rank_match})')
+                        if agent and rank_match < 20:
+                            ranks[agent].append(rank)
+            for k, v in ranks.items():
+                self.logger.info(f' {k}: {Counter(v)}')
+
+        self.logger.info(f'Resolving teamcomp')
         for i, teamcomp in enumerate(self._parse_teamcomps(frames, rounds)):
             for j, agent in enumerate(teamcomp):
+                rank = None
+                if i == 0 and agent in ranks:
+                    rank = most_common(ranks[agent])
+
+                self.logger.info(f' {["friendly", "enemy"][i]} {agent} {rank or ""}')
                 teams[i].append(Player(
                     agent=agent,
                     name=None,
                     friendly=i == 0,
                     index=j,
+                    rank=rank,
                 ))
         self.team1 = Team(teams[0], True)
         self.team2 = Team(teams[1], False)
@@ -390,8 +413,10 @@ class Teams:
                     for stats in scoreboard.player_stats:
                         if stats.friendly == player.friendly:
                             if stats.agent == player.agent:
+                                # self.logger.info(f'Matching stats for {stats.name!r} ({stats.agent or "?"}) to {player.name} ({player.shortname})')
                                 matching_stats.append(stats)
                             elif not stats.agent and stats.name and player.name and levenshtein.ratio(stats.name.upper(), player.name.upper()) > 0.9:
+                                # self.logger.info(f'Matching stats for {stats.name!r} ({stats.agent or "?"}) to {player.name} ({player.shortname})')
                                 matching_stats.append(stats)
                 if len(matching_stats):
                     self.logger.info(

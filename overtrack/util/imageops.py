@@ -417,28 +417,20 @@ def match_templates(
     return best
 
 
-def ocr_region(
-    frame: Frame,
-    regions: ExtractionRegionsCollection,
-    region: str,
-    engine: tesserocr.PyTessBaseAPI = tesseract_lstm,
-    threshold: Optional[int] = 50,
-    op=np.min,
-    **kwargs,
-) -> Optional[str]:
-    map_im = regions[region].extract_one(frame.image)
-    map_im_gray = 255 - normalise(op(map_im, axis=2), **kwargs)
-    # cv2.imshow('map_im_gray', map_im_gray)
-    map_text = tesser_ocr(
-        map_im_gray,
-        engine=engine,
+def match_thresh_template(image: np.ndarray, template: np.ndarray, threshold: float, match_threshold: float) -> bool:
+    _, thresh_im = cv2.threshold(
+        image,
+        threshold,
+        255,
+        cv2.THRESH_BINARY
     )
-    map_confidence = np.mean(engine.AllWordConfidences())
-    logger.debug(f'Got {region}={map_text!r}, confidence={map_confidence}')
-    if threshold is not None and map_confidence < threshold:
-        logger.warning(f'Map confidence for {region}: {map_text!r} below {threshold} (confidence={map_confidence}) - rejecting')
-        return None
-    return map_text
+    match = np.max(cv2.matchTemplate(
+        thresh_im,
+        template,
+        cv2.TM_CCORR_NORMED,
+    ))
+    print(match)
+    return match > match_threshold
 
 
 # if __name__ == '__main__':
@@ -461,6 +453,30 @@ def ocr_region(
 #     print('--')
 #     print(tesser_ocr(gray, whitelist=string.ascii_uppercase))
 #     print(tesser_ocr(gray, invert=True, whitelist=string.ascii_uppercase))
+
+
+def ocr_region(
+    frame: Frame,
+    regions: ExtractionRegionsCollection,
+    region: str,
+    engine: tesserocr.PyTessBaseAPI = tesseract_lstm,
+    threshold: Optional[int] = 50,
+    op=np.min,
+    **kwargs,
+) -> Optional[str]:
+    map_im = regions[region].extract_one(frame.image)
+    map_im_gray = 255 - normalise(op(map_im, axis=2), **kwargs)
+    # cv2.imshow('map_im_gray', map_im_gray)
+    map_text = tesser_ocr(
+        map_im_gray,
+        engine=engine,
+    )
+    map_confidence = np.mean(engine.AllWordConfidences())
+    logger.debug(f'Got {region}={map_text!r}, confidence={map_confidence}')
+    if threshold is not None and map_confidence < threshold:
+        logger.warning(f'Map confidence for {region}: {map_text!r} below {threshold} (confidence={map_confidence}) - rejecting')
+        return None
+    return map_text
 
 
 def bgr_2hsv(colour):
