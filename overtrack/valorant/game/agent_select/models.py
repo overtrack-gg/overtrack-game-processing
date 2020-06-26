@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List, Tuple
 
+from overtrack.util.uploadable_image import UploadableImage
 from overtrack.valorant.data import AgentName
 
 
@@ -11,5 +12,9 @@ class AgentSelect:
 
     map: Optional[str]
     game_mode: Optional[str] = None
-    # TODO: other player names? - include which one is first person?
-    # TODO: other agents?
+
+    player_names: Optional[List[str]] = None
+    agents: Optional[List[Optional[str]]] = None
+    ranks: Optional[List[Tuple[str, float]]] = None
+
+    image: Optional[UploadableImage] = None

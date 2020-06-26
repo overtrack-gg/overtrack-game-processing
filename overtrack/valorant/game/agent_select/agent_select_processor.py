@@ -1,8 +1,9 @@
+import glob
 import string
 
 import logging
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import Levenshtein as levenshtein
 import cv2
@@ -12,6 +13,7 @@ from overtrack.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import time_processing, imageops, debugops, textops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
+from overtrack.util.uploadable_image import lazy_upload
 from overtrack.valorant.data import agents, AgentName
 from overtrack.valorant.game.agent_select.models import AgentSelect
 
@@ -32,6 +34,14 @@ def draw_agent_select(debug_image: Optional[np.ndarray], agent_select: AgentSele
             c,
             t,
         )
+
+
+def load_rank_template(p: str) -> Tuple[np.ndarray, np.ndarray]:
+    image = imageops.imread(p, -1)
+    image = cv2.resize(image, (40, 40), cv2.INTER_CUBIC)
+    mask = image[:, :, 3]
+    _, mask = cv2.threshold(mask, 200, 255, cv2.THRESH_BINARY)
+    return image[:, :, :3], cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
 
 
 class AgentSelectProcessor(Processor):
@@ -59,6 +69,11 @@ class AgentSelectProcessor(Processor):
     }
     AGENT_TEMPLATE_REQUIRED_MATCH = 0.95
 
+    RANK_TEMPLATES: Dict[str, Tuple[np.ndarray, np.ndarray]] = {
+        str(os.path.basename(p)).rsplit('.', 1)[0]: load_rank_template(p)
+        for p in glob.glob(os.path.join(os.path.dirname(__file__), 'data', 'ranks', '*.png'))
+    }
+
     LOCK_IN_BUTTON_COLOR = (180, 210, 140)
 
     def __init__(self):
@@ -84,7 +99,10 @@ class AgentSelectProcessor(Processor):
             self.AGENT_NAME_TEMPLATES,
             method=cv2.TM_CCORR_NORMED,
             required_match=0.95,
+            # verbose=True,
         )
+        # self.REGIONS.draw(frame.debug_image)
+
         if match > self.AGENT_TEMPLATE_REQUIRED_MATCH:
             selected_agent_ims = self.REGIONS['selected_agents'].extract(frame.image)
             selected_agent_ims_gray = [
@@ -104,15 +122,41 @@ class AgentSelectProcessor(Processor):
                     if match > 0.7:
                         logger.info(f'Found matching locked in agent {text!r} for selecting agent {best_match!r} - selection locked')
                         picking = False
+
+            game_mode = imageops.ocr_region(frame, self.REGIONS, 'game_mode')
+
+            ranks = []
+            for i, im in enumerate(self.REGIONS['player_ranks'].extract(frame.image)):
+                match, matched_rank = imageops.match_templates(
+                    im,
+                    self.RANK_TEMPLATES,
+                    method=cv2.TM_SQDIFF,
+                    use_masks=True,
+                    required_match=15,
+                    previous_match_context=('player_ranks', i)
+                )
+                ranks.append((matched_rank, match))
+
+            player_name_ims = self.REGIONS['player_names'].extract(frame.image)
+            player_name_gray = [
+                255 - imageops.normalise(np.max(im, axis=2), bottom=50) for im in player_name_ims
+            ]
+            player_names = imageops.tesser_ocr_all(player_name_gray, engine=imageops.tesseract_lstm)
+
             frame.valorant.agent_select = AgentSelect(
                 best_match,
                 locked_in=not picking,
 
                 map=imageops.ocr_region(frame, self.REGIONS, 'map'),
-                game_mode=imageops.ocr_region(frame, self.REGIONS, 'game_mode'),
+                game_mode=game_mode,
+
+                player_names=player_names,
+                agents=selected_agent_texts,
+                ranks=ranks,
+
+                image=lazy_upload('agent_select', self.REGIONS.blank_out(frame.image), frame.timestamp, selection='last')
             )
             draw_agent_select(frame.debug_image, frame.valorant.agent_select)
-            self.REGIONS.draw(frame.debug_image)
             return True
 
         return False
