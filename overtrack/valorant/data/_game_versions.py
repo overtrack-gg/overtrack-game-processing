@@ -45,7 +45,7 @@ game_versions = [
     ),
     GameVersion(
         '01.03.0',
-        _parse_nzt('Jul 10 2020 1:00AM')
+        _parse_nzt('Jul 10 2020 10:00AM')
     ),
 ]
 
