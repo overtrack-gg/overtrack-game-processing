@@ -316,8 +316,10 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
         if show:
             cv2.imshow('debug', debug_image)
             if wait == 'sometimes':
-                cv2.waitKey(0 if result else 1)
+                c = cv2.waitKey(0 if result else 1)
             else:
-                cv2.waitKey(0 if wait else 1)
+                c = cv2.waitKey(0 if wait else 1)
+            if c == 115:
+                os.remove(p)
 
         print('-' * 32)

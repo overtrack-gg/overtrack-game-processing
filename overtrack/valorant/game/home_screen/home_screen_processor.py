@@ -47,7 +47,7 @@ class HomeScreenProcessor(Processor):
             self.REGIONS['play'].extract_one(frame.image_yuv[:, :, 0]),
             self.PLAY_TEMPLATE,
             130,
-            0.95,
+            0.8,
         ):
             return False
 
@@ -55,8 +55,16 @@ class HomeScreenProcessor(Processor):
             self.REGIONS['search'].extract_one(frame.image_yuv[:, :, 0]),
             self.SEARCH_TEMPLATE,
             100,
-            0.95,
+            0.8,
         ):
+            return False
+
+        play_text = imageops.ocr_region(
+            frame,
+            self.REGIONS,
+            'play',
+        )
+        if levenshtein.distance(play_text.upper(), 'PLAY') > 1:
             return False
 
         frame.valorant.home_screen = HomeScreen()

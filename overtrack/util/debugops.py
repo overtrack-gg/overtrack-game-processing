@@ -1,5 +1,7 @@
+from types import GeneratorType
+
 import inspect
-from typing import Any, Callable, List, Optional, Sequence, Tuple, Union, Dict
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Union, Dict, Iterable
 
 import cv2
 import numpy as np
@@ -8,7 +10,7 @@ from overtrack.util import imageops
 
 
 PREV_ARGS = {}
-def sliders(image: np.ndarray, **kwargs: Callable[[Any], np.ndarray]) -> Dict[str, List[int]]:
+def sliders(image: np.ndarray, scale=1, **kwargs: Callable[[Any], Union[np.ndarray, Iterable[np.ndarray]]]) -> Dict[str, List[int]]:
     assert len(kwargs)
     cv2.namedWindow('sliders')
 
@@ -47,6 +49,8 @@ def sliders(image: np.ndarray, **kwargs: Callable[[Any], np.ndarray]) -> Dict[st
                 inargs[fname].append(lv + cv2.getTrackbarPos(f'{fname}.{name}', 'sliders'))
             PREV_ARGS[fname] = inargs[fname]
             images = function(editable_image, *inargs[fname])
+            if isinstance(images, GeneratorType):
+                images = list(images)
             if isinstance(images, list) or isinstance(images, tuple):
                 editable_image = images[-1]
                 steps += list(images)
@@ -57,7 +61,7 @@ def sliders(image: np.ndarray, **kwargs: Callable[[Any], np.ndarray]) -> Dict[st
         height = max(i.shape[0] for i in steps)
         width = max(i.shape[1] for i in steps)
 
-        if height > width:
+        if height * 1.7 > width:
             stack = np.hstack
         else:
             stack = np.vstack
@@ -78,6 +82,14 @@ def sliders(image: np.ndarray, **kwargs: Callable[[Any], np.ndarray]) -> Dict[st
             for s in steps_v
         ]
         sim = stack(steps_v)
+        if scale != 1:
+            sim = cv2.resize(
+                sim,
+                (0, 0),
+                fx=scale,
+                fy=scale,
+                interpolation=cv2.INTER_NEAREST,
+            )
 
         cv2.imshow('sliders', sim)
         cv2.imshow('preview', sim)

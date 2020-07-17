@@ -113,6 +113,10 @@ upload_logs_settings: UploadLogsSettingsType = {
 }
 
 
+def logname(s: str) -> str:
+    return str(os.path.basename(s)).rsplit('.', 1)[0]
+
+
 def config_logger(
         name: str,
         level: int = logging.INFO,

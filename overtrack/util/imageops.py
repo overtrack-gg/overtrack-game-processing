@@ -429,7 +429,6 @@ def match_thresh_template(image: np.ndarray, template: np.ndarray, threshold: fl
         template,
         cv2.TM_CCORR_NORMED,
     ))
-    print(match)
     return match > match_threshold
 
 
