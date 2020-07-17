@@ -135,7 +135,7 @@ class AgentSelectProcessor(Processor):
                     required_match=15,
                     previous_match_context=('player_ranks', i)
                 )
-                ranks.append((matched_rank, match))
+                ranks.append((matched_rank, round(match, 3)))
 
             player_name_ims = self.REGIONS['player_names'].extract(frame.image)
             player_name_gray = [
