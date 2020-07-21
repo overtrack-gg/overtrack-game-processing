@@ -276,6 +276,7 @@ class Round:
 @dataclass
 class Rounds:
     rounds: List[Round]
+    score_from_rounds: Optional[Tuple[int, int]]
     final_score: Optional[Tuple[int, int]]
 
     attacking_first: bool
@@ -296,7 +297,7 @@ class Rounds:
 
     def __init__(self, frames: List[Frame], game_mode: GameModeName, debug: Union[bool, str] = False):
         timestamp = frames[0].timestamp
-        self.rounds, score_from_rounds, self.has_game_resets = self._parse_rounds_from_scores(
+        self.rounds, self.score_from_rounds, self.has_game_resets = self._parse_rounds_from_scores(
             frames,
             timestamp,
             game_mode,
@@ -314,11 +315,11 @@ class Rounds:
         # TODO: check against count of rounds, final score seen
         self.final_score = None
         if not self.has_game_resets:
-            self.final_score = score_from_rounds
+            self.final_score = self.score_from_rounds
 
             if not self.final_score:
                 self.logger.error('Could not derive final score')
-            elif not (self.final_score[0] == score_to_win or self.final_score[1] == score_to_win):
+            elif not (self.final_score[0] >= score_to_win or self.final_score[1] >= score_to_win):
                 self.logger.error(f'Final score did not have team with {score_to_win} wins')
 
         if not self.final_score:
@@ -330,8 +331,6 @@ class Rounds:
 
         if len(self.rounds) < score_to_win and not self.has_game_resets:
             raise BadRoundCount(f'Had game with less than {score_to_win} rounds')
-        elif game_mode != game_modes.spike_rush and len(self.rounds) > max_rounds and not self.has_game_resets:
-            raise BadRoundCount(f'Had standard game with more than {max_rounds} rounds')
         else:
             spike_carriers_per_side = [0, 0]
             for f in frames:
@@ -359,22 +358,24 @@ class Rounds:
                 for r in self.rounds[rounds_per_side:max_rounds - 1]:
                     r.attacking = True
             if len(self.rounds) >= 25:
-                self.logger.info(f'Game has sudden death round (round 25) - resolving attack defend')
-                spike_carriers_sudden_death = 0
-                for f in frames:
-                    if f.valorant.top_hud and f.timestamp - timestamp > self.rounds[24].start:
-                        if f.valorant.top_hud.has_spike_match:
-                            spike_carriers_sudden_death += any([
-                                m and m > HAS_SPIKE_THRESHOLD for m in f.valorant.top_hud.has_spike_match
-                            ])
-                        elif f.valorant.top_hud.has_spike:
-                            spike_carriers_sudden_death += any(f.valorant.top_hud.has_spike)
-                self.logger.info(f'Sudden death round had {spike_carriers_sudden_death} spikes seen')
-                if spike_carriers_sudden_death > 0:
-                    self.logger.info(f'Marking round 25 as attack')
-                    self.rounds[24].attacking = True
-                    if spike_carriers_sudden_death < 3:
-                        self.logger.error(f'Sudden death round has low (but nonzero) spike carriers observed')
+                self.logger.info(f'Game has tiebreaker rounds (rounds >= 25) - resolving attack defend')
+                for i, rnd in list(enumerate(self.rounds))[max_rounds - 1:]:
+                    self.logger.info(f'Resolving attacker for tiebreaker round {i}')
+                    spike_carriers = 0
+                    for f in frames:
+                        if f.valorant.top_hud and rnd.start < f.timestamp - timestamp < rnd.end:
+                            if f.valorant.top_hud.has_spike_match:
+                                spike_carriers += any([
+                                    m and m > HAS_SPIKE_THRESHOLD for m in f.valorant.top_hud.has_spike_match
+                                ])
+                            elif f.valorant.top_hud.has_spike:
+                                spike_carriers += any(f.valorant.top_hud.has_spike)
+                    self.logger.info(f'Tiebreaker round {i} had {spike_carriers} spikes seen')
+                    if spike_carriers > 0:
+                        self.logger.info(f'Marking round {i} as attack')
+                        self.rounds[24].attacking = True
+                        if spike_carriers < 3:
+                            self.logger.error(f'Sudden death round has low (but nonzero) spike carriers observed')
 
         self.attack_wins = sum(r.won is True for r in self.rounds if r.attacking)
         self.defence_wins = sum(r.won is True for r in self.rounds if not r.attacking)
@@ -655,15 +656,17 @@ class Rounds:
             score[winner_index] += 1
             round_start_timestamp = round_end_timestamp
 
-            if not has_score_resets and (score[0] == score_to_win or score[1] == score_to_win):
-                self.logger.info(f'    Score limit {score_to_win} reached')
-                break
+            # if not has_score_resets and (score[0] == score_to_win or score[1] == score_to_win):
+            #     self.logger.info(f'    Score limit {score_to_win} reached')
+            #     break
 
         if has_score_resets:
             self.logger.info(f'Not checking for final round for scrims/score reset game')
-        elif score[0] == score_to_win or score[1] == score_to_win:
+        elif len(rounds) < 25 and (score[0] == score_to_win or score[1] == score_to_win):
+            pass
+        elif len(rounds) >= 25 and score[0] > score[1] + 1 or score[1] > score[0] + 1:
             # Captured final score transition
-            self.logger.info(f'Final round score transition was captured - final round was included, final score={score[0]}-{score[1]}')
+            self.logger.info(f'Final round score transition was captured for game with tiebreaker - final round was included, final score={score[0]}-{score[1]}')
             score = score[0], score[1]
         else:
             self.logger.info(f'Final round score transition was not captured - resolving final round')
@@ -671,15 +674,18 @@ class Rounds:
             self.logger.info(f'Trying to identify final round winner')
             final_round_won = None
 
-            # Attempt to derive final round winner (and game winner) by if one team was up by more than 1 point
-            if score[0] == score_to_win - 1 and score[1] != score_to_win - 1:
-                self.logger.info(f'Deriving final round win=True from score={score[0]}-{score[1]}')
-                final_round_won = True
-            elif score[0] != score_to_win - 1 and score[1] == score_to_win - 1:
-                self.logger.info(f'Deriving final round win=False from score={score[0]}-{score[1]}')
-                final_round_won = False
-            else:
-                self.logger.warning(f'Could not resolve final round winner from {score[0]}-{score[1]}')
+            if len(rounds) < 25:
+                self.logger.info(f'Trying to resolve final round winner for non-tiebreaker')
+                # Attempt to derive final round winner (and game winner) by if one team was up by more than 1 point
+                if score[0] < score_to_win - 1 or score[1] < score_to_win - 1:
+                    if score[0] == score_to_win - 1 and score[1] != score_to_win - 1:
+                        self.logger.info(f'Deriving final round win=True from score={score[0]}-{score[1]}')
+                        final_round_won = True
+                    elif score[0] != score_to_win - 1 and score[1] == score_to_win - 1:
+                        self.logger.info(f'Deriving final round win=False from score={score[0]}-{score[1]}')
+                        final_round_won = False
+                    else:
+                        self.logger.warning(f'Could not resolve final round winner from {score[0]}-{score[1]}')
 
             # Attempt to derive final round winner by postgame game winner
             final_scores_observed = [Counter(), Counter()]
@@ -777,6 +783,17 @@ class Rounds:
             plt.legend()
 
         return rounds, score, has_score_resets
+
+    def recalculate_scores(self):
+        self.attack_wins = sum(r.won is True for r in self.rounds if r.attacking)
+        self.defence_wins = sum(r.won is True for r in self.rounds if not r.attacking)
+
+        if not self.score_from_rounds or self.has_game_resets:
+            self.logger.info(f'Deriving score from sum of won rounds (fallback)')
+            self.final_score = (
+                sum(r.won is True for r in self.rounds),
+                sum(r.won is False for r in self.rounds),
+            )
 
     def __iter__(self):
         return iter(self.rounds)

@@ -129,6 +129,7 @@ class ValorantGame:
 
         for r in self.rounds:
             r.resolve_kills_spike_win(frames, self.teams, self.timestamp, self.game_mode)
+        self.rounds.recalculate_scores()
 
         self.teams.resolve_performance(self.rounds)
 
