@@ -13,12 +13,12 @@ from overtrack.twitch import twitch_bot
 
 logger = logging.getLogger(__name__)
 
-APEX_GAMES_WEBHOOK = '**REMOVED**'
+APEX_GAMES_WEBHOOK = '***REMOVED***'
 
 
 class ApexDiscordMessage(DiscordMessage):
     DISCORD_BOT_TOKEN = os.environ['DISCORD_BOT_TOKEN']
-    CHANNEL_CREATE_MESSAGE = '**REMOVED**'
+    CHANNEL_CREATE_MESSAGE = 'https://discord.com/api/channels/%s/messages'
 
     IMAGE_PREFIX = 'https://cdn.overtrack.gg/static/images/apex/'
 
