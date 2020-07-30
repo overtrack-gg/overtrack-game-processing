@@ -19,7 +19,7 @@ from overtrack.overwatch.collect.notifications import DiscordMessage, hashtuple
 
 logger = logging.getLogger(__name__)
 
-VALORANT_GAMES_WEBHOOK = '**REMOVED**'
+VALORANT_GAMES_WEBHOOK = '***REMOVED***'
 
 SITE_URL = 'https://overtrack.gg/'
 ICON_URL = 'https://cdn.overtrack.gg/static/images/favicon.png'
