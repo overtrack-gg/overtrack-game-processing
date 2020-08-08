@@ -9,6 +9,8 @@ from pprint import pformat, pprint
 
 import requests
 from dataclasses import dataclass
+
+from overtrack.util import s2ts
 from overtrack.valorant.collect.valorant_game import ValorantGame
 
 from overtrack_models.orm.notifications import DiscordBotNotification, TwitchBotNotification
@@ -69,7 +71,7 @@ class ValorantDiscordMessage(DiscordMessage):
             },
             'timestamp': game.time.strftime('%Y-%m-%d %H:%M:%S'),
             'footer': {
-                'text': f'Duration {game.duration // 60:.0f}:{game.duration % 60:.0f}'
+                'text': f'Duration {s2ts(game.duration, zpad=False)}'
             }
         }
         if game.vod:

@@ -6,6 +6,7 @@ from pprint import pformat, pprint
 import requests
 
 from overtrack.overwatch.collect.notifications import DiscordMessage
+from overtrack.util import s2ts
 from overtrack_models.orm.apex_game_summary import ApexGameSummary
 from overtrack_models.orm.notifications import DiscordBotNotification, TwitchBotNotification
 from overtrack.apex.collect.apex_game import ApexGame
@@ -68,7 +69,7 @@ class ApexDiscordMessage(DiscordMessage):
             'description': description,
             'timestamp': game.time.strftime('%Y-%m-%d %H:%M:%S'),
             'footer': {
-                'text': f'Duration {game.duration // 60:.0f}:{game.duration % 60:.0f}'
+                'text': f'Duration {s2ts(game.duration, zpad=False)}'
             }
         }
 
