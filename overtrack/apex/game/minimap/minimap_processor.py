@@ -1,3 +1,4 @@
+import numpy as np
 import logging
 import os
 from collections import deque
@@ -47,7 +48,10 @@ def _draw_map_location(
 
     lines = [f'location={minimap.location}']
 
-    out = cv2.cvtColor(map_image[offset_y:-200, offset_x:-200], cv2.COLOR_GRAY2BGR)
+    if len(map_image.shape) == 2:
+        out = cv2.cvtColor(map_image[offset_y:-200, offset_x:-200], cv2.COLOR_GRAY2BGR)
+    else:
+        out = map_image[offset_y:-200, offset_x:-200]
     overlay = np.zeros_like(out)
     cv2.circle(
         out,
@@ -153,7 +157,7 @@ def _draw_map_location(
         outtl = (minimap.location.coordinates[0] - int(240 * minimap.location.zoom) // 2, minimap.location.coordinates[1] - int(240 * minimap.location.zoom) // 2)
     else:
         # rotate the map so we can draw the synthetic minimap with matching rotation
-        height, width, _ = out.shape
+        height, width = out.shape[:2]
         rot = cv2.getRotationMatrix2D(
             minimap.location.coordinates,
             minimap.location.bearing - 360,
@@ -280,7 +284,7 @@ def _draw_map_location(
 class MinimapProcessor(Processor):
     REGIONS = ExtractionRegionsCollection(os.path.join(os.path.dirname(__file__), '..', 'data', 'regions', '16_9.zip'))
     SPECTATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'spectate.png'), 0)
-    THRESHOLD = 0.3
+    THRESHOLD = 0.1
 
     offset_x = 0
     offset_y = 0
@@ -292,9 +296,20 @@ class MinimapProcessor(Processor):
         cls.offset_y = (w_h - im.shape[0]) // 2
         cls.offset_x = (w_h - im.shape[1]) // 2
         cls.MAP = cv2.copyMakeBorder(im, cls.offset_y, cls.offset_y, cls.offset_x, cls.offset_x, cv2.BORDER_CONSTANT)
-        cls.MAP_TEMPLATE = cv2.GaussianBlur(cls.MAP, (0, 0), 1.1).astype(np.float)
-        cls.MAP_TEMPLATE *= 2
-        cls.MAP_TEMPLATE = np.clip(cls.MAP_TEMPLATE, 0, 255).astype(np.uint8)
+        # cls.MAP_TEMPLATE = cv2.convertScaleAbs(cls.MAP, alpha=1.6, beta=-30)
+
+        LUT = np.linspace(-5, 10, 256)
+        LUT = 1 / (1 + np.exp(-LUT * 1.5))
+        cls.LUT = (LUT * 255).astype(np.uint8)
+        cls.MAP_TEMPLATE = cv2.LUT(cls.MAP, cls.LUT)
+        cls.MAP_TEMPLATE = cv2.GaussianBlur(cls.MAP_TEMPLATE, (0, 0), 1.5)#.astype(np.float)
+        # cls.MAP_TEMPLATE *= 1.1
+        # cls.MAP_TEMPLATE = np.clip(cls.MAP_TEMPLATE, 0, 255).astype(np.uint8)
+
+        cls.MAP = cls.MAP_TEMPLATE
+        # cls.MAP_TEMPLATE = cv2.GaussianBlur(cls.MAP, (0, 0), 1.1).astype(np.float)
+        # cls.MAP_TEMPLATE *= 2
+        # cls.MAP_TEMPLATE = np.clip(cls.MAP_TEMPLATE, 0, 255).astype(np.uint8)
 
     MAP_VERSION = 0
 
@@ -401,6 +416,104 @@ class MinimapProcessor(Processor):
         else:
             map_image = frame.image[114:114 + 240, 50:50 + 240]
 
+        map_image_y = cv2.cvtColor(map_image, cv2.COLOR_BGR2YUV)[:, :, 0]
+        map_image_y = cv2.LUT(map_image_y, self.LUT)
+        map_image_y = cv2.GaussianBlur(map_image_y, (0, 0), 1.5).astype(np.float)
+        map_image_y *= 1.5
+        map_image_y = np.clip(map_image_y, 0, 255).astype(np.uint8)
+        # map_image_y = cv2.convertScaleAbs(map_image_y, alpha=1.6, beta=-30)
+        # # map_edges = cv2.GaussianBlur(
+        # #     cv2.Canny(
+        # #         cv2.GaussianBlur(
+        # #             map_edges_y,
+        # #             (0, 0),
+        # #             1.0
+        # #         ),
+        # #         0,
+        # #         40,
+        # #     ),
+        # #     (0, 0),
+        # #     3.0
+        # # )
+        # # cv2.imshow('frame', frame.image)
+        # # cv2.imshow('map_im', map_image)
+        # # cv2.imshow('map_edges', map_edges)
+        # #
+        # def match(im, templatealpha_0_100_20, templatebeta_0_200_100, sub_0_50, rotated_0_1_1):
+        #     # w_h = max(im.shape[0] + 480, im.shape[1] + 480)
+        #     # offset_y = (w_h - im.shape[0]) // 2
+        #     # offset_x = (w_h - im.shape[1]) // 2
+        #     # im = cv2.copyMakeBorder(im, offset_y, offset_y, offset_x, offset_x, cv2.BORDER_CONSTANT)
+        #
+        #     template = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', '9.png'), 0)
+        #     template = cv2.copyMakeBorder(template, self.offset_y, self.offset_y, self.offset_x, self.offset_x, cv2.BORDER_CONSTANT)
+        #     template = cv2.convertScaleAbs(template, alpha=templatealpha_0_100_20 / 10, beta=-templatebeta_0_200_100)
+        #     template = cv2.add(template, -sub_0_50)
+        #
+        #     zoom = self._get_zoom(frame)
+        #     if rotated_0_1_1:
+        #         bearing = self._get_bearing(frame, frame.debug_image)
+        #     else:
+        #         bearing = None
+        #     location, match = self._get_location(im, bearing, zoom=zoom, base_template=template)
+        #     print(location)
+        #     #return im
+        #
+        #     match *= 255
+        #     # cv2.imshow('match', 255 - match.astype(np.uint8))
+        #
+        #     out = template[self.offset_y:-200, self.offset_x:-200]
+        #     if not rotated_0_1_1:
+        #         return out[
+        #             location.coordinates[1] - 240 // 2:location.coordinates[1] + 240 // 2,
+        #             location.coordinates[0] - 240 // 2:location.coordinates[0] + 240 // 2
+        #         ]
+        #     else:
+        #         height, width = out.shape[:2]
+        #         rot = cv2.getRotationMatrix2D(
+        #             location.coordinates,
+        #             location.bearing - 360,
+        #             1
+        #         )
+        #         rout = cv2.warpAffine(
+        #             out,
+        #             rot,
+        #             (width, height)
+        #         )
+        #         rout = cv2.resize(rout, (0, 0), fx=1 / location.zoom, fy=1 / location.zoom)
+        #         # cv2.imshow('rout', rout)
+        #         return rout[
+        #             int(location.coordinates[1] / location.zoom) - 240 // 2:
+        #             int(location.coordinates[1] / location.zoom) + 240 // 2,
+        #             int(location.coordinates[0] / location.zoom) - 240 // 2:
+        #             int(location.coordinates[0] / location.zoom) + 240 // 2
+        #         ]
+        #
+        # # debugops.sliders(
+        # #     map_image_y,
+        # #     scale=2,
+        # #     scaleAbs=lambda im, alpha_0_1000_200, beta_0_200_100: cv2.convertScaleAbs(im, alpha=alpha_0_1000_200 / 100, beta=beta_0_200_100 - 500),
+        # #     # yuv=lambda im: cv2.cvtColor(im, cv2.COLOR_BGR2YUV)[:, :, 0],
+        # #     # blur=lambda im, b_0_100: cv2.GaussianBlur(im, (0, 0), b_0_100 / 10) if b_0_100 else im,
+        # #     # canny=lambda im, v1_0_100, v2_0_100: cv2.Canny(im, v1_0_100, v2_0_100),
+        # #     # blur2=lambda im, b_0_100: cv2.GaussianBlur(im, (0, 0), b_0_100 / 10) if b_0_100 else im,
+        # #     match=match,
+        # # )
+        # debugops.sliders(
+        #     map_image_y,
+        #     scale=2,
+        #     exp=lambda im, v_0_10_5: (np.clip(cv2.exp(im.astype(np.float) / 255, 0.5 + v_0_10_5 / 10), 0, 1) * 255).astype(np.uint8),
+        #     scaleAbs=lambda im, alpha_0_100_20, beta_0_200_100: cv2.convertScaleAbs(im, alpha=alpha_0_100_20 / 10,
+        #                                                                                beta=-beta_0_200_100),
+        #     # add=lambda im, v_0_50: np.clip(im.astype(np.int) + v_0_50, 0, 255).astype(np.uint8),
+        #     # yuv=lambda im: cv2.cvtColor(im, cv2.COLOR_BGR2YUV)[:, :, 0],
+        #     # blur=lambda im, b_0_100: cv2.GaussianBlur(im, (0, 0), b_0_100 / 10) if b_0_100 else im,
+        #     # canny=lambda im, v1_0_100, v2_0_100: cv2.Canny(im, v1_0_100, v2_0_100),
+        #     # blur2=lambda im, b_0_100: cv2.GaussianBlur(im, (0, 0), b_0_100 / 10) if b_0_100 else im,
+        #     match=match,
+        # )
+        # return False
+
         t0 = time.perf_counter()
         filtered_minimap, filtered_rings = [
             np.clip(p[0], 0, 255).astype(np.uint8)
@@ -410,7 +523,7 @@ class MinimapProcessor(Processor):
 
         filtered = np.concatenate(
             (
-                np.expand_dims(filtered_minimap, axis=-1),
+                np.expand_dims(map_image_y[8:-8, 8:-8], axis=-1),
                 cv2.resize(filtered_rings, (filtered_minimap.shape[1], filtered_minimap.shape[0]), interpolation=cv2.INTER_NEAREST)
             ),
             axis=-1
@@ -426,23 +539,23 @@ class MinimapProcessor(Processor):
             logger.debug(f'Checking rotated first')
             bearing = self._get_bearing(frame, frame.debug_image)
             if bearing is not None:
-                location = self._get_location(filtered[:, :, 0], bearing, zoom=zoom)
+                location = self._get_location(map_image_y, bearing, zoom=zoom)
                 logger.debug(f'Got rotated location={location}')
             if (location is None or location.match > self.THRESHOLD) and self.map_rotate_in_config is None:
                 # try unrotated
-                alt_location = self._get_location(filtered[:, :, 0], zoom=zoom)
+                alt_location = self._get_location(map_image_y, zoom=zoom)
                 logger.debug(f'Got unrotated location={alt_location}')
                 if location is None or alt_location.match < location.match:
                     location = alt_location
                     bearing = None
         else:
             logger.debug(f'Checking unrotated first')
-            location = self._get_location(filtered[:, :, 0], zoom=zoom)
+            location = self._get_location(map_image_y, zoom=zoom)
             logger.debug(f'Got unrotated location={location}')
             if location.match > self.THRESHOLD and self.map_rotate_in_config is None:
                 bearing = self._get_bearing(frame, frame.debug_image)
                 if bearing is not None:
-                    alt_location = self._get_location(filtered[:, :, 0], bearing, zoom=zoom)
+                    alt_location = self._get_location(map_image_y, bearing, zoom=zoom)
                     logger.debug(f'Got rotated location={alt_location}')
                     if alt_location.match < location.match:
                         location = alt_location
@@ -451,7 +564,7 @@ class MinimapProcessor(Processor):
         logger.debug(f'match {(time.perf_counter() - t0) * 1000:.2f}')
 
         logger.debug(f'Got location: {location}')
-        if location and location.match < self.THRESHOLD:
+        if location:
             self.map_rotated.append(location.bearing is not None)
 
             # frame.minimap_filtered = filtered.copy()
@@ -571,19 +684,22 @@ class MinimapProcessor(Processor):
         else:
             return None
 
-    def _get_location(self, region: np.ndarray, bearing: Optional[int] = None, zoom: Optional[float] = None) -> Location:
+    def _get_location(self, region: np.ndarray, bearing: Optional[int] = None, zoom: Optional[float] = None, base_template=None) -> Location:
+        if base_template is None:
+            base_template = self.MAP_TEMPLATE
+
         rot = None
         if bearing is None:
-            map_template = self.MAP_TEMPLATE
+            map_template = base_template
         else:
-            height, width = self.MAP_TEMPLATE.shape
+            height, width = base_template.shape[:2]
             rot = cv2.getRotationMatrix2D(
-                (self.MAP_TEMPLATE.shape[1] // 2, self.MAP_TEMPLATE.shape[0] // 2),
+                (base_template.shape[1] // 2, base_template.shape[0] // 2),
                 bearing - 360,
                 1
             )
             map_template = cv2.warpAffine(
-                self.MAP_TEMPLATE,
+                base_template,
                 rot,
                 (width, height)
             )
@@ -596,6 +712,7 @@ class MinimapProcessor(Processor):
                 fy=zoom
             )
 
+        # cv2.imshow('map_template', map_template)
         match = cv2.matchTemplate(
             map_template,
             region,
@@ -626,7 +743,7 @@ class MinimapProcessor(Processor):
             min_val,
             bearing=bearing,
             zoom=zoom
-        )
+        )#, match
 
     def _update_composite(self, frame: Frame, location: Location, filtered: np.ndarray) -> None:
         current_game: Optional[CurrentGame] = getattr(frame, 'current_game', None)
@@ -812,8 +929,8 @@ def main() -> None:
         cv2.waitKey(0)
 
 
-MinimapProcessor.load_map(os.path.join(os.path.dirname(__file__), 'data', '7.png'))
-MinimapProcessor.MAP_VERSION = 7
+MinimapProcessor.load_map(os.path.join(os.path.dirname(__file__), 'data', '9.png'))
+MinimapProcessor.MAP_VERSION = 9
 
 
 def convert_tflite():
@@ -829,10 +946,24 @@ def convert_tflite():
 if __name__ == '__main__':
     # convert_tflite()
 
-    import glob
-    import json
-    from tqdm import tqdm
-    from overtrack import util
+    # im = cv2.imread('C:/tmp/minimap.png', 0)
+    #
+    # def lut(im, start_0_20_5, stop_0_20_10, k_0_20_10):
+    #     start = start_0_20_5
+    #     stop = stop_0_20_10
+    #     k = k_0_20_10 / 10
+    #
+    #     LUT = np.linspace(-start, stop, 256)
+    #     LUT = 1 / (1 + np.exp(-LUT * k))
+    #     LUT = (LUT * 255).astype(np.uint8)
+    #     print(LUT.shape, LUT)
+    #
+    #     return cv2.LUT(im, LUT)
+
+    # debugops.sliders(
+    #     im,
+    #     lut=lut,
+    # )
 
     proc = MinimapProcessor()
 
@@ -860,6 +991,6 @@ if __name__ == '__main__':
     #         cv2.imshow('debug', f.debug_image)
     #         cv2.waitKey(0)
 
-    util.test_processor("D:/overtrack/kings_canyon/game", proc, 'minimap', 'game_time', 'current_game', game='apex', test_all=False)
-
-    util.test_processor('minimap_s3', proc, 'minimap', 'game_time', 'current_game', game='apex', test_all=False)
+    # util.test_processor("D:/overtrack/kings_canyon/game", proc, 'minimap', 'game_time', 'current_game', game='apex', test_all=False)
+    from overtrack import util
+    util.test_processor('minimap_s3', proc, 'minimap', 'game_time', 'current_game', game='apex', test_all=False, warmup=False)
