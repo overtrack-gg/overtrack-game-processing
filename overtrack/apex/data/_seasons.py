@@ -39,6 +39,10 @@ _season_5_start = datetime.datetime.strptime(
     'May 12 2020 10:00AM',
     '%b %d %Y %I:%M%p'
 ).replace(tzinfo=_PDT)
+_season_6_start = datetime.datetime.strptime(
+    'Aug 18 2020 10:00AM',
+    '%b %d %Y %I:%M%p'
+).replace(tzinfo=_PDT)
 
 seasons = [
     Season(0, 0, _season_1_start.timestamp(), has_ranked=False),
@@ -46,7 +50,8 @@ seasons = [
     Season(2, _season_2_start.timestamp(), _season_3_start),
     Season(3, _season_3_start, _season_4_start.timestamp()),
     Season(4, _season_4_start.timestamp(), _season_5_start.timestamp()),
-    Season(5, _season_5_start.timestamp(), float('inf')),
+    Season(5, _season_5_start.timestamp(), _season_6_start.timestamp()),
+    Season(6, _season_6_start.timestamp(), float('inf')),
 
     Season(1002, 0, 0, season_name='Season 2 Solos', has_ranked=False),
     Season(1003, _season_3_start, _season_4_start.timestamp(), season_name='Season 3 Duos', has_ranked=False),

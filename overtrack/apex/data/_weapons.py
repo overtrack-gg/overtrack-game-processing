@@ -48,6 +48,7 @@ smgs = [
     Weapon('Alternator', 'smg', 'light'),
     Weapon('Prowler', 'smg', 'heavy'),
     Weapon('R-99', 'smg', 'light'),
+    Weapon('Volt', 'smg', 'energy'),
 ]
 snipers = [
     Weapon('Triple Take', 'sniper', 'sniper'),
