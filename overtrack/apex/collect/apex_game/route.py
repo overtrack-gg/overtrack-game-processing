@@ -141,13 +141,13 @@ class Route:
             worlds_edge_match = np.mean((x < data.worlds_edge_locations.width))
             self.logger.info(f'Got worlds edge match: {worlds_edge_match:.2f}')
             if worlds_edge_match < 0.25 and len(ts) > 10:
-                self.map = 'kings_canyon.s2'
+                self.map = 'kings_canyon.s6'
                 self.logger.info(f'Classifying map as Kings Canyon ({self.map!r})')
                 map_location_names = data.kings_canyon_locations
 
                 x -= data.worlds_edge_locations.width
             else:
-                self.map = 'worlds_edge.s4'
+                self.map = 'worlds_edge.s6'
                 self.logger.info(f'Classifying map as Worlds Edge ({self.map!r})')
                 map_location_names = data.worlds_edge_locations
 
