@@ -7,7 +7,7 @@ Role = Literal[
     'Controller'
     'Duelist',
     'Initiator',
-    'Sentinel'
+    'Sentinel',
 ]
 
 # Order based on hero select order in practice range
@@ -23,6 +23,7 @@ AgentName = Literal[
     'Omen',
     'Viper',
     'Reyna',
+    'Killjoy',
 ]
 
 
@@ -78,6 +79,10 @@ agents: Dict[AgentName, Agent] = {
         Agent(
             'Reyna',
             'Duelist'
+        ),
+        Agent(
+            'Killjoy',
+            'Sentinel'
         )
     ]
 }
