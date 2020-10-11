@@ -43,6 +43,10 @@ _season_6_start = datetime.datetime.strptime(
     'Aug 18 2020 10:00AM',
     '%b %d %Y %I:%M%p'
 ).replace(tzinfo=_PDT)
+_season_7_start = datetime.datetime.strptime(
+    'Nov 10 2020 10:00AM',
+    '%b %d %Y %I:%M%p'
+).replace(tzinfo=_PDT)
 
 seasons = [
     Season(0, 0, _season_1_start.timestamp(), has_ranked=False),
@@ -51,14 +55,16 @@ seasons = [
     Season(3, _season_3_start, _season_4_start.timestamp()),
     Season(4, _season_4_start.timestamp(), _season_5_start.timestamp()),
     Season(5, _season_5_start.timestamp(), _season_6_start.timestamp()),
-    Season(6, _season_6_start.timestamp(), float('inf')),
+    Season(6, _season_6_start.timestamp(), _season_7_start.timestamp()),
+    Season(7, _season_7_start.timestamp(), float('inf')),
 
     Season(1002, 0, 0, season_name='Season 2 Solos', has_ranked=False),
     Season(1003, _season_3_start, _season_4_start.timestamp(), season_name='Season 3 Duos', has_ranked=False),
-    Season(1004, _season_4_start.timestamp(), float('inf'), season_name='Season 4 Duos', has_ranked=False),
-    Season(1005, _season_5_start.timestamp(), float('inf'), season_name='Season 5 Duos', has_ranked=False),
+    Season(1004, _season_4_start.timestamp(), 1589302800.0, season_name='Season 4 Duos', has_ranked=False),
+    Season(1005, 1589302800.0, 1597766400.0, season_name='Season 5 Duos', has_ranked=False),
+    Season(1006, 1597726800.0, 1604984400.0, season_name='Season 6 Duos', has_ranked=False),
 
-    Season(2000, _season_3_start, float('inf'), season_name='Scrims', has_ranked=False),
+    # Season(2000, _season_3_start, float('inf'), season_name='Scrims', has_ranked=False),
 ]
 current_season = sorted([s for s in seasons if s.index < 100], key=lambda s: s.end)[-1]
 
