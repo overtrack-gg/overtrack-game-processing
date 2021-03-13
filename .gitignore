@@ -1,13 +1,11 @@
 .mypy_cache/
 .idea/
 .pytest_cache/
-poetry.lock
 
 *.pyc
 *.mp4
 *.pfx
 *.pem
-*.lock
 *.whl
 
 *.full.zip
