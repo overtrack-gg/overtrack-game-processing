@@ -2,7 +2,7 @@ import logging
 from collections import deque
 from typing import Callable, Iterable, Any, Optional
 
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 
 
 class Processor:

@@ -8,13 +8,13 @@ import numpy as np
 import shortuuid
 from dataclasses import dataclass
 
-from overtrack.apex import data
+from overtrack_cv.games.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
 from overtrack.apex.collect.apex_game.rank import Rank
 from overtrack.apex.collect.apex_game.route import Route
 from overtrack.apex.collect.apex_game.squad import APIOriginUser, Squad
 from overtrack.apex.collect.apex_game.weapons import Weapons
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack.util import arrayops, s2ts, validate_fields, frameload
 from overtrack_models.dataclasses import typedload
 
@@ -73,25 +73,25 @@ class ApexGame:
         your_squad_first_index = 0
         your_squad_last_index = 0
         for i, f in enumerate(frames):
-            if 'your_squad' in f or 'your_selection' in f:
+            if f.apex.your_squad or f.apex.your_selection:
                 if not your_squad_first_index:
                     your_squad_first_index = i
                 your_squad_last_index = i
 
-        self.solo = any('your_selection' in f for f in frames)
-        if self.solo and any('your_squad' in f for f in frames):
+        self.solo = any(f.apex.your_selection for f in frames)
+        if self.solo and any(f.apex.your_squad for f in frames):
             self.logger.error(f'Got game with both "your_selection" and "your_squad"')
             self.valid = False
 
-        squad_frames = sum('squad' in f for f in frames)
-        match_status_frames = sum('match_status' in f for f in frames)
+        squad_frames = sum(f.apex.squad is not None for f in frames)
+        match_status_frames = sum(f.apex.match_status is not None for f in frames)
         if squad_frames == 0 and match_status_frames == 0:
             self.logger.warning(f'Match had 0 squad/match status frames - detecting as invalid')
             self.valid = False
         else:
             self.logger.info(f'Match had {squad_frames} squad frames and {match_status_frames} match status frames')
 
-        selection_frames = [f for f in frames if 'your_squad' in f]
+        selection_frames = [f for f in frames if f.apex.your_squad]
         self.duos = self._get_is_duos(frames, selection_frames)
 
         self.squad_count = 20
@@ -102,13 +102,13 @@ class ApexGame:
             self.logger.info(f'Game is duos game')
             self.squad_count = 30
 
-        self.menu_frames = [f.apex_play_menu for f in frames if 'apex_play_menu' in f]
+        self.menu_frames = [f.apex.apex_play_menu for f in frames if f.apex.apex_play_menu]
         menu_names = [apex_play_menu.player_name for apex_play_menu in self.menu_frames]
         self.logger.info(f'Processing game from {len(frames) - your_squad_first_index} frames and {len(menu_names)} menu frames')
 
         if len(selection_frames):
             self.logger.info(
-                f'Match start from selection frame ({"your_squad" if "your_squad" in selection_frames[-1] else "your_champion"}) => '
+                f'Match start from selection frame ({"your_squad" if selection_frames[-1].apex.your_squad else "your_champion"}) => '
                 f'{selection_frames[-1].timestamp_str}'
             )
             self.match_started = round(selection_frames[-1].timestamp, 2)
@@ -144,12 +144,12 @@ class ApexGame:
             self.key = f'{datetimestr}-{shortuuid.uuid()[:6]}'
 
         self.match_status_frames = [
-            f.match_status
+            f.apex.match_status
             for f in self.frames
-            if 'match_status' in f and (f.match_status.squads_left is not None or f.match_status.solos_players_left is not None)
+            if f.apex.match_status and (f.apex.match_status.squads_left is not None or f.apex.match_status.solos_players_left is not None)
         ]
-        self.squad_summary_frames = [f.squad_summary for f in self.all_frames if 'squad_summary' in f]
-        self.match_summary_frames = [f.match_summary for f in self.all_frames if 'match_summary' in f]
+        self.squad_summary_frames = [f.apex.squad_summary for f in self.all_frames if f.apex.squad_summary]
+        self.match_summary_frames = [f.apex.match_summary for f in self.all_frames if f.apex.match_summary]
 
         self.placed = self._get_placed(debug)
 
@@ -159,8 +159,7 @@ class ApexGame:
             empty_rank_text = np.mean([f.rank_text == '' for f in self.match_status_frames])
             self.logger.info(f'Got ranked game with average badge match={avg_rank_match:.1f}, empty rank text={empty_rank_text*100:.0f}%')
             if avg_rank_match > 1000 and empty_rank_text > 0.5:
-                self.logger.warning(f'Game has bad rank badge match and low rank text - assuming "rank badge" is a custom mode icon - marking game as invalid')
-                self.valid = False
+                self.logger.warning(f'Game has bad rank badge match and low rank text - assuming "rank badge" is a custom mode icon')
             else:
                 self.mode = 'ranked'
         elif self.solo:
@@ -172,8 +171,8 @@ class ApexGame:
 
         config_name: Optional[str] = None
         for frame in self.frames:
-            if 'apex_metadata' in frame:
-                config_name = frame.apex_metadata.player_config_name
+            if frame.apex.apex_metadata:
+                config_name = frame.apex.apex_metadata.player_config_name
                 self.player_name = config_name
                 self.logger.info(f'Got player name from config: {config_name!r}')
 
@@ -252,16 +251,16 @@ class ApexGame:
 
         self.images = {}
         for f in frames:
-            if 'your_squad' in f and f.your_squad.images:
-                self.images['your_squad'] = f.your_squad.images.url
-            if 'your_selection' in f and f.your_selection.image:
-                self.images['your_selection'] = f.your_selection.image.url
-            if 'champion_squad' in f and f.champion_squad.images:
-                self.images['champion_squad'] = f.champion_squad.images.url
-            if 'match_summary' in f and f.match_summary.image:
-                self.images['match_summary'] = f.match_summary.image.url
-            if 'squad_summary' in f and f.squad_summary.image:
-                self.images['squad_summary'] = f.squad_summary.image.url
+            if f.apex.your_squad and f.apex.your_squad.images:
+                self.images['your_squad'] = f.apex.your_squad.images.url
+            if f.apex.your_selection and f.apex.your_selection.image:
+                self.images['your_selection'] = f.apex.your_selection.image.url
+            if f.apex.champion_squad and f.apex.champion_squad.images:
+                self.images['champion_squad'] = f.apex.champion_squad.images.url
+            if f.apex.match_summary and f.apex.match_summary.image:
+                self.images['match_summary'] = f.apex.match_summary.image.url
+            if f.apex.squad_summary and f.apex.squad_summary.image:
+                self.images['squad_summary'] = f.apex.squad_summary.image.url
 
         if champion:
             self.champion = {
@@ -279,17 +278,17 @@ class ApexGame:
             self.champion = None
 
     def _get_is_duos(self, frames: List[Frame], selection_frames: List[Frame]) -> bool:
-        duos_frames = [f for f in frames if ('your_squad' in f and f.your_squad.mode == 'duos')]
+        duos_frames = [f for f in frames if (f.apex.your_squad and f.apex.your_squad.mode == 'duos')]
         self.logger.info(f'Got {len(duos_frames)}/{len(selection_frames)} your_squad confirming game as duos')
         if len(duos_frames) > len(selection_frames) * 0.5:
             self.logger.info(f'Confirming games as duos')
             return True
-        duos_frames = [f.match_status.mode == 'duos' for f in frames if 'match_status' in f]
+        duos_frames = [f.apex.match_status.mode == 'duos' for f in frames if f.apex.match_status]
         self.logger.info(f'Got {sum(duos_frames)}/{len(duos_frames)} match_status confirming game as duos')
         if sum(duos_frames) > len(duos_frames) * 0.75:
             self.logger.info(f'Confirming games as duos')
             return True
-        duos_frames = [f.squad_summary.mode == 'duos' for f in frames if 'squad_summary' in f]
+        duos_frames = [f.apex.squad_summary.mode == 'duos' for f in frames if f.apex.squad_summary]
         self.logger.info(f'Got {sum(duos_frames)}/{len(duos_frames)} squad_summary confirming game as duos')
         if sum(duos_frames) > len(duos_frames) * 0.5:
             self.logger.info(f'Confirming games as duos')
@@ -335,7 +334,7 @@ class ApexGame:
     def _get_end_index(self, frames: List[Frame], your_squad_first_index: int) -> int:
         game_end_index = len(frames) - 1
         for i in range(game_end_index, 0, -1):
-            if 'match_status' in frames[i]:
+            if frames[i].apex.match_status:
                 self.logger.info(
                     f'Found last match_status at {i} -> {s2ts(frames[i].timestamp - frames[your_squad_first_index].timestamp)}: '
                     f'pulling end back from {game_end_index} -> {s2ts(frames[-1].timestamp - frames[your_squad_first_index].timestamp)}. '
@@ -518,7 +517,7 @@ def main() -> None:
 
     config_logger('apex_game', logging.INFO, False)
 
-    with open("C:/Users/simon/overtrack_2/client/build_client/games/1580279032_2.frames.json") as f:
+    with open("C:/Users/simon/overtrack_2/client/build_client/games/1615591285.frames.json") as f:
         data = json.load(f)
 
     t0 = time.perf_counter()
@@ -532,7 +531,7 @@ def main() -> None:
     # frames_ = __referenced_typedload.load(data, List[Frame])
     # print(f'Loaded {len(frames_)} in {time.perf_counter() - t0}s')
 
-    game = ApexGame(frames)
+    game = ApexGame(frames)#, debug='Route')
     pprint(game)
 
     # data = game.asdict()
@@ -546,7 +545,7 @@ def main() -> None:
     #
     # from overtrack.util.typedload import referenced_typedload
     #
-    # t0 = time.perf_counter()
+    # t0 = time.perf_counter()game
     # frames_data = frameload.frames_dump(frames)
     # print(time.perf_counter() - t0)
     #

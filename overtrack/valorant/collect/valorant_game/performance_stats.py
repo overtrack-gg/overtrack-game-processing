@@ -2,8 +2,8 @@ import numpy as np
 from typing import List, Optional, TYPE_CHECKING
 
 from dataclasses import dataclass, InitVar, field
-from overtrack.valorant.game.killfeed import Kill
 
+from overtrack_cv_private.games.valorant.processors.killfeed.models import Kill
 
 if TYPE_CHECKING:
     from overtrack.valorant.collect.valorant_game.rounds import Rounds

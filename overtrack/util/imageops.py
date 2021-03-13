@@ -9,7 +9,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple, 
 import cv2
 import numpy as np
 import tesserocr
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 
 logger = logging.getLogger(__name__)

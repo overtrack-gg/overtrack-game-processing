@@ -5,12 +5,12 @@ import re
 from collections import Counter
 
 from overtrack.util.arrayops import modefilt
-from typing import List, Optional, ClassVar, Union, Tuple, TYPE_CHECKING
+from typing import List, Optional, ClassVar, Union, Tuple
 
 import itertools
 import numpy as np
 from dataclasses import dataclass, field
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack.util import s2ts, arrayops
 from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
 from overtrack.valorant.collect.valorant_game.teams import Ult, Teams, Player

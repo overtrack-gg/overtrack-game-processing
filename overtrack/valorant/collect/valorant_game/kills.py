@@ -6,9 +6,9 @@ import Levenshtein as levenshtein
 import numpy as np
 from dataclasses import dataclass, field
 
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack.util import s2ts, arrayops
-from overtrack.valorant.game.killfeed import Kill as FrameKill
+from overtrack_cv_private.games.valorant.processors.killfeed.models import Kill as FrameKill
 
 if TYPE_CHECKING:
     from overtrack.valorant.collect.valorant_game.teams import Teams, Player, AgentName

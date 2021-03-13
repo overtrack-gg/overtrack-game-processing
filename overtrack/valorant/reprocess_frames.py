@@ -5,10 +5,9 @@ import os
 import cv2
 from tqdm import tqdm
 
-from overtrack.frame import Frame, Timings
+from overtrack_cv.frame import Frame, Timings
 from overtrack.util import frameload
-from overtrack.valorant.game.default_pipeline import create_pipeline
-from overtrack.valorant.game.top_hud.top_hud_processor import TopHudProcessor
+from overtrack.valorant.game import create_pipeline
 
 
 def main():

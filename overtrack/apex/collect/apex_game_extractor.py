@@ -4,7 +4,7 @@ from collections import deque
 from typing import Callable, List, Optional
 
 from overtrack.apex.collect.apex_game import ApexGame
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack_models.dataclasses.typedload import referenced_typedload
 from overtrack.util.logging_config import config_logger
 

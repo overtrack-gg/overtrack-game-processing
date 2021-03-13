@@ -6,7 +6,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import timedelta
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack.util import s2ts
 from typing import TYPE_CHECKING, List, Dict, Union, Optional
 

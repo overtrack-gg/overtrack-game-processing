@@ -6,10 +6,10 @@ import numpy as np
 import tabulate
 from dataclasses import dataclass
 
-from overtrack.apex import data
+from overtrack_cv.games.apex import data
 from overtrack.apex.collect.apex_game.squad import APIOriginUser, APIStats
-from overtrack.apex.game.match_status import MatchStatus
-from overtrack.apex.game.menu import PlayMenu
+from overtrack_cv.games.apex.processors.match_status.models import MatchStatus
+from overtrack_cv.games.apex.processors.menu.models import PlayMenu
 from overtrack.util import arrayops, textops, validate_fields
 
 

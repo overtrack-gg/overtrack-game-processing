@@ -12,7 +12,7 @@ import typing
 from overtrack.util.prettyprint import pformat
 
 if TYPE_CHECKING:
-    from overtrack.frame import Frame, CurrentGame
+    from overtrack_cv.frame import Frame, CurrentGame
 
 logger = logging.getLogger(__name__)
 
@@ -219,11 +219,9 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
     import cv2
     import os
     import tabulate
-    import json
     from pprint import pprint
-    from overtrack.frame import Frame, CurrentGame
+    from overtrack_cv.frame import Frame, CurrentGame
     from overtrack.util import frameload
-    from overtrack_models.dataclasses.typedload import referenced_typedload
 
     from overtrack.util.logging_config import config_logger
 
@@ -310,7 +308,7 @@ def test_processor(images: str, proc, *fields: str, game='overwatch', show=True,
             )
             for n in fields
         ]))
-        pprint(f.timings)
+        # pprint(f.timings)
         print()
 
         if show:

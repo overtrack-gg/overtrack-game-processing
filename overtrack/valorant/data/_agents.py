@@ -24,6 +24,8 @@ AgentName = Literal[
     'Viper',
     'Reyna',
     'Killjoy',
+    'Skye',
+    'Yoru'
 ]
 
 
@@ -83,6 +85,14 @@ agents: Dict[AgentName, Agent] = {
         Agent(
             'Killjoy',
             'Sentinel'
-        )
+        ),
+        # Agent(
+        #     'Skye',
+        #     'Initiator'
+        # ),
+        # Agent(
+        #     'Yoru',
+        #     'Duelist'
+        # )
     ]
 }

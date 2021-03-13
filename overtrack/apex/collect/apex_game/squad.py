@@ -1,18 +1,18 @@
-import logging
 from collections import Counter
-from typing import ClassVar, Dict, List, Optional, Tuple, Union
 
 import Levenshtein as levenshtein
 import itertools
+import logging
 import numpy as np
 import tabulate
 from dataclasses import dataclass, fields
+from typing import ClassVar, Dict, List, Optional, Tuple, Union
 
-from overtrack.apex import data
-from overtrack.apex.game.match_summary.models import MatchSummary
-from overtrack.apex.game.squad_summary.models import PlayerStats as SquadSummaryStats
-from overtrack.frame import Frame
+from overtrack_cv.games.apex import data
 from overtrack.util import arrayops, textops, validate_fields
+from overtrack_cv.frame import Frame
+from overtrack_cv.games.apex.processors.match_summary.models import MatchSummary
+from overtrack_cv.games.apex.processors.squad_summary.models import PlayerStats as SquadSummaryStats
 
 try:
     from typing import TypedDict
@@ -136,7 +136,7 @@ class Player:
                  is_owner: bool = False,
                  name_from_config: bool = False):
 
-        squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
+        squad_summaries = [f.apex.squad_summary for f in frames if f.apex.squad_summary]
 
         self.logger.info(
             f'Resolving player with estimated name={name!r}, champion={champion} '
@@ -173,7 +173,7 @@ class Player:
                 self.logger.info(f'Not using stats/name from endgame for {self.name} ({self.champion}) - stats didn\'t look valid (name={own_stats_name})')
 
         if is_owner:
-            summaries = [f.match_summary for f in frames if 'match_summary' in f]
+            summaries = [f.apex.match_summary for f in frames if f.apex.match_summary]
             if len(summaries):
                 self.logger.info(f'Resolving stat from {len(summaries)} match summary (XP) frames')
                 summary_stats = self._make_summary_stats(summaries)
@@ -363,7 +363,7 @@ class Squad:
             treat_unknown_champion_as: Optional[str] = None,
             debug: Union[bool, str] = False):
 
-        self.squad = [f.squad for f in frames if 'squad' in f]
+        self.squad = [f.apex.squad for f in frames if f.apex.squad]
         self.logger.info(f'Processing squad from {len(self.squad)} squad frames')
 
         if debug is True or debug == self.__class__.__name__:
@@ -410,7 +410,7 @@ class Squad:
             self.logger.warning(f'Got unknown champion with treat_unknown_champion_as={treat_unknown_champion_as!r} - updating champion')
             champions[champions.index(None)] = treat_unknown_champion_as
 
-        squad_summaries = [f.squad_summary for f in frames if 'squad_summary' in f]
+        squad_summaries = [f.apex.squad_summary for f in frames if f.apex.squad_summary]
         if len(squad_summaries) and any(champions):
             self.logger.info(f'Resolving players from {len(squad_summaries)} squad summary frames')
             all_player_stats: List[List[SquadSummaryStats]] = [[] for c in champions if c]
@@ -570,7 +570,7 @@ class Squad:
     def _debug_champions(self, frames):
         import matplotlib.pyplot as plt
 
-        ts = [frame.timestamp - frames[0].timestamp for frame in frames if 'squad' in frame]
+        ts = [frame.timestamp - frames[0].timestamp for frame in frames if frame.apex.squad]
 
         def make_champion_plot(vals):
             for i, (s, c) in enumerate(data.champions.items()):
@@ -708,7 +708,7 @@ class Squad:
         else:
             derived_squad_kills = None
 
-        squad_summary = [f.squad_summary for f in frames if 'squad_summary' in f]
+        squad_summary = [f.apex.squad_summary for f in frames if f.apex.squad_summary]
         self.logger.info(f'Parsing squad kills from {len(squad_summary)} squad summary frames')
         squad_kills_counter = Counter([s.squad_kills for s in squad_summary if s.squad_kills is not None])
         if not len(squad_kills_counter):

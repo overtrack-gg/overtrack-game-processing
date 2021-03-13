@@ -3,16 +3,16 @@ import json
 import logging
 import os
 from collections import deque
-from typing import Deque, Optional, List
+from typing import Deque, Optional
 
 import cv2
 
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack.processor import Processor
 from overtrack.util import frameload, uploadable_image
 from overtrack.util.logging_config import intermittent_log
-from overtrack.valorant.game.agent_select.agent_select_processor import AgentSelectProcessor
-from overtrack.valorant.game.default_pipeline import create_pipeline
+from overtrack.valorant.game import AgentSelectProcessor
+from overtrack.valorant.game import create_pipeline
 
 
 class ValorantGameExtractor:

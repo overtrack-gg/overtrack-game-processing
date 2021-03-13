@@ -8,14 +8,14 @@ import numpy as np
 from dataclasses import dataclass, fields, Field, field
 from typing import List, Optional, Union, ClassVar, Tuple, TYPE_CHECKING, Dict
 
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack.util.arrayops import most_common
 from overtrack.valorant.collect.valorant_game.performance_stats import PerformanceStats
 from overtrack.util import textops, arrayops
 from overtrack.valorant.collect.valorant_game.invalid_game import InvalidGame
 from overtrack.valorant.data import AgentName, GameModeName, game_modes, agents
-from overtrack.valorant.game.postgame import PlayerStats as PlayerStatsFrame
-from overtrack.valorant.game.top_hud.models import TeamComp
+from overtrack_cv_private.games.valorant.processors.postgame.models import PlayerStats as PlayerStatsFrame
+from overtrack_cv_private.games.valorant.processors.top_hud.models import TeamComp
 
 if TYPE_CHECKING:
     from overtrack.valorant.collect.valorant_game.kills import Kill

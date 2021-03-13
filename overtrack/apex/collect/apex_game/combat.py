@@ -4,7 +4,7 @@ from typing import ClassVar, List, Optional, Tuple, Union
 from dataclasses import dataclass
 
 from overtrack.apex.collect.apex_game.squad import Squad
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack.util import round_floats, s2ts, validate_fields
 
 
@@ -41,8 +41,8 @@ class Combat:
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     def __init__(self, frames: List[Frame], placed: int, squad: Squad, debug: Union[bool, str] = False):
-        self.combat_timestamp = [f.timestamp - frames[0].timestamp for f in frames if 'combat_log' in f]
-        self.combat_data = [f.combat_log for f in frames if 'combat_log' in f]
+        self.combat_timestamp = [f.timestamp - frames[0].timestamp for f in frames if f.apex.combat_log]
+        self.combat_data = [f.apex.combat_log for f in frames if f.apex.combat_log]
         self.logger.info(f'Resolving combat from {len(self.combat_data)} combat frames')
 
         if debug is True or debug == self.__class__.__name__:
@@ -114,7 +114,7 @@ class Combat:
                 seen_events.append((ts, event))
 
         if placed == 1 and squad.player.stats and squad.player.stats.kills and squad.player.stats.kills > len(self.eliminations):
-            match_status_frames = [f for f in frames if 'match_status' in f]
+            match_status_frames = [f for f in frames if f.apex.match_status]
             if len(match_status_frames):
                 last_timestamp = [f.timestamp - frames[0].timestamp for f in match_status_frames][-1]
                 self.logger.warning(

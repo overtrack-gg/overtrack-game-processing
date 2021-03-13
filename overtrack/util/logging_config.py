@@ -342,7 +342,7 @@ def finish_logging() -> None:
 def patch_sentry_locals_capture() -> None:
     from sentry_sdk.serializer import add_global_repr_processor, Serializer
     from sentry_sdk.utils import safe_repr
-    from overtrack.frame import Frame
+    from overtrack_cv.frame import Frame
 
     ser = Serializer()
 

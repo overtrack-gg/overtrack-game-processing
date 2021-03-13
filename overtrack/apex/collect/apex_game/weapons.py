@@ -6,9 +6,9 @@ from typing import ClassVar, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from dataclasses import dataclass
 
-from overtrack.apex import data
+from overtrack_cv.games.apex import data
 from overtrack.apex.collect.apex_game.combat import Combat
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack.util import arrayops, s2ts, textops, validate_fields, round_floats
 
 
@@ -57,8 +57,8 @@ class Weapons:
     WEAPON_COLOUR_MATCH_THRESHOLD = 30
 
     def __init__(self, frames: List[Frame], combat: Combat, debug: Union[bool, str] = False):
-        self.weapon_timestamp = [round(f.timestamp - frames[0].timestamp, 2) for f in frames if 'weapons' in f]
-        self.weapon_data = [f.weapons for f in frames if 'weapons' in f]
+        self.weapon_timestamp = [round(f.timestamp - frames[0].timestamp, 2) for f in frames if f.apex.weapons]
+        self.weapon_data = [f.apex.weapons for f in frames if f.apex.weapons]
         self.logger.info(f'Resolving weapons from {len(self.weapon_data)} weapon frames')
 
         weapon1 = self._get_weapon_map(0)

@@ -1,17 +1,20 @@
 import string
 
+from overtrack_cv.core import textops
+from overtrack_cv_private.games.valorant.processors.killfeed.models import *
+
 import cv2
 import logging
 import numpy as np
 import os
 from typing import Optional, NamedTuple, Tuple, Dict
 
-from overtrack.frame import Frame
+from overtrack_cv.frame import Frame
 from overtrack.processor import Processor
-from overtrack.util import time_processing, imageops, textops
+from overtrack_cv.util import imageops
 from overtrack.util.region_extraction import ExtractionRegionsCollection
 from overtrack.valorant.data import agents, AgentName
-from overtrack.valorant.game.killfeed.models import Kill, KillfeedPlayer, Killfeed
+# from overtrack.valorant.game.killfeed.models import Kill, KillfeedPlayer, Killfeed
 
 logger = logging.getLogger('KillfeedProcessor')
 
@@ -150,7 +153,7 @@ class KillfeedProcessor(Processor):
     HEADSHOT_TEMPLATE = imageops.imread(os.path.join(os.path.dirname(__file__), 'data', 'kill_modifiers', 'headshot.png'), 0)
     KILL_MODIFIER_THRESHOLD = 0.75
 
-    @time_processing
+    # @time_processing
     def process(self, frame: Frame) -> bool:
         x, y, w, h = self.REGIONS['killfeed'].regions[0]
         region = self.REGIONS['killfeed'].extract_one(frame.image)
@@ -363,8 +366,11 @@ class KillfeedProcessor(Processor):
             match = cv2.matchTemplate(agent_im, t[0], cv2.TM_SQDIFF, mask=t[1])
             agent_matches[a] = match
             agent_match_m.append(match)
+            print(a, np.min(match) / 33.6, np.max(match))
         agent_match_m = np.min(np.stack(agent_match_m, axis=-1), axis=2)
         mnv, mxv, mnl, mxl = cv2.minMaxLoc(agent_match_m)
+
+        print(list(zip(self.AGENT_DEATH_TEMPLATES.keys(), agent_match_m)))
 
         agent, agent_match = None, float('inf')
         for a, m in agent_matches.items():

@@ -8,6 +8,7 @@ import logging
 from collections import Counter
 
 import requests
+
 from overtrack.source.twitch_source import TwitchSource
 from overtrack.valorant.collect.valorant_game.performance_stats import PerformanceStats
 from typing import List, ClassVar, Tuple, Union, Optional, Dict, Any, cast
@@ -15,16 +16,17 @@ from typing import List, ClassVar, Tuple, Union, Optional, Dict, Any, cast
 import shortuuid
 from dataclasses import dataclass, fields
 
-from overtrack.frame import Frame, ValorantData
+from overtrack_cv.frame import Frame
 from overtrack.util import textops
 from overtrack.util.prettyprint import DataclassPrettyPrinter
 from overtrack.valorant import data
 from overtrack.valorant.collect.valorant_game.invalid_game import InvalidGame
-from overtrack.valorant.collect.valorant_game.kills import Kills, Kill
+from overtrack.valorant.collect.valorant_game.kills import Kill
 from overtrack.valorant.collect.valorant_game.rounds import Rounds
 from overtrack.valorant.collect.valorant_game.teams import Teams, Player, Ult
 from overtrack.valorant.collect.valorant_game.clips import Clip, make_clips
 from overtrack.valorant.data import MapName, GameModeName, game_modes
+from overtrack_cv_private.games.valorant.valorant_frame_data import ValorantFrameData
 from overtrack_models.dataclasses.typedload import referenced_typedload, typedload
 
 VERSION = '1.2.0'
@@ -101,7 +103,7 @@ class ValorantGame:
 
         framemakeup = Counter()
         for frame in frames:
-            for f in fields(ValorantData):
+            for f in fields(ValorantFrameData):
                 if getattr(frame.valorant, f.name):
                     framemakeup[f.name] += 1
         self.logger.info(f'Frame data seen: {framemakeup}')
