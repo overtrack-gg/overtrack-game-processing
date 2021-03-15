@@ -183,7 +183,7 @@ class Route:
             y = np.array([l[1][1] for l in self.locations])
             ts = np.array([l[0] for l in self.locations])
 
-            self.map = 'kings_canyon.s6'
+            self.map = 'kings_canyon.s8'
             map_location_names = data.kings_canyon_locations
 
             if len(ts) < 3:
