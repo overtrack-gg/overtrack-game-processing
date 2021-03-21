@@ -177,22 +177,6 @@ class ApexGame:
                 self.logger.info(f'Got player name from config: {config_name!r}')
 
         treat_unknown_champion_as = None
-        if self.client_version:
-            try:
-                client_date = datetime.datetime.strptime(self.client_version.replace('-beta', ''), "%Y-%m-%d-%H-%M-%S").timestamp()
-            except:
-                treat_unknown_champion_as = 'rampart'
-                self.logger.info(
-                    f'Got game from client version {self.client_version} with unknown release date - '
-                    f'using {treat_unknown_champion_as!r} for unknown champions'
-                )
-            else:
-                if self.season == 6 and client_date < data.seasons[6].start:
-                    treat_unknown_champion_as = 'rampart'
-                    self.logger.info(
-                        f'Got game from client version {self.client_version} released before season {self.season} start - '
-                        f'using {treat_unknown_champion_as!r} for unknown champions'
-                    )
 
         self.squad = Squad(
             self.all_frames,
@@ -218,7 +202,7 @@ class ApexGame:
             debug=debug
         )
         self.route: Route = Route(
-            self.frames,
+            frames,
             self.weapons,
             self.combat,
             season=self.season,

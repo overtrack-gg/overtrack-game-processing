@@ -1,5 +1,5 @@
 import bisect
-from collections import deque
+from collections import deque, Counter
 
 import cv2
 import logging
@@ -49,6 +49,28 @@ class Route:
         self.season = season
         self.version = self.VERSION
 
+        maps_seen_c = Counter([f.apex.map_loading.map for f in frames if f.apex.map_loading]).most_common()
+        self.logger.info(f'Seen maps: {maps_seen_c}')
+        if len(maps_seen_c):
+            map_name = maps_seen_c[0][0]
+            if map_name == "King's Canyon":
+                self.map = 'kings_canyon.s8'
+                map_location_names = data.kings_canyon_locations
+            elif map_name == "Olympus":
+                self.map = 'olympus.s8'
+                map_location_names = None
+            elif map_name == "World's Edge":
+                self.map = 'worlds_edge.s8'
+                map_location_names = data.worlds_edge_locations
+            else:
+                raise ValueError(f"Could not recognise map {map_name}")
+            self.logger.info(f'Found map={map_name} -> {self.map}')
+        else:
+            self.logger.warning("Did not see any map_loading frames - using map = kings canyon")
+            map_name = 'kings_canyon'
+            self.map = 'kings_canyon.s8'
+            map_location_names = data.kings_canyon_locations
+
         alive = np.array([
             bool(f.apex.squad or f.apex.match_status) for f in frames
         ])
@@ -71,7 +93,8 @@ class Route:
             plt.scatter(np.linspace(0, 10 * alive_at.shape[0], alive_at.shape[0]), alive_at)
             plt.show()
 
-        coordframes = [f for f in frames if f.apex.coordinates]
+        champion_i = np.max(np.where([f.apex.champion_squad is not None for f in frames])[0])
+        coordframes = [f for f in frames[champion_i:] if f.apex.coordinates]
         x = np.array([f.apex.coordinates.x for f in coordframes])
         y = np.array([f.apex.coordinates.y for f in coordframes])
         t = np.round(np.array([f.timestamp for f in coordframes]) - frames[0].timestamp, 2)
@@ -79,39 +102,44 @@ class Route:
         # from overtrack_cv.util import debugops
         # import cv2
         #
-        # def draw_route(img, scale_0_500_103, xoff_0_100_62, yoff_0_100_76):
+        # def draw_route(img, scale_0_500_103, xoff_0_1000_500, yoff_0_1000_500):
         #     image = img.copy()
         #
         #     scale = scale_0_500_103 / 10 + 50
-        #     xoff = xoff_0_100_62 + 500
-        #     yoff = yoff_0_100_76 + 600
+        #     xoff = xoff_0_1000_500
+        #     yoff = yoff_0_1000_500 + 500
         #     print(scale, xoff, yoff)
         #
-        #     xs = (x / scale + xoff).astype(np.int)
-        #     ys = (-y / scale + yoff).astype(np.int)
+        #     xs = (x / scale + xoff).astype(np.int) * 2
+        #     ys = (-y / scale + yoff).astype(np.int) * 2
         #     for i in range(len(xs) - 1):
+        #         lerp = int((i / len(xs)) * 255)
         #         cv2.line(
         #             image,
         #             (xs[i], ys[i]),
         #             (xs[i+1], ys[i+1]),
-        #             (255, 0, 255),
-        #             1,
+        #             (lerp, 0, 255),
+        #             2,
+        #             cv2.LINE_AA
         #         )
         #     return image
         #
-        # image = cv2.imread(r"C:\Users\simon\overtrack_2\overtrack-cv\overtrack_cv\games\apex\processors\minimap\data\9.png")[
-        #     :,
-        #     data.worlds_edge_locations.width:
-        # ]
+        # image = cv2.imread(f"C:/Users/simon/overtrack_2/overtrack-web-2/overtrack_web/static/images/apex/{self.map}.jpg")
         # debugops.sliders(
         #     image,
-        #     scale=1,
+        #     scale=0.6,
         #     draw_route=draw_route
         # )
 
         SCALE = 60.3
-        XOFFSET = 562
-        YOFFSET = 676
+        if self.map.split('.')[0] == 'kings_canyon':
+            XOFFSET = 562
+            YOFFSET = 676
+        elif self.map.split('.')[0] == 'olympus':
+            XOFFSET = 864
+            YOFFSET = 793
+        else:
+            raise ValueError(f'Don\'t know how to transform map coordinates for {map_name}')
         x = (x / SCALE + XOFFSET).astype(np.int)
         y = (-y / SCALE + YOFFSET).astype(np.int)
 
@@ -155,12 +183,13 @@ class Route:
             ax.scatter(x, y, t, c='green', marker='o')
             # plt.show()
 
-            # image = cv2.imread("C:/Users/simon/overtrack_2/overtrack-web-2/overtrack_web/static/images/apex/kings_canyon.s6.jpg")
+            image = cv2.imread("C:/Users/simon/overtrack_2/overtrack-web-2/overtrack_web/static/images/apex/olympus.s8.jpg")
+            image = cv2.resize(image, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
             # image = cv2.imread("C:/tmp/kingscanyon.png")
-            image = cv2.imread(r"C:\Users\simon\overtrack_2\overtrack-cv\overtrack_cv\games\apex\processors\minimap\data\9.png")[
-                    :,
-                    data.worlds_edge_locations.width:
-                    ]
+            # image = cv2.imread(r"C:\Users\simon\overtrack_2\overtrack-cv\overtrack_cv\games\apex\processors\minimap\data\9.png")[
+            #         :,
+            #         data.worlds_edge_locations.width:
+            # ]
 
             for i in range(len(self.locations) - 1):
                 cv2.line(
@@ -182,9 +211,6 @@ class Route:
             x = np.array([l[1][0] for l in self.locations])
             y = np.array([l[1][1] for l in self.locations])
             ts = np.array([l[0] for l in self.locations])
-
-            self.map = 'kings_canyon.s8'
-            map_location_names = data.kings_canyon_locations
 
             if len(ts) < 3:
                 self.logger.warning(f'Only got {len(ts)} locations - assuming drop location = last location seen')
@@ -209,13 +235,19 @@ class Route:
                 axis=0
             )
             self.landed_location = Coordinates(int(mean_location[0]), int(mean_location[1]))
-            self.landed_name = map_location_names[self.landed_location]
+            if map_location_names:
+                self.landed_name = map_location_names[self.landed_location]
+            else:
+                self.landed_name = ''
 
-            self._process_locations_visited(map_location_names)
+            if map_location_names:
+                self._process_locations_visited(map_location_names)
+            else:
+                self.locations_visited = []
 
         for event in combat.events:
             event.location = self.get_location_at(event.timestamp)
-            lname = map_location_names[event.location] if event.location else "???"
+            lname = map_location_names[event.location] if map_location_names and event.location else ""
             self.logger.info(f'Found location={lname} for {event}')
 
         # if debug is True or debug == self.__class__.__name__:
