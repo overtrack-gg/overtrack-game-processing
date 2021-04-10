@@ -203,6 +203,7 @@ class ApexGame:
         )
         self.route: Route = Route(
             frames,
+            your_squad_first_index,
             self.weapons,
             self.combat,
             season=self.season,

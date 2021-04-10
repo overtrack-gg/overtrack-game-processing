@@ -45,7 +45,7 @@ class Route:
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
     VERSION: ClassVar[int] = 1
 
-    def __init__(self, frames: List[Frame], weapons: Weapons, combat: Combat, season: int, debug: Union[bool, str] = False):
+    def __init__(self, frames: List[Frame], your_squad_first_index: int, weapons: Weapons, combat: Combat, season: int, debug: Union[bool, str] = False):
         self.season = season
         self.version = self.VERSION
 
@@ -71,33 +71,34 @@ class Route:
             self.map = 'kings_canyon.s8'
             map_location_names = data.kings_canyon_locations
 
+        game_frames = frames[your_squad_first_index:]
         alive = np.array([
-            bool(f.apex.squad or f.apex.match_status) for f in frames
+            bool(f.apex.squad or f.apex.match_status) for f in game_frames
         ])
         alive = np.convolve(alive, np.ones(10, ), mode='valid')
-        alive_at = np.zeros(int((frames[-1].timestamp - frames[0].timestamp) / 10) + 5, dtype=np.bool)
+        alive_at = np.zeros(int((game_frames[-1].timestamp - game_frames[0].timestamp) / 10) + 5, dtype=np.bool)
         alive_at[:20] = True
         alive_at[-20:] = True
-        for f, a in zip(frames, alive):
-            alive_at[int((f.timestamp - frames[0].timestamp) / 10)] |= (a > 2)
+        for f, a in zip(game_frames, alive):
+            alive_at[int((f.timestamp - game_frames[0].timestamp) / 10)] |= (a > 2)
 
         if debug is True or debug == 'Alive':
             import matplotlib.pyplot as plt
 
             plt.figure()
             plt.title('alive')
-            plt.plot([f.timestamp for f in frames[:-9]], alive)
+            plt.plot([f.timestamp for f in game_frames[:-9]], alive)
 
             plt.figure()
             plt.title('alive at')
             plt.scatter(np.linspace(0, 10 * alive_at.shape[0], alive_at.shape[0]), alive_at)
             plt.show()
 
-        champion_i = np.max(np.where([f.apex.champion_squad is not None for f in frames])[0])
-        coordframes = [f for f in frames[champion_i:] if f.apex.coordinates]
+        champion_i = np.max(np.where([f.apex.champion_squad is not None for f in game_frames])[0])
+        coordframes = [f for f in game_frames[champion_i:] if f.apex.coordinates]
         x = np.array([f.apex.coordinates.x for f in coordframes])
         y = np.array([f.apex.coordinates.y for f in coordframes])
-        t = np.round(np.array([f.timestamp for f in coordframes]) - frames[0].timestamp, 2)
+        t = np.round(np.array([f.timestamp for f in coordframes]) - game_frames[0].timestamp, 2)
 
         # from overtrack_cv.util import debugops
         # import cv2
@@ -144,7 +145,7 @@ class Route:
         y = (-y / SCALE + YOFFSET).astype(np.int)
 
         self.locations = []
-        recent = deque(maxlen=10)
+        recent = deque(maxlen=5)
 
         ignored = 0
         final_game_time = None
@@ -155,8 +156,8 @@ class Route:
 
             coordinates = Coordinates(int(x[i]), int(y[i]))
 
-            rts = round(frame.timestamp - frames[0].timestamp, 2)
-            thresh_dist = 200
+            rts = round(frame.timestamp - game_frames[0].timestamp, 2)
+            thresh_dist = 20
             if len(recent):
                 last = np.mean(recent, axis=0)
                 dist = np.sqrt(np.sum((np.array(last) - np.array(coordinates)) ** 2))
