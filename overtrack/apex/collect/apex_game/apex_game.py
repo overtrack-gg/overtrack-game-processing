@@ -177,6 +177,22 @@ class ApexGame:
                 self.logger.info(f'Got player name from config: {config_name!r}')
 
         treat_unknown_champion_as = None
+        # if self.client_version:
+        #     try:
+        #         client_date = datetime.datetime.strptime(self.client_version.replace('-beta', ''), "%Y-%m-%d-%H-%M-%S").timestamp()
+        #     except:
+        #         treat_unknown_champion_as = 'rampart'
+        #         self.logger.info(
+        #             f'Got game from client version {self.client_version} with unknown release date - '
+        #             f'using {treat_unknown_champion_as!r} for unknown champions'
+        #         )
+        #     else:
+        #         if self.season == 6 and client_date < data.seasons[6].start:
+        #             treat_unknown_champion_as = 'rampart'
+        #             self.logger.info(
+        #                 f'Got game from client version {self.client_version} released before season {self.season} start - '
+        #                 f'using {treat_unknown_champion_as!r} for unknown champions'
+        #             )
 
         self.squad = Squad(
             self.all_frames,
@@ -502,7 +518,7 @@ def main() -> None:
 
     config_logger('apex_game', logging.INFO, False)
 
-    with open("C:/Users/simon/overtrack_2/client/build_client/games/1615591285.frames.json") as f:
+    with open("C:/tmp/21-00-46-S3awSwnjtmjsrNzh79ctCE.frames.json") as f:
         data = json.load(f)
 
     t0 = time.perf_counter()
@@ -516,7 +532,7 @@ def main() -> None:
     # frames_ = __referenced_typedload.load(data, List[Frame])
     # print(f'Loaded {len(frames_)} in {time.perf_counter() - t0}s')
 
-    game = ApexGame(frames)#, debug='Route')
+    game = ApexGame(frames, debug='Route')
     pprint(game)
 
     # data = game.asdict()

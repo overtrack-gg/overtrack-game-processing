@@ -58,7 +58,7 @@ class Route:
                 map_location_names = data.kings_canyon_locations
             elif map_name == "Olympus":
                 self.map = 'olympus.s8'
-                map_location_names = None
+                map_location_names = data.olympus_locations
             elif map_name == "World's Edge":
                 self.map = 'worlds_edge.s8'
                 map_location_names = data.worlds_edge_locations
@@ -131,6 +131,7 @@ class Route:
         #     scale=0.6,
         #     draw_route=draw_route
         # )
+
 
         SCALE = 60.3
         if self.map.split('.')[0] == 'kings_canyon':
@@ -245,6 +246,24 @@ class Route:
                 self._process_locations_visited(map_location_names)
             else:
                 self.locations_visited = []
+
+        if debug == self.__class__.__name__:
+            map_location_names._ensure_loaded()
+            map_image = map_location_names.image.copy()
+            for i in range(len(x) - 1):
+                lerp = int((i / len(x)) * 255)
+                cv2.line(
+                    map_image,
+                    (int(x[i]), int(y[i])),
+                    (int(x[i+1]), int(y[i+1])),
+                    (lerp, 0, 255),
+                    2,
+                    cv2.LINE_AA
+                )
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.imshow(cv2.cvtColor(map_image, cv2.COLOR_BGR2RGB))
+            plt.show()
 
         for event in combat.events:
             event.location = self.get_location_at(event.timestamp)
