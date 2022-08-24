@@ -30,29 +30,40 @@ class Weapons:
     logger: ClassVar[logging.Logger] = logging.getLogger(__qualname__)
 
     WEAPON_COLOURS_SELECTED = {
+        #COLOR FORMAT: BGR
+        # TODO Only use for ammo type!
+        
         # Light
-        (45, 84, 125): (True, 'Light'),
+        (54, 84, 125): (True, 'Light'),
         (28, 42, 60): (False, 'Light'),
-
+        
         # Heavy
         (89, 107, 56): (True, 'Heavy'),
-        (42, 51, 34): (False, 'Heavy'),
-
+        (45, 52, 33): (False, 'Heavy'),
+        
         # Energy
         (40, 110, 90): (True, 'Energy'),
         (29, 55, 46): (False, 'Energy'),
-
+        
         # Shotgun
-        (7, 32, 107): (True, 'Shotgun'),
+        (7, 32, 197): (True, 'Shotgun'),
         (10, 17, 48): (False, 'Shotgun'),
-
+        
         # Sniper
-        (126, 42, 53): (True, 'Shotgun'),
-        (57, 20, 24): (False, 'Shotgun'),
-
-        # Special
-        (17, 149, 178): (True, 'Special'),
-        (39, 78, 90): (False, 'Special'),
+        (75, 64, 143): (True, 'Sniper'),
+        (36, 31, 67): (False, 'Sniper'),
+        
+        # Arrows
+        (47, 124, 142): (True, 'Arrows'),
+        (36, 63, 71): (False, 'Arrows'),
+        
+        # Special (Carepackage)
+        (55, 1, 178): (True, 'Special'),
+        (31, 18, 84): (False, 'Special'),
+        
+        # Ability (Rampart)
+        (161, 60, 161): (True, 'Ability'),
+        (255, 255, 255): (False, 'Ability'), # TODO Impossible scenario!
     }
     WEAPON_COLOUR_MATCH_THRESHOLD = 30
 
